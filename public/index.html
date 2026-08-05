@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a1810">
+<meta name="description" content="Pizzuno - an online pizza-themed card game for 2 to 8 players.">
+<title>Pizzuno</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>&#127829;</text></svg>">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="conn-banner" id="conn-banner" role="status" aria-live="polite">
+  <span class="conn-banner__dot"></span>
+  <span id="conn-banner-text">Connecting to the kitchen…</span>
+</div>
+
+<main id="app">
+
+  <!-- ============================ HOME ============================ -->
+  <section class="screen screen--home is-active" data-screen="home" aria-label="Start">
+    <div class="panel panel--home">
+      <div class="logo">
+        <span class="logo__pie" aria-hidden="true">🍕</span>
+        <h1 class="logo__word" aria-label="Pizzuno"><span aria-hidden="true">P</span><span
+          aria-hidden="true">I</span><span aria-hidden="true">Z</span><span
+          aria-hidden="true">Z</span><span aria-hidden="true">U</span><span
+          aria-hidden="true">N</span><span aria-hidden="true">O</span></h1>
+        <span class="logo__stamp" aria-hidden="true">extra<br>cheesy</span>
+      </div>
+      <p class="tagline">Match the topping. Empty your box. Shout&nbsp;PIZZUNO before anyone catches you.</p>
+
+      <form id="form-create" class="stack" autocomplete="off">
+        <label class="field">
+          <span class="field__label">Your name</span>
+          <input class="input" id="input-name" name="name" maxlength="16" placeholder="Mario"
+                 autocomplete="off" spellcheck="false" required>
+        </label>
+        <button class="btn btn--primary btn--block" id="btn-create" type="submit">
+          <span aria-hidden="true">🔥</span> Fire up a new table
+        </button>
+      </form>
+
+      <div class="divider"><span>or squeeze in somewhere</span></div>
+
+      <form id="form-join" class="join-row" autocomplete="off">
+        <input class="input input--code" id="input-code" name="code" maxlength="12"
+               placeholder="PIZZA-4821" autocomplete="off" spellcheck="false"
+               aria-label="Table code">
+        <button class="btn btn--ghost" id="btn-join" type="submit">Sit down</button>
+      </form>
+
+      <p class="hint">2 to 8 players. Nobody around? Hire a chef bot in the lobby.</p>
+    </div>
+  </section>
+
+  <!-- ============================ LOBBY ============================ -->
+  <section class="screen screen--lobby" data-screen="lobby" aria-label="Lobby" hidden>
+    <div class="panel panel--lobby">
+      <header class="lobby-head">
+        <p class="eyebrow">Table code</p>
+        <button class="code-chip" id="btn-copy-code" type="button">
+          <span id="lobby-code">PIZZA-0000</span>
+          <span class="code-chip__icon" aria-hidden="true">⧉</span>
+          <span class="code-chip__done" aria-hidden="true">Copied</span>
+        </button>
+        <p class="hint">Tap the code to copy it, then send it round so your friends can sit down.</p>
+      </header>
+
+      <ul class="seat-list" id="seat-list"></ul>
+
+      <p class="lobby-note" id="lobby-note"></p>
+
+      <div class="lobby-actions">
+        <button class="btn btn--ghost" id="btn-add-bot" type="button">
+          <span aria-hidden="true">👨‍🍳</span> Hire a chef bot
+        </button>
+        <button class="btn btn--primary" id="btn-start" type="button">
+          <span aria-hidden="true">🔥</span> Bake it!
+        </button>
+      </div>
+
+      <button class="btn btn--quiet btn--block" id="btn-leave-lobby" type="button">Leave the parlour</button>
+    </div>
+  </section>
+
+  <!-- ============================ GAME ============================ -->
+  <section class="screen screen--game" data-screen="game" aria-label="Game table" hidden>
+
+    <header class="hud">
+      <button class="hud__code code-chip code-chip--sm" id="hud-code" type="button">
+        <span id="hud-code-text">PIZZA-0000</span>
+        <span class="code-chip__icon" aria-hidden="true">⧉</span>
+        <span class="code-chip__done" aria-hidden="true">Copied</span>
+      </button>
+
+      <p class="hud__turn" id="turn-banner" role="status" aria-live="polite">
+        <span class="turn-dot" aria-hidden="true"></span>
+        <span class="turn-label" id="turn-text">Waiting…</span>
+      </p>
+
+      <p class="hud__dir" id="dir-indicator">
+        <span class="dir-arrow" id="dir-arrow" aria-hidden="true">↻</span>
+        <span id="dir-text">to the left</span>
+      </p>
+
+      <button class="btn btn--quiet btn--sm" id="btn-leave-game" type="button">Leave</button>
+    </header>
+
+    <div class="table">
+      <div class="opponents" id="opponents"></div>
+
+      <div class="table-center">
+        <button class="pile pile--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
+          <span class="pile__label">Dough pile</span>
+          <span class="pile__slot" id="draw-slot"></span>
+          <span class="pile__count" id="draw-count">0</span>
+        </button>
+
+        <div class="pile pile--discard">
+          <span class="pile__label">The oven</span>
+          <span class="pile__slot" id="discard-slot"></span>
+          <span class="topping-now" id="topping-now">
+            <i class="topping-now__emoji" aria-hidden="true">🍕</i>
+            <b class="topping-now__name">Pepperoni</b>
+          </span>
+        </div>
+      </div>
+
+      <aside class="log" id="log">
+        <h2 class="log__title">Kitchen chatter</h2>
+        <ol class="log__list" id="log-list" aria-live="polite"></ol>
+      </aside>
+    </div>
+
+    <footer class="hand-zone">
+      <div class="hand-bar">
+        <button class="btn btn--pizzuno" id="btn-pizzuno" type="button">
+          <span aria-hidden="true">🍕</span> PIZZUNO!
+        </button>
+        <button class="btn btn--callout" id="btn-callout" type="button">
+          <span aria-hidden="true">☝️</span> <span id="btn-callout-text">Call out</span>
+        </button>
+        <button class="btn btn--ghost btn--sm" id="btn-pass" type="button">Keep it &amp; pass</button>
+        <span class="hand-bar__hint" id="hand-hint"></span>
+      </div>
+
+      <div class="hand" id="hand" role="group" aria-label="Your hand"></div>
+    </footer>
+
+    <!-- popovers ------------------------------------------------- -->
+    <div class="popover" id="picker" role="dialog" aria-modal="false" aria-label="Choose a topping">
+      <p class="popover__title" id="picker-title">Chef's choice — pick a topping</p>
+      <div class="popover__grid" id="picker-grid"></div>
+      <button class="btn btn--quiet btn--sm btn--block" id="picker-cancel" type="button">Cancel</button>
+    </div>
+
+    <div class="popover popover--list" id="callout-pop" role="dialog" aria-modal="false" aria-label="Call out a player">
+      <p class="popover__title">Who forgot to shout?</p>
+      <div class="popover__rows" id="callout-rows"></div>
+      <button class="btn btn--quiet btn--sm btn--block" id="callout-cancel" type="button">Cancel</button>
+    </div>
+
+    <div class="fly-layer" id="fly-layer" aria-hidden="true"></div>
+  </section>
+
+</main>
+
+<!-- ============================ ROUND OVER ============================ -->
+<div class="overlay" id="overlay-round" role="dialog" aria-modal="true" aria-labelledby="round-title">
+  <div class="dialog">
+    <div class="dialog__crown" id="round-emoji" aria-hidden="true">🏆</div>
+    <h2 class="dialog__title" id="round-title">Round over</h2>
+    <p class="dialog__sub" id="round-sub"></p>
+    <ol class="scoreboard" id="scoreboard"></ol>
+    <div class="dialog__actions">
+      <button class="btn btn--primary" id="btn-next-round" type="button">
+        <span aria-hidden="true">🍕</span> Another pie!
+      </button>
+      <button class="btn btn--ghost" id="btn-to-lobby" type="button">Back to the parlour</button>
+    </div>
+    <p class="hint" id="round-wait"></p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

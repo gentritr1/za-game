@@ -1,0 +1,21 @@
+PIZZUNO — READ THIS FIRST
+=========================
+
+Gmail does not allow JavaScript files in attachments. Because of that, every
+".js" file in this archive was renamed to ".js.txt". Restore the names before
+you run the game.
+
+Mac / Linux — open a terminal in this folder and run:
+
+    sh restore.sh
+
+Windows — open PowerShell in this folder and paste:
+
+    Get-ChildItem -Recurse -Filter *.js.txt | Rename-Item -NewName { $_.Name -replace '\.txt$','' }
+
+Then, with Node.js 18 or newer installed:
+
+    npm install
+    npm start
+
+Open http://localhost:3000 and play. See README.md for the rules.
