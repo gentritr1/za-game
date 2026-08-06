@@ -772,14 +772,18 @@ function renderRoundOver(snapshot, staged) {
   const winner = view.players.find((p) => p.id === view.winnerId);
   const youWon = winner && winner.id === snapshot.youId;
 
-  const crownArt = document.createElement('img');
-  crownArt.className = 'dialog__crown-art';
-  crownArt.src = winner ? 'assets/art-trophy.png' : 'assets/za-badge.png';
-  crownArt.alt = '';
-  crownArt.width = 96;
-  crownArt.height = 96;
-  crownArt.draggable = false;
-  el.roundEmoji.replaceChildren(crownArt);
+  if (winner) {
+    const crownArt = document.createElement('img');
+    crownArt.className = 'dialog__crown-art';
+    crownArt.src = 'assets/sprites/trophy.png';
+    crownArt.alt = '';
+    crownArt.width = 96;
+    crownArt.height = 96;
+    crownArt.draggable = false;
+    el.roundEmoji.replaceChildren(crownArt);
+  } else {
+    el.roundEmoji.replaceChildren();
+  }
   el.roundTitle.textContent = youWon
     ? 'Empty box. Full glory.'
     : winner ? `${winner.name} cleaned their plate` : 'Kitchen closed';

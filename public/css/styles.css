@@ -1656,9 +1656,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: grid;
   place-items: center;
   padding: var(--s4);
-  background: rgba(23, 12, 7, .62);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* The round-over mock's backdrop: the big slow checker over darkness. */
+  background:
+    repeating-conic-gradient(rgba(16, 20, 38, .55) 0 25%, rgba(13, 15, 26, .55) 0 50%) 0 0 / 40px 40px,
+    rgba(8, 10, 18, .78);
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--d-exit) var(--ease-out), visibility var(--d-exit) linear;
@@ -1686,45 +1687,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transition: transform var(--d-exit) var(--ease-out);
 }
 
-/* A checkered tablecloth ribbon runs along the top edge, like the border of a
-   parlour menu card. */
-.dialog::before {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 0 0 auto;
-  height: 9px;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--tomato) 0 9px,
-    var(--mozzarella) 9px 18px
-  );
-  opacity: .85;
-  pointer-events: none;
-}
+/* The cheese keyline on the dialog border is the whole celebration frame;
+   the parlour's checkered ribbon does not belong in the cabinet. */
 
-.dialog > :not(.dialog__confetti) { position: relative; z-index: 1; }
-
-.dialog__confetti {
-  position: absolute;
-  z-index: 0;
-  inset: -72px;
-  width: calc(100% + 144px);
-  height: auto;
-  pointer-events: none;
-  opacity: 0;
-  transform: scale(.9) rotate(-3deg);
-}
-
-.overlay.is-open .dialog.is-win .dialog__confetti {
-  opacity: .78;
-  animation: confetti-bloom 640ms var(--ease-out) 40ms both;
-}
-
-@keyframes confetti-bloom {
-  from { opacity: 0; transform: scale(.82) rotate(-8deg); }
-  to { opacity: .78; transform: scale(1) rotate(0deg); }
-}
 
 .overlay.is-open .dialog { transform: none; transition-duration: var(--d-slow); }
 
@@ -1738,6 +1703,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: 96px;
   height: 96px;
   object-fit: contain;
+  image-rendering: pixelated;
 }
 .overlay.is-open .dialog__crown { animation: crown-pop 460ms var(--ease-out) 60ms both; }
 .overlay.is-open .dialog.is-win .dialog__crown { animation: crown-cheer 620ms var(--ease-out) 60ms both; }
