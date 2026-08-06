@@ -6,8 +6,9 @@
  */
 
 import { Connection } from './net.js';
-import { renderCard, isWild, TOPPING_META, TOPPING_ORDER } from './cards.js';
+import { renderCard, isWild, describeCard, TOPPING_META, TOPPING_ORDER } from './cards.js';
 import { icon, suitIcon } from './icons.js';
+import { sound } from './sounds.js';
 
 // ---------------------------------------------------------------- elements --
 const $ = (id) => document.getElementById(id);
@@ -97,6 +98,20 @@ const ui = {
   prevCounts: new Map(), // playerId -> cardCount
   prevStatus: null,
   prevDir: 0,
+  topChanged: false,
+  // Per-snapshot diff, read by the effects. Filled by animateTableDiff before
+  // anything else draws, so the pile and the seats see the same picture.
+  gained: new Map(), // playerId -> cards taken since the last snapshot
+  playedById: null, // whoever's hand shrank, including you
+  // Effect state. All of it is client-side and none of it is a game rule.
+  prevTopKind: null,
+  chain: 0, // consecutive +2/+4 tops, the visual ladder of README 4A
+  anchovyCount: 0, // anchovies this round, for the 6C escalation
+  callouts: new Map(), // playerId -> { node, mine }
+  calloutBeeps: [],
+  shoutArmedAt: 0, // when the shout became legal, for the timing score
+  dirJustFlipped: false,
+  btnMute: null,
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -271,6 +286,10 @@ function applySnapshot(snapshot) {
     // flown card by card off the dough pile.
     ui.dealing = true;
     el.logList.replaceChildren();
+    // The chain ladder and the crowd's patience with anchovies both reset with
+    // the round. Going quiet at the fourth anchovy is the joke; it would stop
+    // being one if it carried over.
+    resetRoundEffects();
   }
 
   el.lobbyCode.textContent = snapshot.roomCode;
@@ -291,15 +310,46 @@ function applySnapshot(snapshot) {
   if (snapshot.phase === 'roundOver') {
     // Only the first snapshot of the round-over stages the scoreboard. A later
     // one, from somebody arriving or leaving, just updates it in place.
-    renderRoundOver(snapshot, !el.overlay.classList.contains('is-open'));
+    const staged = !el.overlay.classList.contains('is-open');
+    renderRoundOver(snapshot, staged);
     openRoundOverlay();
     closePopovers();
+    if (staged) celebrate(snapshot);
   } else {
     closeRoundOverlay();
   }
 }
 
+/**
+ * I · the win celebration. The only effect in the game allowed past 300ms: the
+ * checker behind the dialog scrolls one 40px tile per frame for 1.2s while the
+ * scoreboard types itself in a row at a time, and the jingle overstays.
+ * Nothing fires without a winner — a round that ended because the table
+ * emptied gets the dialog and nothing else.
+ */
+function celebrate(snapshot) {
+  const view = snapshot.game;
+  if (!view || !view.winnerId) return;
+  el.overlay.classList.add('is-celebrating');
+  setTimeout(() => el.overlay.classList.remove('is-celebrating'), 1250);
+  sound.play('victory-jingle');
+}
+
+/** Drops every per-round effect counter and cancels anything still running. */
+function resetRoundEffects() {
+  ui.chain = 0;
+  ui.prevTopKind = null;
+  ui.anchovyCount = 0;
+  ui.shoutArmedAt = 0;
+  // A new round always runs to the left again. Without this a round that ended
+  // reversed would flash and scrub the moment the next one dealt.
+  ui.prevDir = 0;
+  setOvenStep(0);
+  for (const id of [...ui.callouts.keys()]) closeCalloutWindow(id, 'reset');
+}
+
 function resetGameView() {
+  resetRoundEffects();
   ui.handSlots.clear();
   ui.seatNodes.clear();
   ui.gameId = null;
@@ -408,6 +458,7 @@ function renderGame(snapshot) {
   renderTurnBanner(snapshot, view, yourTurn);
   renderDirection(view);
   renderOpponents(snapshot, view);
+  syncCalloutWindows(snapshot, view);
   renderPiles(view, yourTurn);
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
@@ -451,9 +502,22 @@ function renderDirection(view) {
   el.dirIndicator.classList.toggle('is-reversed', view.direction === -1);
   el.dirText.textContent = view.direction === 1 ? 'to the left' : 'to the right';
 
-  // A Flip the Pie does a full show-off spin, in the new direction of play.
-  if (ui.prevDir && ui.prevDir !== view.direction && wantsMotion() &&
-      typeof el.dirIndicator.animate === 'function') {
+  // F · Flip the Pie. The arrow does a show-off spin and then flashes cyan
+  // twice; renderOpponents picks the flag up and reorders the seats without a
+  // tween, so the panels swap rather than slide.
+  const flipped = Boolean(ui.prevDir && ui.prevDir !== view.direction);
+  ui.dirJustFlipped = flipped;
+  if (flipped) {
+    const arrow = el.dirIndicator.querySelector('.dir-arrow');
+    if (arrow) {
+      arrow.classList.remove('is-flipping');
+      void arrow.offsetWidth; // restart the flash if two flips land together
+      arrow.classList.add('is-flipping');
+      setTimeout(() => arrow.classList.remove('is-flipping'), 520);
+    }
+    sound.play('tape-scrub');
+  }
+  if (flipped && wantsMotion() && typeof el.dirIndicator.animate === 'function') {
     for (const running of el.dirIndicator.getAnimations()) running.cancel();
     el.dirIndicator.animate(
       [{ transform: 'rotate(0deg)' }, { transform: `rotate(${view.direction === -1 ? '' : '-'}360deg)` }],
@@ -463,12 +527,19 @@ function renderDirection(view) {
   ui.prevDir = view.direction;
 }
 
-/** Opponents in play order, starting from the seat after you. */
+/**
+ * Opponents in play order, starting from whoever plays after you.
+ *
+ * The order follows the direction of play, so a Flip the Pie genuinely
+ * reverses the row of chef panels — that reversal is effect F, and without it
+ * there would be nothing for the hard swap in renderOpponents to swap.
+ */
 function orderedOpponents(snapshot, view) {
   const players = view.players.filter((p) => !p.left);
   const mine = players.findIndex((p) => p.id === snapshot.youId);
   if (mine === -1) return players;
-  return [...players.slice(mine + 1), ...players.slice(0, mine)];
+  const after = [...players.slice(mine + 1), ...players.slice(0, mine)];
+  return view.direction === -1 ? after.reverse() : after;
 }
 
 function renderOpponents(snapshot, view) {
@@ -492,6 +563,20 @@ function renderOpponents(snapshot, view) {
       node.remove();
       ui.seatNodes.delete(id);
     }
+  }
+
+  // F · after a flip the order reverses on the spot. Suspending the seat
+  // transition for the reorder is what makes it a hard swap and not a slide.
+  const hardSwap = ui.dirJustFlipped;
+  ui.dirJustFlipped = false;
+  if (hardSwap) {
+    el.opponents.classList.add('is-hard-swap');
+    const release = () => el.opponents.classList.remove('is-hard-swap');
+    requestAnimationFrame(() => requestAnimationFrame(release));
+    // A backgrounded tab throttles rAF, and a suspended class would leave the
+    // seats without a transition for the rest of the round. The timer is the
+    // belt to that pair of braces.
+    setTimeout(release, 200);
   }
 
   // Reorder without rebuilding, so entry animations are not restarted.
@@ -630,6 +715,112 @@ function updateSeat(node, player, view) {
   }
 }
 
+// ------------------------------------------------------- C · the catch ----
+/**
+ * The call-out window, drawn from the snapshot.
+ *
+ * The server has no timer: a player is `vulnerable` from the moment they play
+ * down to one card without shouting until play comes back round to them. The
+ * three seconds in the handoff are the client's dramatisation of that window,
+ * so the bar drains in five countable steps and then simply stops. It never
+ * decides anything — the CALL OUT button stays governed by `calloutTargets`.
+ *
+ * A window closes three ways, and they are told apart in the loop below.
+ */
+function syncCalloutWindows(snapshot, view) {
+  const open = new Set();
+  if (view.status === 'playing') {
+    for (const player of view.players) {
+      if (!player.left && player.vulnerable && player.cardCount === 1) open.add(player.id);
+    }
+  }
+
+  for (const id of open) {
+    if (!ui.callouts.has(id)) openCalloutWindow(id, id === snapshot.youId);
+  }
+  for (const id of [...ui.callouts.keys()]) {
+    if (open.has(id)) continue;
+    const took = ui.gained.get(id) || 0;
+    // Three ways out: somebody called it (cards, pile untouched), a penalty
+    // card landed on them and closed it as a side effect (cards, new top), or
+    // they got away with it (no cards at all).
+    const how = took > 0 ? (ui.topChanged ? 'moot' : 'caught') : 'clean';
+    closeCalloutWindow(id, how);
+  }
+}
+
+function openCalloutWindow(playerId, isMine) {
+  const entry = { node: null, mine: isMine };
+  ui.callouts.set(playerId, entry);
+
+  const drain = document.createElement('span');
+  drain.className = 'callout-drain';
+  drain.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  fill.className = 'callout-drain__fill';
+  drain.append(fill);
+
+  if (isMine) {
+    // You have no chef panel of your own, so your window lives on the rail
+    // above the hand, where the ZA! button that closes it already is.
+    const box = document.createElement('div');
+    box.className = 'callout-self';
+    const label = document.createElement('span');
+    label.className = 'callout-self__label';
+    label.textContent = 'Shout ZA! — they can call you out';
+    box.append(label, drain);
+    el.handZone.append(box);
+    entry.node = box;
+  } else {
+    const seat = ui.seatNodes.get(playerId);
+    if (!seat) return;
+    seat.classList.add('is-callout');
+    seat.append(drain);
+    entry.node = drain;
+  }
+
+  // One rising beep per drained step, and only ever for one window at a time:
+  // two seats caught out together would otherwise double every beep.
+  if (ui.callouts.size === 1) {
+    for (let i = 0; i < 5; i++) {
+      ui.calloutBeeps.push(setTimeout(() => sound.play('timer-beep', i + 1), i * 600));
+    }
+  }
+}
+
+function closeCalloutWindow(playerId, how) {
+  const entry = ui.callouts.get(playerId);
+  ui.callouts.delete(playerId);
+  if (!entry) return;
+
+  const seat = ui.seatNodes.get(playerId);
+  if (seat) seat.classList.remove('is-callout');
+
+  if (ui.callouts.size === 0) {
+    for (const timer of ui.calloutBeeps) clearTimeout(timer);
+    ui.calloutBeeps = [];
+  }
+
+  if (how === 'caught') {
+    // The penalty cards flying into their hand and the log line are the visual;
+    // the buzzer is only the noise on top of it.
+    sound.play('buzzer');
+  }
+
+  if (entry.mine && entry.node) {
+    if (how === 'clean') {
+      entry.node.classList.add('is-safe');
+      entry.node.firstElementChild.textContent = 'Safe — nobody was listening';
+      sound.play('relieved-chime');
+      setTimeout(() => entry.node.remove(), 900);
+      return;
+    }
+    entry.node.remove();
+    return;
+  }
+  if (entry.node) entry.node.remove();
+}
+
 function renderPiles(view, yourTurn) {
   // draw pile
   if (!el.drawSlot.children.length) {
@@ -652,16 +843,26 @@ function renderPiles(view, yourTurn) {
     // card itself is new (not when a wild repaints the topping), and never
     // for the round's opening flip.
     const prevTopId = el.discardSlot.dataset.topId || '';
-    if (top && top.id !== prevTopId) {
-      el.discardSlot.dataset.topId = top.id;
-      if (prevTopId && wantsMotion()) {
-        if (top.kind === 'skip') puffSmoke();
-        if (top.kind === 'wild4') flashTable();
-      }
+    const isNew = Boolean(top && top.id !== prevTopId);
+    const landed = isNew && Boolean(prevTopId);
+
+    // A · the chain. A client-side ladder over what the rules already do:
+    // consecutive draw cards landing on one another. Nothing here stacks a
+    // penalty — the server still resolves every +2 and +4 on the spot.
+    if (landed) {
+      const isDraw = top.kind === 'draw2' || top.kind === 'wild4';
+      const wasDraw = ui.prevTopKind === 'draw2' || ui.prevTopKind === 'wild4';
+      ui.chain = isDraw ? (wasDraw ? ui.chain + 1 : 1) : 0;
     }
+    if (isNew) {
+      el.discardSlot.dataset.topId = top.id;
+      ui.prevTopKind = top.kind;
+    }
+
     el.discardSlot.dataset.key = topKey;
     const holder = document.createElement('span');
     holder.className = 'discard-holder';
+    if (landed && ui.chain >= 1) holder.classList.add('is-chain');
     // How the card lies in the oven, and the spin it unwinds as it settles,
     // both come from the card id. The same card always lands the same way.
     const seed = top ? hashOf(top.id) : 0;
@@ -670,6 +871,8 @@ function renderPiles(view, yourTurn) {
     if (view.currentTopping) holder.dataset.topping = view.currentTopping;
     if (top) holder.append(renderCard(top, { size: 'pile' }));
     el.discardSlot.replaceChildren(holder);
+
+    if (landed) onCardLanded(view, top);
   }
 
   // current topping badge
@@ -799,6 +1002,14 @@ function renderActionBar(snapshot, view, yourTurn) {
   const me = view.players.find((p) => p.id === snapshot.youId);
   const live = view.status === 'playing';
 
+  // B · the clock for the timing score starts the instant the shout becomes
+  // legal. That transition is the only reference point the client can see.
+  if (view.canDeclareZa) {
+    if (!ui.shoutArmedAt) ui.shoutArmedAt = Date.now();
+  } else {
+    ui.shoutArmedAt = 0;
+  }
+
   el.btnZa.disabled = !view.canDeclareZa;
   el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2));
 
@@ -879,8 +1090,9 @@ function renderRoundOver(snapshot, staged) {
     const row = document.createElement('li');
     row.className = 'score-row';
     if (seat.id === view.winnerId) row.classList.add('is-winner');
-    // The board deals itself in behind the crown.
-    if (staged && wantsMotion()) row.style.transitionDelay = `${Math.min(220 + index * 45, 420)}ms`;
+    // I · the board types itself in behind the crown, one row per 120ms, for
+    // as long as the checker behind it is scrolling.
+    if (staged && wantsMotion()) row.style.transitionDelay = `${220 + index * 120}ms`;
 
     const face = document.createElement('img');
     face.className = 'score-row__avatar';
@@ -988,6 +1200,22 @@ function animateTableDiff(snapshot, view) {
   const counts = new Map();
   for (const p of view.players) counts.set(p.id, p.cardCount);
 
+  // The same diff the effects read: who took cards, and whose hand shrank.
+  // Published before anything draws, so the pile, the seats and the call-out
+  // windows all reason about one picture of the turn.
+  ui.gained = new Map();
+  ui.playedById = null;
+  // A call-out never touches the discard pile. That is the only thing that
+  // tells a catch apart from eating an Extra Toppings: both hand exactly two
+  // cards to the same player and clear their vulnerable flag.
+  ui.topChanged = (view.topCard ? view.topCard.id : null) !== ui.prevTopId;
+  for (const p of view.players) {
+    const before = ui.prevCounts.get(p.id);
+    if (before === undefined) continue;
+    if (p.cardCount > before) ui.gained.set(p.id, p.cardCount - before);
+    else if (p.cardCount < before && !ui.playedById) ui.playedById = p.id;
+  }
+
   const ready =
     wantsMotion() &&
     ui.prevStatus === 'playing' &&
@@ -1048,15 +1276,194 @@ function puffSmoke() {
   }
 }
 
-/** The Whole Pie +4 heats the whole room for a moment: a warm edge glow. */
-function flashTable() {
+/**
+ * The Whole Pie +4 heats the whole room for a moment: a warm edge glow. The
+ * `chain` variant is the fourth-link cabinet flash from README 4A — same
+ * one-shot, cheese instead of sauce.
+ */
+function flashTable(variant) {
   const host = document.querySelector('.screen--game');
   if (!host) return;
   const flash = document.createElement('div');
-  flash.className = 'table-flash';
+  flash.className = variant ? `table-flash table-flash--${variant}` : 'table-flash';
   flash.setAttribute('aria-hidden', 'true');
   host.append(flash);
   setTimeout(() => flash.remove(), 800);
+}
+
+// ================================================================ EFFECTS ===
+/**
+ * Everything a newly landed top card sets off. It is called once per card that
+ * actually lands — never for the round's opening flip, and never when a wild
+ * only repaints the current topping.
+ *
+ * Sound is deliberately outside the reduced-motion guards: a cue is not
+ * motion. What each cue rides on is noted at the call.
+ */
+function onCardLanded(view, top) {
+  const motion = wantsMotion();
+
+  // A · one link of the chain.
+  if (ui.chain >= 1) {
+    setOvenStep(Math.min(ui.chain, 4));
+    // Rides the landing slam and the oven brightening a step.
+    sound.play('coin-blip', ui.chain);
+    if (motion) shakeFrame();
+    if (ui.chain >= 2) stampCombo(ui.chain);
+    if (ui.chain >= 4 && motion) flashTable('chain');
+    // "If nobody counters, no run — just the thud." A lone +2 resolves without
+    // one; only a real chain that landed on somebody gets the descent.
+    const gotSomebody = [...ui.gained.values()].some((n) => n > 0);
+    if (ui.chain >= 2 && gotSomebody) {
+      setTimeout(() => sound.play('descend-run'), 380);
+    }
+  } else {
+    setOvenStep(0);
+  }
+
+  // E · burnt slice. Smoke off the oven plus the greyed-out seat carry it.
+  if (top.kind === 'skip') {
+    if (motion) puffSmoke();
+    stampSkippedSeat(view);
+    sound.play('sizzle-buzz');
+  }
+
+  // The +4's own heat flash, unless the chain already lit the cabinet.
+  if (top.kind === 'wild4' && motion && ui.chain < 4) flashTable();
+
+  // 6C · the room has opinions about anchovies.
+  if (!isWild(top) && top.suit === 'anchovy') anchovyLanded(view, top);
+}
+
+/** A · the oven bloom brightens one step per link, and drops back on reset. */
+function setOvenStep(step) {
+  const centre = document.querySelector('.table-center');
+  if (centre) centre.style.setProperty('--oven-step', String(step));
+}
+
+/**
+ * A · four pixels, two frames, and out. The three rows of the game screen move
+ * together; `.fly-layer` is left alone on purpose, because it is `position:
+ * fixed` and a transform on its ancestor would re-anchor cards in flight.
+ */
+function shakeFrame() {
+  const host = document.querySelector('.screen--game');
+  if (!host) return;
+  host.classList.remove('is-shaking');
+  void host.offsetWidth; // restart the shake if two links land back to back
+  host.classList.add('is-shaking');
+  setTimeout(() => host.classList.remove('is-shaking'), 160);
+}
+
+/** A · the combo stamp, top-right of the oven, from the second link on. */
+function stampCombo(link) {
+  const pile = el.discardSlot.closest('.pile');
+  if (!pile) return;
+  const stamp = document.createElement('span');
+  stamp.className = 'combo-stamp';
+  stamp.setAttribute('aria-hidden', 'true');
+  stamp.textContent = `x${link}`;
+  pile.append(stamp);
+  requestAnimationFrame(() => stamp.classList.add('is-on'));
+  setTimeout(() => stamp.classList.remove('is-on'), 760);
+  setTimeout(() => stamp.remove(), 1000);
+}
+
+/**
+ * E · greys the skipped seat for 400ms and stamps SKIPPED over it.
+ *
+ * The server has already advanced two seats by the time this snapshot arrives,
+ * so the player who lost their turn is exactly one seat back from whoever is
+ * on now, against the current direction.
+ */
+function stampSkippedSeat(view) {
+  const players = view.players.filter((p) => !p.left);
+  const now = players.findIndex((p) => p.id === view.turnPlayerId);
+  if (now === -1 || players.length < 2) return;
+  const back = (now - view.direction + players.length * 2) % players.length;
+  const seat = ui.seatNodes.get(players[back].id);
+  // If the skipped player is you there is no chef panel to stamp. The smoke
+  // off the oven and the log line still say what happened.
+  if (!seat) return;
+
+  seat.classList.add('is-skipped');
+  const stamp = document.createElement('span');
+  stamp.className = 'seat__stamp';
+  stamp.setAttribute('aria-hidden', 'true');
+  stamp.textContent = 'SKIPPED';
+  seat.append(stamp);
+  requestAnimationFrame(() => stamp.classList.add('is-on'));
+  setTimeout(() => {
+    seat.classList.remove('is-skipped');
+    stamp.classList.remove('is-on');
+  }, 400);
+  setTimeout(() => stamp.remove(), 640);
+}
+
+/**
+ * 6C · the anchovy problem. Client-side only; the server never learns that the
+ * crowd has opinions.
+ *
+ * The escalation runs per round: one polite voice, then the whole room, then a
+ * slow clap on top, and from the fourth anchovy on — nothing at all. The
+ * silence is the joke, so a fourth anchovy gets no stamp and no sound.
+ */
+function anchovyLanded(view, top) {
+  ui.anchovyCount++;
+  const level = ui.anchovyCount;
+  if (level > 3) return;
+
+  const life = [1200, 1500, 1700][level - 1];
+  sound.play('boo', level);
+  if (level === 3) setTimeout(() => sound.play('slow-clap'), 180);
+
+  const pile = el.discardSlot.closest('.pile');
+  if (pile) {
+    const stamp = document.createElement('span');
+    stamp.className = 'anchovy-stamp';
+    stamp.setAttribute('aria-hidden', 'true');
+    stamp.textContent = level >= 2 ? 'BOOOOOOO' : 'BOOOOO';
+    pile.append(stamp);
+    // Frame 2 at 120ms: the card lands clean first, then the room reacts.
+    setTimeout(() => stamp.classList.add('is-on'), 120);
+    setTimeout(() => stamp.classList.remove('is-on'), life);
+    setTimeout(() => stamp.remove(), life + 300);
+  }
+
+  // The shove is the only part reduced motion drops; the stamp cross-fades
+  // in place either way, so the gag never depends on movement or on sound.
+  if (wantsMotion()) {
+    const host = document.querySelector('.screen--game');
+    if (host) {
+      setTimeout(() => {
+        host.classList.add('is-shoved');
+        setTimeout(() => host.classList.remove('is-shoved'), 200);
+      }, 120);
+    }
+  }
+
+  // Frame 3 at 520ms: one line in the log, and it is over.
+  setTimeout(() => logAside(anchovyLine(view, top)), 520);
+}
+
+function anchovyLine(view, top) {
+  const player = ui.playedById && view.players.find((p) => p.id === ui.playedById);
+  const who = player ? player.name : 'Somebody';
+  return `> ${who.toUpperCase()} PLAYS ${describeCard(top).toUpperCase()}. THE ROOM DISAGREES.`;
+}
+
+/**
+ * Adds a client-side line to the kitchen chatter. The server's log is keyed by
+ * id and read in renderLog; this writes straight to the list and never touches
+ * `ui.lastLogId`, so the two cannot collide.
+ */
+function logAside(text) {
+  const item = document.createElement('li');
+  item.className = 'log__entry';
+  item.textContent = text;
+  el.logList.append(item);
+  while (el.logList.children.length > 40) el.logList.firstElementChild.remove();
+  el.logList.scrollTop = el.logList.scrollHeight;
 }
 
 /** The played card travels from the hand into the oven. */
@@ -1067,6 +1474,13 @@ function flyToDiscard(sourceNode) {
     cardMetrics(el.discardSlot),
     (Math.random() * 10 - 5).toFixed(1)
   );
+  // D · the flight steps five times, so five blips are scheduled across it —
+  // one per visible jump, not one per frame. Only your own card gets them: a
+  // four-card penalty flying in would otherwise be twenty blips.
+  if (!wantsMotion()) return;
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => sound.play('flight-blip', i), (i * D_FLY) / 5);
+  }
 }
 
 /**
@@ -1158,6 +1572,8 @@ function openPicker(card, slot) {
     button.addEventListener('click', () => {
       const pending = ui.pendingWild;
       closePopovers();
+      // H · the ding rides the IN PLAY badge recolouring.
+      sound.play('confirm-ding');
       if (pending) commitPlay(pending.card, key, pending.slot);
     });
     buttons.append(button);
@@ -1167,6 +1583,7 @@ function openPicker(card, slot) {
   // The popover grows out of the card that opened it.
   const cardRect = slot.getBoundingClientRect();
   show(el.picker);
+  sound.play('menu-blip'); // H · rides the 2x2 grid entering at 0.97
   const popRect = el.picker.getBoundingClientRect();
   const originX = cardRect.left + cardRect.width / 2 - popRect.left;
   el.picker.style.setProperty('--origin-x', `${Math.max(8, Math.min(popRect.width - 8, originX)).toFixed(0)}px`);
@@ -1205,6 +1622,88 @@ function openCalloutPopover() {
     '--origin-x',
     `${Math.max(8, Math.min(popRect.width - 8, originX)).toFixed(0)}px`
   );
+}
+
+// -------------------------------------------------------- B · the shout ----
+/**
+ * Three frames over 150ms — small, huge, settled — with a pixel starburst
+ * behind the middle frame only. It fires from the ZA! button, not the centre
+ * of the screen, because the shout is yours.
+ *
+ * The timing score is measured from the moment the shout became legal, which
+ * is the transition of `canDeclareZa` in the snapshot. The kit measures from
+ * "playing the card"; the client never observes that instant for the play that
+ * armed the button, and the wire protocol is not ours to extend, so this is
+ * the nearest honest reference point. `TOO SLOW` is not implemented at all: a
+ * missed window is never a button press, and the FORGOT! badge and the call-out
+ * penalty already narrate it.
+ */
+function playShout() {
+  sound.play('power-up'); // rides the button slam and the starburst
+  const bar = el.btnZa.closest('.hand-bar');
+  if (!bar) return;
+
+  const barRect = bar.getBoundingClientRect();
+  const btnRect = el.btnZa.getBoundingClientRect();
+  bar.style.setProperty('--bx', `${(btnRect.left + btnRect.width / 2 - barRect.left).toFixed(0)}px`);
+  bar.style.setProperty('--by', `${(btnRect.top + btnRect.height / 2 - barRect.top).toFixed(0)}px`);
+
+  el.btnZa.classList.remove('is-shouting');
+  void el.btnZa.offsetWidth; // restart the slam on a second shout
+  el.btnZa.classList.add('is-shouting');
+  setTimeout(() => el.btnZa.classList.remove('is-shouting'), 220);
+
+  if (wantsMotion()) {
+    const burst = document.createElement('span');
+    burst.className = 'za-burst';
+    burst.setAttribute('aria-hidden', 'true');
+    bar.append(burst);
+    setTimeout(() => burst.remove(), 280);
+  }
+
+  const armed = ui.shoutArmedAt;
+  ui.shoutArmedAt = 0;
+  if (!armed) return;
+  const perfect = Date.now() - armed < 800;
+  const score = document.createElement('span');
+  score.className = perfect ? 'shout-score' : 'shout-score shout-score--ok';
+  score.setAttribute('aria-hidden', 'true');
+  score.textContent = perfect ? 'PERFECT! +500' : 'OK +100';
+  bar.append(score);
+  requestAnimationFrame(() => score.classList.add('is-on'));
+  setTimeout(() => score.classList.remove('is-on'), 780);
+  setTimeout(() => score.remove(), 1020);
+}
+
+// ---------------------------------------------------------- sound toggle ----
+/**
+ * The cabinet's volume knob. Built here rather than in index.html so the
+ * markup keeps exactly the ids it has. Nothing in the game is communicated by
+ * sound alone, so muting costs the player nothing but the noise.
+ */
+function buildMuteToggle() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn btn--quiet btn--sm hud__mute';
+  button.setAttribute('aria-label', 'Cabinet sound');
+  button.addEventListener('click', () => {
+    sound.muted = !sound.muted;
+    paintMuteToggle();
+    // The blip is the confirmation that sound is back; the label is the
+    // confirmation either way.
+    if (!sound.muted) sound.play('menu-blip');
+  });
+  ui.btnMute = button;
+  paintMuteToggle();
+  el.btnLeaveGame.parentNode.insertBefore(button, el.btnLeaveGame);
+}
+
+function paintMuteToggle() {
+  const button = ui.btnMute;
+  if (!button) return;
+  const on = !sound.muted;
+  button.textContent = on ? 'SND ON' : 'SND OFF';
+  button.setAttribute('aria-pressed', String(on));
 }
 
 // ================================================================ EVENTS ===
@@ -1249,10 +1748,16 @@ el.btnLeaveGame.addEventListener('click', () => send({ type: 'leaveRoom' }));
 el.drawPile.addEventListener('click', () => {
   if (el.drawPile.disabled) return;
   send({ type: 'draw' });
+  // G · rides the pile dropping 3px and the card flying into the hand.
+  sound.play('card-snap');
 });
 
 el.btnPass.addEventListener('click', () => send({ type: 'pass' }));
-el.btnZa.addEventListener('click', () => send({ type: 'za' }));
+el.btnZa.addEventListener('click', () => {
+  if (el.btnZa.disabled) return;
+  send({ type: 'za' });
+  playShout();
+});
 el.btnCallout.addEventListener('click', openCalloutPopover);
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
@@ -1310,6 +1815,8 @@ function boot() {
     holder.classList.add('ico');
     holder.replaceChildren(...drawn.childNodes);
   }
+  buildMuteToggle();
+
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;
 
