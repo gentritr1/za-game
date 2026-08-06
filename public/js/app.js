@@ -185,7 +185,7 @@ function cssTime(name, fallback) {
   return raw.endsWith('ms') ? value : value * 1000;
 }
 
-const D_FLY = cssTime('--d-slow', 280); // matches .fly-card
+const D_FLY = cssTime('--d-mid', 220); // matches .fly-card
 const D_ENTER = cssTime('--d-mid', 220); // matches .card
 const EASE_OUT =
   getComputedStyle(document.documentElement).getPropertyValue('--ease-out').trim() ||
@@ -460,6 +460,7 @@ function renderLobby(snapshot) {
   for (const seat of snapshot.seats) {
     const row = document.createElement('li');
     row.className = 'seat-row';
+    if (seat.id === snapshot.youId) row.classList.add('is-you');
 
     const avatar = document.createElement('span');
     avatar.className = 'seat-row__avatar';
@@ -471,10 +472,15 @@ function renderLobby(snapshot) {
     name.textContent = seat.name;
     row.append(name);
 
-    if (seat.id === snapshot.youId) row.append(tag('you', 'You'));
-    if (seat.id === snapshot.hostId) row.append(tag('host', 'Host'));
-    if (seat.isBot) row.append(tag('bot', 'Bot'));
-    if (!seat.connected && !seat.isBot) row.append(tag('away', 'Away'));
+    // One Press Start word per seat, like a player-select screen.
+    const status = document.createElement('span');
+    status.className = 'seat-row__word';
+    status.textContent =
+      !seat.connected && !seat.isBot ? 'AWAY'
+        : seat.id === snapshot.hostId ? 'HOST'
+          : seat.isBot ? 'CPU'
+            : 'READY';
+    row.append(status);
 
     if (snapshot.isHost && seat.isBot) {
       const kick = document.createElement('button');
@@ -487,11 +493,24 @@ function renderLobby(snapshot) {
     }
     rows.append(row);
   }
+
+  // Empty seats blink PRESS START until somebody sits down.
+  const openSeats = Math.max(0, snapshot.maxPlayers - snapshot.seats.length);
+  for (let i = 0; i < Math.min(openSeats, 8); i++) {
+    const empty = document.createElement('li');
+    empty.className = 'seat-row seat-row--empty';
+    empty.setAttribute('aria-hidden', 'true');
+    const word = document.createElement('span');
+    word.className = 'seat-row__press';
+    word.textContent = 'PRESS START';
+    empty.append(word);
+    rows.append(empty);
+  }
   el.seatList.replaceChildren(rows);
 
   const count = snapshot.seats.length;
   const enough = count >= snapshot.minPlayers;
-  el.lobbyEmpty.hidden = count !== 1;
+  el.lobbyEmpty.hidden = true;
   el.btnStart.disabled = !snapshot.isHost || !enough;
   el.btnAddBot.disabled = !snapshot.isHost || count >= snapshot.maxPlayers;
 
@@ -1008,8 +1027,19 @@ function closeCalloutWindow(playerId, how) {
 
   if (how === 'caught') {
     // The penalty cards flying into their hand and the log line are the visual;
-    // the buzzer is only the noise on top of it.
+    // the buzzer is the noise, and GOTCHA is the stamp. The server does not
+    // name the catcher machine-readably, so the stamp names nobody.
     sound.play('buzzer');
+    if (seat) {
+      const stamp = document.createElement('span');
+      stamp.className = 'seat__stamp seat__stamp--gotcha';
+      stamp.setAttribute('aria-hidden', 'true');
+      stamp.textContent = 'GOTCHA!';
+      seat.append(stamp);
+      requestAnimationFrame(() => stamp.classList.add('is-on'));
+      setTimeout(() => stamp.classList.remove('is-on'), 900);
+      setTimeout(() => stamp.remove(), 1140);
+    }
   }
 
   if (entry.mine && entry.node) {
@@ -1090,7 +1120,7 @@ function renderPiles(view, yourTurn) {
       emblem.classList.add('ico', 'ico--plate');
       emblem.replaceChildren(...suitIcon(view.currentTopping).childNodes);
     }
-    el.toppingNow.querySelector('.topping-now__name').textContent = meta.label;
+    el.toppingNow.querySelector('.topping-now__name').textContent = `IN PLAY · ${meta.label.toUpperCase()}`;
   }
 }
 
@@ -1383,6 +1413,17 @@ function trackTab(snapshot) {
 function renderRoundOver(snapshot, staged) {
   const view = snapshot.game;
   const winner = view.players.find((p) => p.id === view.winnerId);
+
+  // The cabinet remembers its best chef.
+  if (winner) {
+    const winnerSeat = snapshot.seats.find((s) => s.id === view.winnerId);
+    const wins = winnerSeat ? winnerSeat.wins : 1;
+    let best = null;
+    try { best = JSON.parse(localStorage.getItem('za.hiscore') || 'null'); } catch { /* fine */ }
+    if (!best || wins > best.wins) {
+      try { localStorage.setItem('za.hiscore', JSON.stringify({ name: winner.name, wins })); } catch { /* fine */ }
+    }
+  }
   const youWon = winner && winner.id === snapshot.youId;
 
   if (winner) {
@@ -1467,7 +1508,7 @@ function buildReceipt(snapshot, view, seat, index, anchovyLover, staged) {
   const items = document.createElement('div');
   items.className = 'receipt__items';
 
-  if (bill.played) items.append(receiptLine('CARDS PLAYED', bill.played));
+  if (bill.played) items.append(receiptLine(`CARDS PLAYED ×${bill.played}`, '—'));
   // The winner pays for nothing, so nothing they were charged is itemised
   // either. A bill of costs over a total of zero would only read as a mistake.
   if (!won) {
@@ -1480,7 +1521,7 @@ function buildReceipt(snapshot, view, seat, index, anchovyLover, staged) {
   }
   if (bill.anchovy) items.append(receiptLine(`ANCHOVY PLAYED ×${bill.anchovy}`, '—'));
   if (anchovyLover) items.append(receiptLine('ANCHOVY LOVER', '0', 'badge'));
-  items.append(receiptLine('ROUNDS WON', seat.wins));
+  if (seat.wins) items.append(receiptLine(`ROUNDS WON ×${seat.wins}`, '—'));
   if (!items.children.length) items.append(receiptLine('NOTHING ON THE TAB', '—'));
   paper.append(items);
 
@@ -2116,7 +2157,7 @@ function buildMuteToggle() {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'btn btn--quiet btn--sm hud__mute';
-  button.setAttribute('aria-label', 'Cabinet sound');
+
   button.addEventListener('click', () => {
     sound.muted = !sound.muted;
     paintMuteToggle();
@@ -2252,6 +2293,18 @@ function boot() {
     holder.classList.add('ico');
     holder.replaceChildren(...drawn.childNodes);
   }
+
+  // The attract line at the foot of the home screen. The hi-score is real:
+  // the most rounds anyone has won on this cabinet.
+  const attract = document.createElement('p');
+  attract.className = 'attract-line';
+  attract.setAttribute('aria-hidden', 'true');
+  let best = null;
+  try { best = JSON.parse(localStorage.getItem('za.hiscore') || 'null'); } catch { /* fine */ }
+  attract.textContent = best && best.wins
+    ? `INSERT 25¢ — HI-SCORE ${String(best.wins).padStart(2, '0')} ${best.name.toUpperCase()}`
+    : 'INSERT 25¢ — FREE PLAY';
+  document.querySelector('.screen--home').append(attract);
   buildMuteToggle();
 
   const saved = localStorage.getItem('za.name');
