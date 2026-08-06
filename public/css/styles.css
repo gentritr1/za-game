@@ -559,9 +559,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   gap: var(--s3);
   padding: var(--s2) var(--s3);
-  background: #fff;
-  border: 1px solid var(--mozzarella-dim);
-  border-radius: var(--r-md);
+  background: var(--cabinet);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
   opacity: 1;
   transform: none;
   transition: opacity var(--d-mid) var(--ease-out), transform var(--d-mid) var(--ease-out);
@@ -600,10 +600,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   text-transform: uppercase;
 }
 
-.tag--host { background: var(--cheese); color: #4a3406; }
+.tag--host { background: var(--cheese); color: var(--void); }
 .tag--bot { background: var(--anchovy); color: #fff; }
 .tag--you { background: var(--basil); color: #fff; }
-.tag--away { background: var(--mozzarella-dim); color: var(--ink-soft); }
+.tag--away { background: var(--bezel); color: var(--text-dim); }
 
 .seat-row__kick {
   flex: none;
@@ -630,27 +630,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .lobby-note {
   margin: var(--s4) 0;
   text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-soft);
+  font-size: 16px;
+  color: var(--text-dim);
   min-height: 1.5em;
 }
 
 .lobby-empty {
   display: grid;
   place-items: center;
-  max-height: 154px;
+  min-height: 64px;
   margin-top: var(--s2);
-  overflow: hidden;
+  background: var(--console);
+  border: var(--bd-thick) dashed var(--bezel);
 }
 
 .lobby-empty[hidden] { display: none; }
 
-.lobby-empty__art {
-  display: block;
-  width: min(100%, 270px);
-  height: auto;
-  margin: -18px 0 -26px;
+.lobby-empty__art { display: none; }
+
+.lobby-empty::after {
+  content: "EMPTY SEAT \2014 SEND THE CODE";
+  font-size: var(--fs-label);
+  letter-spacing: .16em;
+  color: var(--text-mute);
 }
 
 .lobby-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s2); }
@@ -716,12 +718,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hud__turn.is-you::before {
   opacity: 1;
-  animation: turn-glow 2.4s var(--ease-in-out) infinite;
+  animation: turn-glow 1.2s steps(1, end) infinite;
 }
 
 @keyframes turn-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .55; }
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: .5; }
 }
 
 /* The label is swapped on every turn change, so it owns the ellipsis. */
@@ -1069,7 +1071,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   border: 3px solid var(--pulse, var(--cheese));
   opacity: 0;
   pointer-events: none;
-  animation: oven-ring 500ms var(--ease-out) 60ms both;
+  animation: oven-ring 500ms var(--ease-step) 60ms both;
 }
 
 .discard-holder[data-topping="pepperoni"] { --pulse: var(--tomato); }
@@ -1096,7 +1098,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   opacity: 0;
   pointer-events: none;
   z-index: 2;
-  animation: smoke-rise 860ms var(--ease-out) both;
+  animation: smoke-rise 860ms steps(4, end) both;
 }
 
 @keyframes smoke-rise {
@@ -1113,7 +1115,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   z-index: 6;
   pointer-events: none;
   box-shadow: inset 0 0 0 8px rgba(255, 46, 107, .8);
-  animation: table-heat 720ms var(--ease-in-out) both;
+  animation: table-heat 720ms steps(2, end) both;
 }
 
 @keyframes table-heat {
@@ -1255,7 +1257,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 /* When the shout is legal, the button wiggles like it can't hold it in:
    a quick shimmy, then a polite pause, forever. */
-.btn--za.is-urgent { animation: za-wiggle 2.6s var(--ease-in-out) infinite; }
+.btn--za.is-urgent { animation: za-wiggle 2.6s var(--ease-step) infinite; }
 
 /* The wiggle is an animation, so it would swallow the press. Drop it while held. */
 .btn--za.is-urgent:active,
@@ -1386,16 +1388,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: 100%;
   object-fit: cover;
   image-rendering: pixelated;
-  opacity: .85;
 }
 
 .card__value {
   position: relative;
   font-family: var(--font-display);
-  font-size: calc(var(--card-w) * 0.25);
+  font-size: calc(var(--card-w) * 0.26);
   line-height: 1;
   color: var(--text);
-  text-shadow: 3px 3px 0 rgba(0, 0, 0, .75);
+  text-shadow: 3px 3px 0 var(--void), -2px -2px 0 var(--void), 2px -2px 0 var(--void), -2px 2px 0 var(--void);
 }
 
 .card__banner {
@@ -1450,7 +1451,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* sizes */
-.card--pile { --card-w: 92px; }
+.card--pile { --card-w: 100px; }
 .card--mini { --card-w: 20px; }
 .card--mini .card__back-word { display: none; }
 
@@ -1473,8 +1474,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    around them. The gold ring on playable cards carries the distinction, so
    the dim only has to whisper. Hovering one restores it fully for study. */
 .hand .card.is-dimmed {
-  opacity: .8;
-  filter: saturate(.65) brightness(.96);
+  opacity: .85;
+  filter: saturate(.7) brightness(.92);
   pointer-events: none;
 }
 
@@ -1675,7 +1676,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: var(--s8) var(--s6) var(--s6);
   background: var(--cabinet);
   color: var(--text);
-  border: var(--bd-thick) solid var(--bezel);
+  border: var(--bd-card) solid var(--cheese);
   border-radius: 0;
   box-shadow: var(--sh-panel);
   text-align: center;
@@ -1755,6 +1756,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .dialog__title { font-size: 20px; color: var(--cheese); font-family: var(--font-display); }
+
+.dialog__sub { font-family: var(--font-script); font-size: 22px; color: var(--sauce-hi); }
 .overlay.is-open .dialog__title { animation: line-rise 240ms var(--ease-out) 110ms both; }
 .dialog__sub { font-size: 14px; font-weight: 500; color: var(--ink-soft); }
 .overlay.is-open .dialog__sub { animation: line-rise 240ms var(--ease-out) 160ms both; }
@@ -1782,10 +1785,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   gap: var(--s2);
   padding: var(--s2) var(--s3);
-  background: #fff;
-  border: 1px solid var(--mozzarella-dim);
-  border-radius: var(--r-md);
-  font-size: 13.5px;
+  background: var(--void);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
+  font-size: 16px;
   opacity: 1;
   transform: none;
   transition: opacity var(--d-mid) var(--ease-out), transform var(--d-mid) var(--ease-out);
@@ -1796,7 +1799,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .score-row { opacity: 0; transform: translateY(9px); }
 }
 
-.score-row.is-winner { background: var(--cheese); border-color: var(--cheese-deep); }
+.score-row.is-winner { background: var(--void); border-color: var(--cheese); color: var(--cheese); }
 .score-row__name { flex: 1; min-width: 0; font-weight: 700; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .score-row__wins { font-weight: 800; font-variant-numeric: tabular-nums; }
 
