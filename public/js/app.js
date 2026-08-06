@@ -497,11 +497,60 @@ function renderOpponents(snapshot, view) {
   // Reorder without rebuilding, so entry animations are not restarted.
   order.forEach((node, index) => {
     if (el.opponents.children[index] !== node) el.opponents.insertBefore(node, el.opponents.children[index] || null);
-    // A gentle arc makes the players look seated around the far edge.
+    // A gentle arc makes the players look seated around the far edge. The
+    // desktop chef column is a straight list and overrides it in CSS.
     const count = order.length;
     const norm = count === 1 ? 0 : (index - (count - 1) / 2) / ((count - 1) / 2);
     node.style.setProperty('--arc', `${(Math.abs(norm) ** 2 * -10).toFixed(1)}px`);
   });
+
+  // "CHEFS · n" counts everyone still at the table, you included.
+  el.opponents.dataset.chefs = String(view.players.filter((p) => !p.left).length);
+  renderChefStats(snapshot);
+}
+
+/**
+ * SCORE and RND, side by side at the foot of the chef column. The stats are
+ * built here rather than in index.html so the markup stays as it is; the
+ * indexed reorder above depends on them staying the last child.
+ */
+function renderChefStats(snapshot) {
+  let node = el.opponents.querySelector('.chef-stats');
+  if (!node) {
+    node = document.createElement('div');
+    node.className = 'chef-stats';
+    node._parts = {
+      score: buildChefStat(node, 'score', 'Score'),
+      rnd: buildChefStat(node, 'rnd', 'Rnd'),
+    };
+  }
+  // Always last, so `children[index]` keeps addressing the seats.
+  el.opponents.append(node);
+
+  const me = snapshot.seats.find((s) => s.id === snapshot.youId);
+  node._parts.score.textContent = String(me ? me.wins : 0).padStart(2, '0');
+
+  // The wire protocol carries no round number, and the server owns the
+  // protocol, so the tile stays hidden until one exists.
+  const round = snapshot.game && Number.isFinite(snapshot.game.roundNumber)
+    ? snapshot.game.roundNumber
+    : null;
+  node._parts.rnd.parentElement.hidden = round === null;
+  if (round !== null) node._parts.rnd.textContent = String(round).padStart(2, '0');
+}
+
+/** One tile. Returns the value node so the caller can keep writing to it. */
+function buildChefStat(parent, kind, label) {
+  const tile = document.createElement('div');
+  tile.className = `chef-stat chef-stat--${kind}`;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'chef-stat__label';
+  labelEl.textContent = label;
+  const value = document.createElement('b');
+  value.className = 'chef-stat__value';
+  tile.append(labelEl, value);
+  parent.append(tile);
+  return value;
 }
 
 function buildSeat(player) {
@@ -517,8 +566,16 @@ function buildSeat(player) {
   name.className = 'seat__name';
   node.append(name);
 
+  // Two readings of the same number: "5 cards" for the chip row and for a
+  // screen reader, and the two-digit plate the desktop chef column prints.
   const count = document.createElement('span');
   count.className = 'seat__count';
+  const countLong = document.createElement('span');
+  countLong.className = 'seat__count-long';
+  const countNum = document.createElement('b');
+  countNum.className = 'seat__count-num';
+  countNum.setAttribute('aria-hidden', 'true');
+  count.append(countLong, countNum);
   node.append(count);
 
   const mini = document.createElement('div');
@@ -529,7 +586,7 @@ function buildSeat(player) {
   badge.className = 'seat__badge';
   node.append(badge);
 
-  node._parts = { avatar, name, count, mini, badge };
+  node._parts = { avatar, name, count, countLong, countNum, mini, badge };
   return node;
 }
 
@@ -541,13 +598,16 @@ function updateSeat(node, player, view) {
     renderAvatar(parts.avatar, player);
   }
   parts.name.textContent = player.name;
-  parts.count.replaceChildren(
+  parts.countLong.replaceChildren(
     icon('cardback'),
     document.createTextNode(` ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`)
   );
+  parts.countNum.textContent = String(player.cardCount).padStart(2, '0');
 
   node.classList.toggle('is-turn', view.turnPlayerId === player.id && view.status === 'playing');
   node.classList.toggle('is-away', !player.connected);
+  // Their call-out window is open: the chef column dashes the panel in sauce.
+  node.classList.toggle('is-vulnerable', Boolean(player.vulnerable) && player.cardCount === 1);
 
   // The mini stack only gets rebuilt when the count changes.
   const shown = Math.min(player.cardCount, 6);
@@ -693,11 +753,23 @@ function delayEntry(slot, delay) {
   setTimeout(() => { node.style.transitionDelay = ''; }, delay + D_ENTER + 120);
 }
 
-/** Spreads the hand into a fan that always fits the width available. */
+/**
+ * How far one card may hide behind the next. Past this the fan stops being a
+ * hand and becomes a stack of slivers: two eaten Whole Pies used to squeeze
+ * the cards down to a sixth of their width. The strip scrolls instead.
+ */
+const MAX_OVERLAP = 0.55;
+
+/** Spreads the hand into a fan, and scrolls it once the fan stops fitting. */
 function layoutHand(slots) {
   const total = slots.length;
-  if (!total) return;
+  if (!total) {
+    el.hand.classList.remove('is-scrolling');
+    return;
+  }
   const cardWidth = slots[0].offsetWidth || 84;
+  // `.hand` carries 8px of side padding in both modes, so this is the room the
+  // cards actually get, and it does not change when the strip starts scrolling.
   const available = Math.max(el.hand.clientWidth - 16, cardWidth);
 
   let overlap = -Math.round(cardWidth * 0.3);
@@ -705,14 +777,20 @@ function layoutHand(slots) {
   if (needed > available && total > 1) {
     overlap = Math.floor((available - total * cardWidth) / (total - 1));
   }
-  overlap = Math.max(overlap, -Math.round(cardWidth * 0.84));
+  overlap = Math.max(overlap, -Math.round(cardWidth * MAX_OVERLAP));
 
-  const spread = Math.min(4.2, 32 / Math.max(total - 1, 1));
+  const width = total * cardWidth + (total - 1) * overlap;
+  const scrolling = width > available;
+  el.hand.classList.toggle('is-scrolling', scrolling);
+
+  // A scrolling strip clips on both axes, so the fan flattens: no tilt, no
+  // rise. The lift and the cheese ring keep their room in the padding.
+  const spread = scrolling ? 0 : Math.min(4.2, 32 / Math.max(total - 1, 1));
   slots.forEach((slot, index) => {
     const norm = total === 1 ? 0 : (index - (total - 1) / 2) / ((total - 1) / 2);
     slot.style.setProperty('--overlap', `${overlap}px`);
     slot.style.setProperty('--tilt', `${(norm * spread * Math.max(total - 1, 1) / 2).toFixed(2)}deg`);
-    slot.style.setProperty('--rise', `${(Math.abs(norm) ** 2 * 7).toFixed(1)}px`);
+    slot.style.setProperty('--rise', scrolling ? '0px' : `${(Math.abs(norm) ** 2 * 7).toFixed(1)}px`);
     slot.style.zIndex = String(index + 1);
   });
 }
