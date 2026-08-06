@@ -1038,6 +1038,45 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   100% { opacity: 0; transform: scale(1.16); }
 }
 
+/* Burnt Slice: wisps of smoke rise off the oven and thin out. */
+.smoke-wisp {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  border-radius: 50%;
+  background: rgba(253, 247, 234, .5);
+  filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  animation: smoke-rise 860ms var(--ease-out) both;
+}
+
+@keyframes smoke-rise {
+  0% { opacity: 0; transform: translate(var(--wx, 0px), 8px) scale(.5); }
+  25% { opacity: .85; }
+  100% { opacity: 0; transform: translate(calc(var(--wx, 0px) * 1.7), -36px) scale(1.6); }
+}
+
+/* Whole Pie +4: the room gets hot for a beat. Inset glow, edges only, so
+   nothing on the table is obscured. */
+.table-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  box-shadow: inset 0 0 140px 24px rgba(217, 79, 60, .55);
+  animation: table-heat 720ms var(--ease-in-out) both;
+}
+
+@keyframes table-heat {
+  0%, 100% { opacity: 0; }
+  30% { opacity: 1; }
+}
+
 /* current topping badge -------------------------------------------------- */
 .topping-now {
   position: absolute;

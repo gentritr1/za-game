@@ -588,6 +588,17 @@ function renderPiles(view, yourTurn) {
   const top = view.topCard;
   const topKey = top ? `${top.id}:${view.currentTopping}` : 'none';
   if (el.discardSlot.dataset.key !== topKey) {
+    // Landing drama for the mean cards, whoever played them. Only when the
+    // card itself is new (not when a wild repaints the topping), and never
+    // for the round's opening flip.
+    const prevTopId = el.discardSlot.dataset.topId || '';
+    if (top && top.id !== prevTopId) {
+      el.discardSlot.dataset.topId = top.id;
+      if (prevTopId && wantsMotion()) {
+        if (top.kind === 'skip') puffSmoke();
+        if (top.kind === 'wild4') flashTable();
+      }
+    }
     el.discardSlot.dataset.key = topKey;
     const holder = document.createElement('span');
     holder.className = 'discard-holder';
@@ -938,6 +949,32 @@ function animateTableDiff(snapshot, view) {
   ui.prevTopId = view.topCard ? view.topCard.id : null;
   ui.prevCounts = counts;
   ui.prevStatus = view.status;
+}
+
+/** A Burnt Slice sends three wisps of smoke up off the oven. */
+function puffSmoke() {
+  const pile = el.discardSlot.closest('.pile');
+  if (!pile) return;
+  for (let i = 0; i < 3; i++) {
+    const wisp = document.createElement('span');
+    wisp.className = 'smoke-wisp';
+    wisp.setAttribute('aria-hidden', 'true');
+    wisp.style.setProperty('--wx', `${(i - 1) * 14}px`);
+    wisp.style.animationDelay = `${i * 90}ms`;
+    pile.append(wisp);
+    setTimeout(() => wisp.remove(), 950 + i * 90);
+  }
+}
+
+/** The Whole Pie +4 heats the whole room for a moment: a warm edge glow. */
+function flashTable() {
+  const host = document.querySelector('.screen--game');
+  if (!host) return;
+  const flash = document.createElement('div');
+  flash.className = 'table-flash';
+  flash.setAttribute('aria-hidden', 'true');
+  host.append(flash);
+  setTimeout(() => flash.remove(), 800);
 }
 
 /** The played card travels from the hand into the oven. */
