@@ -16,7 +16,7 @@ const CODE_WORDS = [
 ];
 
 const TICK_MS = 250;
-const BOT_THINK_MS = 800; // pause before a bot takes its turn
+const BOT_THINK_MS = 800; // pause before a bot with no regular takes its turn
 const BOT_QUICK_MS = 300; // follow-up pause for a shout or a call-out
 const AWAY_TURN_TIMEOUT_MS = 12000; // skip the turn of a player who is away
 const RECONNECT_GRACE_MS = 120000; // time to come back before the seat is freed
@@ -34,6 +34,18 @@ function nextSeatId() {
 function cleanName(raw) {
   const name = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH);
   return name;
+}
+
+/**
+ * How long this seat sits there before it moves. Each regular has their own
+ * range; a bot without one keeps the old fixed pause.
+ */
+function botPauseFor(seat) {
+  const regular = seat && seat.regularId ? bot.findRegular(seat.regularId) : null;
+  const range = regular && Array.isArray(regular.pause) ? regular.pause : null;
+  if (!range) return BOT_THINK_MS;
+  const [low, high] = range;
+  return Math.round(low + Math.random() * Math.max(0, high - low));
 }
 
 // ---------------------------------------------------------------------------
@@ -70,11 +82,14 @@ class Room {
     return this.seats.find((s) => s.name.toLowerCase() === key) || null;
   }
 
-  addSeat({ name, isBot = false, socket = null }) {
+  addSeat({ name, isBot = false, socket = null, regularId = null }) {
     const seat = {
       id: nextSeatId(),
       name,
       isBot,
+      // Which of the regulars is sitting here. Server side only: the snapshot
+      // publishes the name they were hired under and nothing else.
+      regularId: isBot ? regularId : null,
       // Proves that a later socket is the same player. It goes to that one
       // client and to nobody else. A bot has no client, so it needs none.
       token: isBot ? null : crypto.randomBytes(16).toString('hex'),
@@ -113,6 +128,12 @@ class Room {
     }
   }
 
+  /** The regular sitting in a seat, by seat id. Null for humans. */
+  regularOf(seatId) {
+    const seat = this.findSeat(seatId);
+    return seat && seat.isBot ? bot.findRegular(seat.regularId) : null;
+  }
+
   // -- lifecycle -----------------------------------------------------------
 
   startRound() {
@@ -125,7 +146,18 @@ class Room {
     if (seats.length > game.MAX_PLAYERS) {
       return { ok: false, error: `A table holds at most ${game.MAX_PLAYERS} players.` };
     }
-    this.game = game.createGame(seats.map((s) => ({ id: s.id, name: s.name, isBot: s.isBot })));
+    this.game = game.createGame(seats.map((s) => {
+      const regular = s.isBot ? bot.findRegular(s.regularId) : null;
+      return {
+        id: s.id,
+        name: s.name,
+        isBot: s.isBot,
+        // The catchphrase and the one move it belongs to travel with the seat,
+        // so the log line can carry it where the line is built.
+        line: regular ? regular.line : null,
+        cue: bot.cueFor(regular),
+      };
+    }));
     this.phase = 'playing';
     this.syncConnectionFlags();
     this.scheduleTimers(true);
@@ -153,7 +185,7 @@ class Room {
 
     const current = game.currentPlayer(this.game);
     const seat = this.findSeat(current.id);
-    this.botDueAt = seat && seat.isBot ? Date.now() + BOT_THINK_MS : 0;
+    this.botDueAt = seat && seat.isBot ? Date.now() + botPauseFor(seat) : 0;
     this.awayDueAt = seat && !seat.isBot && !seat.connected ? Date.now() + AWAY_TURN_TIMEOUT_MS : 0;
   }
 
@@ -386,7 +418,7 @@ class RoomManager {
         room.botDueAt = 0;
         const serialBefore = room.game.turnSerial;
         const current = game.currentPlayer(room.game);
-        const move = bot.decide(room.game, current.id);
+        const move = bot.decide(room.game, current.id, room.regularOf(current.id));
         if (move) {
           this.applyAction(room, current.id, { type: move.action, ...move });
         } else {
@@ -434,7 +466,7 @@ class RoomManager {
         }
         if (seat.calloutWindow === window) continue;
         seat.calloutWindow = window;
-        const move = bot.decide(room.game, seat.id);
+        const move = bot.decide(room.game, seat.id, room.regularOf(seat.id));
         if (move && move.action === 'callout') {
           const res = game.callOut(room.game, seat.id, move.targetId);
           if (res.ok) changed = true;

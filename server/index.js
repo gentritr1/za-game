@@ -141,8 +141,16 @@ function handleMessage(socket, session, message) {
       if (room.hostId !== seatId) return sendError(socket, 'Only the host can add a chef bot.');
       if (room.phase !== 'lobby') return sendError(socket, 'You can only add bots in the lobby.');
       if (room.seats.length >= game.MAX_PLAYERS) return sendError(socket, 'The table is full.');
-      const name = bot.pickBotName(room.seats.map((s) => s.name));
-      room.addSeat({ name, isBot: true });
+      // `regularId` is optional. No id, an unknown id or a regular who is
+      // already seated all mean "send whoever is free".
+      const wanted = typeof message.regularId === 'string' ? message.regularId : null;
+      const names = room.seats.map((s) => s.name);
+      const regular = bot.pickRegular(names, wanted);
+      room.addSeat({
+        name: regular ? regular.name : bot.pickBotName(names),
+        isBot: true,
+        regularId: regular ? regular.id : null,
+      });
       break;
     }
     case 'removeSeat': {

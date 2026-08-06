@@ -392,6 +392,160 @@ test('full rounds of chef bots keep all 108 cards and always find a winner', () 
   }
 });
 
+// ------------------------------------------------------- the regulars -------
+test('a table of biased regulars still only ever makes legal moves', () => {
+  const bot = require('../server/bot');
+  assert.strictEqual(bot.REGULARS.length, 6, 'six regulars');
+
+  for (let seed = 1; seed <= 40; seed++) {
+    // Every regular gets a seat, so every bias runs in every round.
+    const seats = bot.REGULARS.map((r) => ({ id: r.id, name: r.name, isBot: true }));
+    const state = game.createGame(seats, { seed, strictWildFour: seed % 3 === 0 });
+    const persona = (id) => bot.REGULARS.find((r) => r.id === id);
+    const cards = () => state.drawPile.length + state.discardPile.length
+      + state.players.reduce((n, p) => n + p.hand.length, 0);
+
+    let guard = 0;
+    while (state.status === 'playing' && guard++ < 4000) {
+      const current = game.currentPlayer(state);
+      const move = bot.decide(state, current.id, persona(current.id));
+      let result;
+      if (!move) result = game.forceSkip(state, current.id);
+      else if (move.action === 'play') result = game.playCard(state, current.id, move.cardId, move.topping);
+      else if (move.action === 'draw') result = game.drawCard(state, current.id);
+      else if (move.action === 'pass') result = game.passTurn(state, current.id);
+      else if (move.action === 'za') result = game.declareZa(state, current.id);
+      else result = game.callOut(state, current.id, move.targetId);
+      assert.ok(result.ok, `seed ${seed}: ${move && move.action} refused: ${result.error}`);
+      assert.strictEqual(cards(), 108, `seed ${seed}: cards went missing`);
+    }
+    assert.ok(guard < 4000, `seed ${seed}: the round never ended`);
+    assert.ok(state.winnerId, `seed ${seed}: no winner`);
+  }
+});
+
+test('each bias reorders the preference list it is given', () => {
+  const bot = require('../server/bot');
+  const regular = (id) => bot.REGULARS.find((r) => r.id === id);
+  const chosen = (hand, persona) => {
+    const state = scenario(['Bot', 'Bo'], [hand, [num('basil', 4)]], num('pepperoni', 5));
+    state.players[0].declaredZa = true; // no ZA shout in the way
+    const move = bot.decide(state, 'p0', persona);
+    assert.ok(move && move.action === 'play', 'a card was chosen');
+    return hand.find((c) => c.id === move.cardId);
+  };
+
+  // Vito sits on the wild while his hand is fat, then leads with it at three.
+  const fat = [card(null, 'wild'), num('pepperoni', 3), num('pepperoni', 6), num('pepperoni', 7)];
+  assert.notStrictEqual(chosen(fat, regular('vito')).kind, 'wild', 'four cards: he is saving it');
+  const thin = [card(null, 'wild'), num('pepperoni', 3), num('pepperoni', 6)];
+  assert.strictEqual(chosen(thin, regular('vito')).kind, 'wild', 'three cards: out it comes');
+
+  // Nonna Pina leaves the mean cards alone while anything else fits...
+  const mean = [card('pepperoni', 'draw2'), num('pepperoni', 3)];
+  assert.strictEqual(chosen(mean, regular('pina')).kind, 'number', 'she plays the quiet one');
+  // ...but she still plays one when it is the only legal card.
+  const forced = [card('pepperoni', 'draw2'), num('basil', 9)];
+  assert.strictEqual(chosen(forced, regular('pina')).kind, 'draw2', 'no other option');
+
+  // Dominic takes the biggest number on the table.
+  const numbers = [num('pepperoni', 2), num('pepperoni', 8), num('pepperoni', 5)];
+  assert.strictEqual(chosen(numbers, regular('dominic')).value, 8);
+
+  // Big Paulie reaches for the +2 first.
+  const paulies = [num('pepperoni', 8), card('pepperoni', 'draw2')];
+  assert.strictEqual(chosen(paulies, regular('paulie')).kind, 'draw2');
+});
+
+test('the call-out chance is the regular sitting there, not one house number', () => {
+  const bot = require('../server/bot');
+  const regular = (id) => bot.REGULARS.find((r) => r.id === id);
+  const looks = (persona) => {
+    const state = scenario(['Bot', 'Bo'], [[num('basil', 4)], [num('basil', 5)]], num('pepperoni', 5));
+    state.players[1].hand = [num('basil', 5)];
+    state.players[1].vulnerable = true;
+    state.rng = () => 0.8; // the same roll for everybody
+    const move = bot.decide(state, 'p0', persona);
+    return Boolean(move && move.action === 'callout');
+  };
+  assert.strictEqual(looks(regular('carmela')), true, 'Carmela notices at 95%');
+  assert.strictEqual(looks(regular('pina')), false, 'Nonna Pina, at 40%, does not');
+  assert.strictEqual(looks(null), false, 'and the house default is still 70%');
+});
+
+test('an addBot with no id, or an id nobody has, still seats a regular', () => {
+  const bot = require('../server/bot');
+  const ids = new Set(bot.REGULARS.map((r) => r.id));
+
+  const asked = bot.pickRegular([], 'vito');
+  assert.strictEqual(asked.id, 'vito', 'the host gets who they asked for');
+
+  const unknown = bot.pickRegular([], 'gabagool');
+  assert.ok(unknown && ids.has(unknown.id), 'an unknown id falls back to a real regular');
+
+  const anybody = bot.pickRegular([]);
+  assert.ok(anybody && ids.has(anybody.id), 'no id at all works the same way');
+
+  // A regular who is already at the table is never sent in twice.
+  const busy = bot.pickRegular(['Vito'], 'vito');
+  assert.ok(busy && busy.id !== 'vito', 'Vito is seated, so somebody else comes');
+
+  const allSeated = bot.pickRegular(bot.REGULARS.map((r) => r.name), 'ray');
+  assert.strictEqual(allSeated, null, 'a full house falls back to a plain chef');
+});
+
+test('a regular says their line on their move and stays quiet otherwise', () => {
+  const bot = require('../server/bot');
+  const vito = bot.REGULARS.find((r) => r.id === 'vito');
+  const wild = card(null, 'wild');
+  const plain = num('pepperoni', 3);
+  const state = game.createGame(
+    [
+      { id: 'p0', name: vito.name, isBot: true, line: vito.line, cue: bot.cueFor(vito) },
+      { id: 'p1', name: 'Bo' },
+    ],
+    { seed: 11 }
+  );
+  state.players[0].hand = [plain, wild, num('basil', 7)];
+  state.discardPile = [num('pepperoni', 5)];
+  state.currentTopping = 'pepperoni';
+  state.turnIndex = 0;
+
+  assert.ok(game.playCard(state, 'p0', plain.id).ok);
+  assert.ok(!state.log[state.log.length - 1].text.includes(vito.line), 'a number is not his moment');
+
+  state.turnIndex = 0;
+  assert.ok(game.playCard(state, 'p0', wild.id, 'basil').ok);
+  assert.ok(state.log[state.log.length - 1].text.includes(`"${vito.line}"`), 'the wild is');
+});
+
+test('a room hands each bot seat its own pause and its own catchphrase', () => {
+  const bot = require('../server/bot');
+  const room = new Room('TEST-0002');
+  room.emptySince = 0;
+  room.addSeat({ name: 'Ana' }).connected = true;
+  const ray = bot.REGULARS.find((r) => r.id === 'ray');
+  const seat = room.addSeat({ name: ray.name, isBot: true, regularId: 'ray' });
+
+  assert.strictEqual(room.regularOf(seat.id).id, 'ray');
+  assert.ok(room.startRound().ok);
+  const player = game.findPlayer(room.game, seat.id);
+  assert.strictEqual(player.line, ray.line, 'the line rides along with the seat');
+  assert.strictEqual(player.cue, 'win');
+
+  // Ray is quick, so his pause must land inside his own range, not the house one.
+  room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+  room.scheduleTimers(true);
+  const wait = room.botDueAt - Date.now();
+  assert.ok(wait >= ray.pause[0] - 40 && wait <= ray.pause[1] + 40, `pause was ${wait}ms`);
+
+  // Nothing about the regular reaches the wire.
+  const snapshot = JSON.stringify(room.snapshotFor(seat.id));
+  assert.ok(!snapshot.includes('regularId'), 'the roster stays on the server');
+  assert.ok(!snapshot.includes('"line"'), 'the catchphrase reaches the client as log text only');
+  assert.ok(!snapshot.includes('"cue"'), 'and the cue never leaves the server at all');
+});
+
 // ------------------------------------------------------------- the room ------
 
 /** A room with seats but no sockets. Bot seats are the names that start "Chef". */

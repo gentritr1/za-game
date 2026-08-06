@@ -890,6 +890,34 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat__mini .card--mini { margin-left: -11px; }
 .seat__mini .card--mini:first-child { margin-left: 0; }
 
+/* One status word per chef bot. Empty most of the time, and it holds its own
+   line height either way so the seat never jumps. */
+.seat__status {
+  min-height: 1.1em;
+  font-family: var(--font-display);
+  font-size: 8px;
+  line-height: 1.1;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+  opacity: 0;
+  transition: opacity var(--d-fast) var(--ease-out);
+}
+
+.seat__status.is-shown { opacity: 1; }
+
+/* The warning. It only shows while your own call-out window is open, so a
+   buzzing seat always means the same thing: they can catch you right now. */
+.seat__status.is-watching {
+  color: var(--sauce-hi);
+  animation: status-buzz 700ms steps(2, end) infinite;
+}
+
+@keyframes status-buzz {
+  0%, 100% { transform: translateX(-1px); }
+  50% { transform: translateX(1px); }
+}
+
 .seat__badge {
   position: absolute;
   top: -9px;
@@ -1589,6 +1617,103 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .popover__rows { display: grid; gap: var(--s2); }
 
+/* ------------------------------------------------------------ the roster -- */
+/* The hire panel is the same popover treatment, but it belongs to the lobby
+   panel rather than to a card, so it centres itself on the screen. */
+.popover--roster {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  bottom: auto;
+  width: min(620px, calc(100vw - var(--s6)));
+  z-index: 22;
+  transform: translate(-50%, -50%) scale(.96);
+  transform-origin: 50% 50%;
+}
+
+.popover--roster.is-open { transform: translate(-50%, -50%) scale(1); }
+
+/* The cabinet fill needs the sign colour, not the ink colour, behind it. */
+.popover--roster .popover__title {
+  color: var(--cheese);
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: .04em;
+}
+
+.roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: var(--s2);
+}
+
+.roster-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s2);
+  background: var(--cabinet-hi);
+  color: var(--text);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.1;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--d-press) var(--ease-out), border-color var(--d-fast) var(--ease-out);
+}
+
+.roster-tile:active,
+.roster-tile.is-pressed { transform: scale(.97); }
+.roster-tile:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+/* The sprite window. The portraits do not exist yet, so the frame stands in. */
+.roster-tile__window {
+  width: 40px;
+  height: 40px;
+  background: var(--cabinet-hi);
+  border: 2px dashed rgba(255, 255, 255, .2);
+}
+
+.roster-tile__name { font-weight: 700; }
+
+.roster-tile.is-seated { opacity: .45; cursor: default; }
+.roster-tile.is-seated:active { transform: none; }
+
+.roster-tile__seated {
+  font-family: var(--font-display);
+  font-size: 8px;
+  color: var(--text-mute);
+  letter-spacing: .08em;
+}
+
+.roster-tile--any {
+  border-style: dashed;
+  background: var(--void);
+  color: var(--text-mute);
+}
+
+.roster-tile--any .roster-tile__window { border-color: rgba(255, 255, 255, .12); }
+
+.roster__tell {
+  min-height: 3.1em;
+  padding: var(--s2) var(--s3);
+  background: var(--console);
+  border: var(--bd-thin) solid var(--bezel);
+  color: var(--text-dim);
+  font-size: 17px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .roster-tile:hover:not(.is-seated) { border-color: var(--cheese); }
+}
+
 .callout-btn {
   display: flex;
   align-items: center;
@@ -1735,6 +1860,114 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .scoreboard { width: 100%; display: grid; gap: var(--s1); margin: var(--s2) 0; }
+
+/* ---------------------------------------------------------- the receipts -- */
+/* The round-over dialog widens to hold the bills, and only as far as it must:
+   two receipts get a narrow cabinet, five get the wide one and a scrollbar. */
+.dialog--receipts {
+  width: fit-content;
+  min-width: min(360px, 100%);
+  max-width: min(920px, 100%);
+}
+
+.receipts {
+  width: 100%;
+  display: flex;
+  gap: var(--s4);
+  align-items: flex-start;
+  justify-content: center;
+  margin: var(--s2) 0;
+  padding-bottom: var(--s2);
+}
+
+/* Four or more bills scroll sideways rather than squeezing the paper. */
+.receipts--many {
+  justify-content: flex-start;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.receipt {
+  flex: 0 0 auto;
+  width: 224px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--s3) var(--s4);
+  background: var(--text);   /* cream paper */
+  color: var(--void);        /* and the ink it is printed with */
+  border-radius: 0;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.25;
+  text-align: left;
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, .5);
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--d-mid) var(--ease-out), transform var(--d-mid) var(--ease-out);
+}
+
+/* Each bill prints in turn. The delay per receipt is set as it is built. */
+@starting-style {
+  .receipt { opacity: 0; transform: translateY(-10px); }
+}
+
+.receipt.is-you { box-shadow: 7px 7px 0 rgba(255, 225, 77, .35); }
+.receipt.is-winner { box-shadow: 7px 7px 0 rgba(61, 220, 127, .45); }
+
+.receipt__brand {
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.receipt__who {
+  padding-bottom: 6px;
+  border-bottom: 2px dashed var(--void);
+  font-size: 15px;
+  text-align: center;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.receipt__items { display: grid; gap: 3px; padding-top: 5px; }
+
+.receipt__line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt__line--bad { color: #a8202f; }
+.receipt__line--badge { color: var(--anchovy-deep); font-weight: 700; }
+
+.receipt__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 2px dashed var(--void);
+  font-family: var(--font-display);
+  font-size: 10px;
+}
+
+.receipt__total span:last-child { font-size: 12px; }
+
+.receipt__foot {
+  margin-top: 6px;
+  font-size: 15px;
+  text-align: center;
+  letter-spacing: .04em;
+}
+
+.receipt__foot--gone { color: #6b7290; font-size: 14px; margin-top: 2px; }
 
 .score-row__avatar {
   display: block;
@@ -1901,6 +2134,30 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hud__dir span:last-child { display: none; }
 
   .hand-zone { padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px)); }
+
+  /* Receipts stack, one under the other, and yours is already first in the
+     markup — so the punchline lands on your own bill without a swipe. */
+  .receipts,
+  .receipts--many {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-x: visible;
+    max-height: 40vh;
+    overflow-y: auto;
+    gap: var(--s3);
+  }
+
+  .receipt { width: min(272px, 100%); box-shadow: 5px 5px 0 rgba(0, 0, 0, .5); }
+
+  /* The dialog itself takes the scrollbar if the phone is short enough that
+     even the capped stack does not fit. */
+  .dialog--receipts {
+    max-width: 360px;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  .roster { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-height: 620px) {
@@ -1953,6 +2210,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .discard-holder::after { animation: none !important; }
 
   .popover, .popover.is-open { transform: translateX(-50%) !important; }
+  .popover--roster, .popover--roster.is-open { transform: translate(-50%, -50%) !important; }
+  .receipt { transform: none !important; }
   .toast, .toast.is-open,
   .conn-banner, .conn-banner.is-open { transform: translateX(-50%) !important; }
   .seat__badge, .seat__badge.is-shown { transform: translateX(-50%) !important; }
