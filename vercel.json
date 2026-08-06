@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://za-game.onrender.com/$1",
+      "permanent": false
+    }
+  ]
+}
