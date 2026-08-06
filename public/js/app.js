@@ -79,6 +79,60 @@ const el = {
   connBannerText: $('conn-banner-text'),
 };
 
+// ----------------------------------------------------------- the regulars --
+/**
+ * The roster, for drawing only. The server owns who is hired, what they are
+ * called and how they play; this is the poster on the wall. `tell` is the one
+ * line the player reads before they pick, and it describes the bias the server
+ * actually applies.
+ */
+const REGULARS = [
+  {
+    id: 'vito',
+    name: 'Vito',
+    line: "I'm saving it.",
+    tell: 'Vito hoards his wilds until he is down to three cards. Then out they come, together.',
+  },
+  {
+    id: 'carmela',
+    name: 'Carmela',
+    line: 'I saw that.',
+    tell: 'Carmela catches almost everything. Forget to shout in front of her and it is already too late.',
+  },
+  {
+    id: 'paulie',
+    name: 'Big Paulie',
+    line: '...eh.',
+    tell: 'Big Paulie takes his time, and he always reaches for the +2 first.',
+  },
+  {
+    id: 'pina',
+    name: 'Nonna Pina',
+    line: 'Eat, eat.',
+    tell: 'Nonna Pina will not attack you if she has anything else to play. Right up until she wins.',
+  },
+  {
+    id: 'dominic',
+    name: 'Dominic',
+    line: 'Bada-bing.',
+    tell: 'Dominic plays his highest number, every time. No plan, occasionally devastating.',
+  },
+  {
+    id: 'ray',
+    name: 'Ray',
+    line: 'later',
+    tell: 'Ray moves before you have finished reading the card. He is not looking at your hand.',
+  },
+];
+
+const ANYBODY_TELL = 'Whoever is free walks in. Somebody always is.';
+
+/** The regular sitting under this seat name, or null for a plain chef bot. */
+function regularByName(name) {
+  const key = String(name || '').toLowerCase();
+  return REGULARS.find((r) => r.name.toLowerCase() === key) || null;
+}
+
 // ------------------------------------------------------------------- state --
 const ui = {
   snapshot: null,
@@ -92,6 +146,10 @@ const ui = {
   copyTimers: new WeakMap(),
   dealing: false, // true for the first hand render of a round
   roundFocusReturn: null,
+  roster: null, // the hire panel, built once on first use
+  // Everything the receipts are made of. Filled in from snapshots as they
+  // arrive, because none of it is on the wire as a number.
+  tab: null,
   // Last-seen table state, so a new snapshot can be animated as a diff:
   // an opponent's card flies to the oven, a penalty flies to its victim.
   prevTopId: null,
@@ -292,6 +350,8 @@ function applySnapshot(snapshot) {
     resetRoundEffects();
   }
 
+  trackTab(snapshot);
+
   el.lobbyCode.textContent = snapshot.roomCode;
   el.hudCodeText.textContent = snapshot.roomCode;
 
@@ -440,6 +500,110 @@ function renderLobby(snapshot) {
   }
 }
 
+// ------------------------------------------------------- the hire roster ----
+/**
+ * The panel behind "Hire a chef bot". It is built once, from here, and reuses
+ * the popover treatment the topping picker and the call-out list already use.
+ */
+function buildRoster() {
+  const panel = document.createElement('div');
+  panel.className = 'popover popover--roster';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'false');
+  panel.setAttribute('aria-label', 'Hire a chef bot');
+
+  const title = document.createElement('p');
+  title.className = 'popover__title';
+  title.textContent = "Who's coming in?";
+
+  const grid = document.createElement('div');
+  grid.className = 'roster';
+
+  const tell = document.createElement('p');
+  tell.className = 'roster__tell';
+  tell.setAttribute('role', 'status');
+  tell.textContent = ANYBODY_TELL;
+
+  const cancel = document.createElement('button');
+  cancel.className = 'btn btn--quiet btn--sm btn--block';
+  cancel.type = 'button';
+  cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', closePopovers);
+
+  panel.append(title, grid, tell, cancel);
+  ui.roster = { panel, grid, tell };
+  return ui.roster;
+}
+
+/** One tile. `regular` is null for the ANYBODY tile. */
+function rosterTile(regular, seated) {
+  const tile = document.createElement('button');
+  tile.type = 'button';
+  tile.className = regular ? 'roster-tile' : 'roster-tile roster-tile--any';
+  const line = regular ? regular.tell : ANYBODY_TELL;
+
+  const window_ = document.createElement('span');
+  window_.className = 'roster-tile__window';
+  window_.setAttribute('aria-hidden', 'true');
+
+  const name = document.createElement('span');
+  name.className = 'roster-tile__name';
+  name.textContent = regular ? regular.name : 'Anybody';
+
+  tile.append(window_, name);
+  // The tell is only shown for the tile under the pointer, so every tile
+  // carries it as its own label too. A screen reader gets the whole roster.
+  tile.setAttribute('aria-label', regular ? `Hire ${regular.name}. ${regular.tell}` : `Hire anybody. ${ANYBODY_TELL}`);
+
+  if (seated) {
+    tile.classList.add('is-seated');
+    // Left focusable on purpose: the tell is the tutorial, and a keyboard
+    // player should still be able to read the one for a chef already seated.
+    tile.setAttribute('aria-disabled', 'true');
+    tile.setAttribute('aria-label', `${regular.name} is already at the table. ${regular.tell}`);
+    const label = document.createElement('span');
+    label.className = 'roster-tile__seated';
+    label.textContent = 'Seated';
+    tile.append(label);
+  }
+
+  const describe = () => { ui.roster.tell.textContent = line; };
+  tile.addEventListener('pointerenter', describe);
+  tile.addEventListener('focus', describe);
+  tile.addEventListener('click', () => {
+    if (seated) {
+      toast(`${regular.name} is already at the table.`);
+      return;
+    }
+    closePopovers();
+    send(regular ? { type: 'addBot', regularId: regular.id } : { type: 'addBot' });
+  });
+  return tile;
+}
+
+function openRoster(snapshot) {
+  const roster = ui.roster || buildRoster();
+  if (!roster.panel.isConnected) {
+    const host = el.btnAddBot.closest('.panel') || el.btnAddBot.parentElement;
+    host.append(roster.panel);
+  }
+
+  const seated = new Set(
+    snapshot.seats.filter((s) => s.isBot).map((s) => s.name.toLowerCase())
+  );
+  const tiles = new DocumentFragment();
+  for (const regular of REGULARS) {
+    tiles.append(rosterTile(regular, seated.has(regular.name.toLowerCase())));
+  }
+  tiles.append(rosterTile(null, false));
+  roster.grid.replaceChildren(tiles);
+  roster.tell.textContent = ANYBODY_TELL;
+
+  show(roster.panel);
+  const first = roster.grid.querySelector('.roster-tile:not(.is-seated)');
+  if (first) first.focus({ preventScroll: true });
+}
+
 function tag(kind, text) {
   const node = document.createElement('span');
   node.className = `tag tag--${kind}`;
@@ -547,6 +711,13 @@ function renderOpponents(snapshot, view) {
   const seen = new Set();
   const order = [];
 
+  // Your own call-out window, read off the snapshot you already have. While it
+  // is open, every bot at the table is a seat that could catch you.
+  const me = view.players.find((p) => p.id === snapshot.youId);
+  const exposed = Boolean(
+    me && me.vulnerable && me.cardCount === 1 && view.status === 'playing'
+  );
+
   for (const player of list) {
     seen.add(player.id);
     let node = ui.seatNodes.get(player.id);
@@ -554,7 +725,7 @@ function renderOpponents(snapshot, view) {
       node = buildSeat(player);
       ui.seatNodes.set(player.id, node);
     }
-    updateSeat(node, player, view);
+    updateSeat(node, player, view, exposed);
     order.push(node);
   }
 
@@ -667,15 +838,30 @@ function buildSeat(player) {
   mini.className = 'seat__mini';
   node.append(mini);
 
+  const status = document.createElement('span');
+  status.className = 'seat__status';
+  node.append(status);
+
   const badge = document.createElement('span');
   badge.className = 'seat__badge';
   node.append(badge);
 
-  node._parts = { avatar, name, count, countLong, countNum, mini, badge };
+  node._parts = { avatar, name, count, countLong, countNum, mini, badge, status };
   return node;
 }
 
-function updateSeat(node, player, view) {
+/**
+ * One status word for a chef bot, from state the snapshot already carries.
+ * A human opponent gets nothing: their tell is their own business.
+ */
+function seatStatus(player, view, exposed) {
+  if (!player.isBot || player.left || view.status !== 'playing') return '';
+  if (exposed) return 'watching you';
+  if (view.turnPlayerId === player.id) return 'thinking';
+  return '';
+}
+
+function updateSeat(node, player, view, exposed) {
   const parts = node._parts;
   const avatarState = `${player.isBot}:${player.connected}`;
   if (node.dataset.avatarState !== avatarState) {
@@ -693,6 +879,11 @@ function updateSeat(node, player, view) {
   node.classList.toggle('is-away', !player.connected);
   // Their call-out window is open: the chef column dashes the panel in sauce.
   node.classList.toggle('is-vulnerable', Boolean(player.vulnerable) && player.cardCount === 1);
+
+  const word = seatStatus(player, view, exposed);
+  parts.status.textContent = word;
+  parts.status.classList.toggle('is-shown', Boolean(word));
+  parts.status.classList.toggle('is-watching', word === 'watching you');
 
   // The mini stack only gets rebuilt when the count changes.
   const shown = Math.min(player.cardCount, 6);
@@ -1055,6 +1246,125 @@ function renderLog(view) {
   el.logList.scrollTop = el.logList.scrollHeight;
 }
 
+// =============================================================== THE TAB ===
+/**
+ * The running bill.
+ *
+ * Nothing here is on the wire. The server publishes a card count per player, a
+ * top card, a turn and a call-out flag; every line on the receipt is read out
+ * of the difference between one snapshot and the next, the same way the table
+ * animations are. A player who joins mid-round only gets charged for what they
+ * were in the room to see, and that is the honest answer.
+ */
+function freshBill() {
+  // `*Cost` is what the player actually took, which is the printed +2 or +4
+  // unless the dough ran out mid-deal. It keeps the lines adding up to OWED.
+  return {
+    played: 0, anchovy: 0,
+    extra: 0, extraCost: 0,
+    whole: 0, wholeCost: 0,
+    caught: 0, caughtCost: 0,
+    dead: 0, owed: 0,
+  };
+}
+
+function resetTab(view) {
+  ui.tab = {
+    gameId: view ? view.gameId : null,
+    bills: new Map(),
+    prevTopId: null,
+    prevCounts: new Map(),
+    prevVulnerable: new Map(),
+    pendingDraw: new Set(), // drew a card, and the turn stayed with them
+  };
+}
+
+function billFor(id) {
+  if (!ui.tab.bills.has(id)) ui.tab.bills.set(id, freshBill());
+  return ui.tab.bills.get(id);
+}
+
+function trackTab(snapshot) {
+  const view = snapshot.game;
+  if (!view) {
+    if (!ui.tab || ui.tab.gameId !== null) resetTab(null);
+    return;
+  }
+  if (!ui.tab || ui.tab.gameId !== view.gameId) resetTab(view);
+
+  const tab = ui.tab;
+  const top = view.topCard;
+  const topId = top ? top.id : null;
+  const landed = topId !== tab.prevTopId && tab.prevTopId !== null;
+
+  // Who played it: the top card changed and exactly one hand got smaller.
+  // Two at once (somebody walked out on the same beat) is not worth guessing.
+  let author = null;
+  if (landed) {
+    const shrank = view.players.filter((p) => {
+      const before = tab.prevCounts.get(p.id);
+      return before !== undefined && p.cardCount < before;
+    });
+    if (shrank.length === 1) author = shrank[0].id;
+  }
+
+  // A card drawn last time is only a dead turn once the turn has moved on
+  // without it being played.
+  for (const id of [...tab.pendingDraw]) {
+    if (id === author) {
+      tab.pendingDraw.delete(id); // they drew it and played it. No charge.
+    } else if (view.turnPlayerId !== id || view.status !== 'playing') {
+      const bill = billFor(id);
+      bill.dead += 1;
+      bill.owed += 1;
+      tab.pendingDraw.delete(id);
+    }
+  }
+
+  if (author) {
+    const bill = billFor(author);
+    bill.played += 1;
+    if (top && top.suit === 'anchovy') bill.anchovy += 1;
+  }
+
+  const penalty = landed && top && (top.kind === 'draw2' || top.kind === 'wild4');
+
+  for (const player of view.players) {
+    const before = tab.prevCounts.get(player.id);
+    if (before === undefined || player.cardCount <= before) continue;
+    const taken = player.cardCount - before;
+    const bill = billFor(player.id);
+
+    if (penalty && player.id !== author) {
+      // Forced by the card that just landed. The cost is what they actually
+      // took, which is the +2 or the +4 unless the dough ran out mid-deal.
+      if (top.kind === 'draw2') { bill.extra += 1; bill.extraCost += taken; }
+      else { bill.whole += 1; bill.wholeCost += taken; }
+      bill.owed += taken;
+      continue;
+    }
+    if (tab.prevVulnerable.get(player.id) && !player.vulnerable) {
+      bill.caught += 1;
+      bill.caughtCost += taken;
+      bill.owed += taken;
+      continue;
+    }
+    if (taken === 1 && !landed) {
+      // A plain draw. Whether it was a dead turn is decided next snapshot.
+      if (view.turnPlayerId === player.id && view.status === 'playing') {
+        tab.pendingDraw.add(player.id);
+      } else {
+        bill.dead += 1;
+        bill.owed += 1;
+      }
+    }
+  }
+
+  tab.prevTopId = topId;
+  tab.prevCounts = new Map(view.players.map((p) => [p.id, p.cardCount]));
+  tab.prevVulnerable = new Map(view.players.map((p) => [p.id, Boolean(p.vulnerable)]));
+}
+
 // ============================================================ ROUND OVER ===
 function renderRoundOver(snapshot, staged) {
   const view = snapshot.game;
@@ -1084,38 +1394,135 @@ function renderRoundOver(snapshot, staged) {
 
   if (el.dialog) el.dialog.classList.toggle('is-win', Boolean(youWon));
 
-  const rows = new DocumentFragment();
-  const ranked = [...snapshot.seats].sort((a, b) => b.wins - a.wins || a.name.localeCompare(b.name));
-  ranked.forEach((seat, index) => {
-    const row = document.createElement('li');
-    row.className = 'score-row';
-    if (seat.id === view.winnerId) row.classList.add('is-winner');
-    // I · the board types itself in behind the crown, one row per 120ms, for
-    // as long as the checker behind it is scrolling.
-    if (staged && wantsMotion()) row.style.transitionDelay = `${220 + index * 120}ms`;
-
-    const face = document.createElement('img');
-    face.className = 'score-row__avatar';
-    face.src = seat.isBot ? 'assets/avatar-chef-bot.png' : 'assets/avatar-patron.png';
-    face.alt = '';
-    face.width = 52;
-    face.height = 52;
-    face.draggable = false;
-    const name = document.createElement('span');
-    name.className = 'score-row__name';
-    name.textContent = seat.name + (seat.id === snapshot.youId ? ' (you)' : '');
-    const wins = document.createElement('span');
-    wins.className = 'score-row__wins';
-    wins.append(document.createTextNode(`${seat.wins} `), icon('slice'));
-
-    row.append(face, name, wins);
-    rows.append(row);
-  });
-  el.scoreboard.replaceChildren(rows);
+  renderReceipts(snapshot, staged);
 
   el.btnNextRound.hidden = !snapshot.isHost;
   el.btnToLobby.hidden = !snapshot.isHost;
   el.roundWait.textContent = snapshot.isHost ? '' : 'Waiting for the host to roll out more dough…';
+}
+
+// =============================================================== RECEIPTS ==
+/** The footer line, straight off the handoff table. */
+function receiptFooter({ won, owed, caught, regular }) {
+  if (won) return 'ON THE HOUSE';
+  if (regular) return `“${regular.line}”`;
+  if (caught >= 2) return 'WE HEARD NOTHING';
+  if (owed >= 12) return 'PLEASE SETTLE UP FRONT';
+  if (owed >= 6) return 'NO REFUNDS';
+  return 'GRAZIE · COME AGAIN';
+}
+
+function receiptLine(label, amount, flavour) {
+  const row = document.createElement('div');
+  row.className = flavour ? `receipt__line receipt__line--${flavour}` : 'receipt__line';
+  const text = document.createElement('span');
+  text.textContent = label;
+  const cost = document.createElement('span');
+  cost.textContent = String(amount);
+  row.append(text, cost);
+  return row;
+}
+
+/** One player's bill, printed on cream paper. */
+function buildReceipt(snapshot, view, seat, index, anchovyLover, staged) {
+  const bill = (ui.tab && ui.tab.bills.get(seat.id)) || freshBill();
+  const player = view.players.find((p) => p.id === seat.id);
+  const won = view.winnerId === seat.id;
+  const regular = seat.isBot && !won ? regularByName(seat.name) : null;
+
+  const paper = document.createElement('li');
+  paper.className = 'receipt';
+  if (won) paper.classList.add('is-winner');
+  if (seat.id === snapshot.youId) paper.classList.add('is-you');
+  // Receipts print left to right, 120ms apart.
+  if (staged && wantsMotion()) paper.style.transitionDelay = `${180 + index * 120}ms`;
+
+  const brand = document.createElement('span');
+  brand.className = 'receipt__brand';
+  brand.append(document.createTextNode('ZA! PIZZERIA'), document.createElement('br'),
+    document.createTextNode('THANK YOU'));
+
+  const who = document.createElement('span');
+  who.className = 'receipt__who';
+  const place = snapshot.seats.findIndex((s) => s.id === seat.id) + 1;
+  const desk = seat.isBot ? 'CPU' : `SEAT ${place}`;
+  who.textContent = `${seat.name}${seat.id === snapshot.youId ? ' (you)' : ''} · ${desk}`;
+
+  paper.append(brand, who);
+
+  const items = document.createElement('div');
+  items.className = 'receipt__items';
+
+  if (bill.played) items.append(receiptLine('CARDS PLAYED', bill.played));
+  // The winner pays for nothing, so nothing they were charged is itemised
+  // either. A bill of costs over a total of zero would only read as a mistake.
+  if (!won) {
+    if (bill.extra) items.append(receiptLine(`${bill.extra} EXTRA TOPPINGS`, bill.extraCost));
+    if (bill.whole) items.append(receiptLine(`${bill.whole} WHOLE PIE EATEN`, bill.wholeCost));
+    if (bill.caught) {
+      items.append(receiptLine(`FORGOT TO SHOUT ×${bill.caught}`, bill.caughtCost, 'bad'));
+    }
+    if (bill.dead) items.append(receiptLine('DREW ON A DEAD TURN', bill.dead));
+  }
+  if (bill.anchovy) items.append(receiptLine(`ANCHOVY PLAYED ×${bill.anchovy}`, '—'));
+  if (anchovyLover) items.append(receiptLine('ANCHOVY LOVER', '0', 'badge'));
+  items.append(receiptLine('ROUNDS WON', seat.wins));
+  if (!items.children.length) items.append(receiptLine('NOTHING ON THE TAB', '—'));
+  paper.append(items);
+
+  const total = document.createElement('div');
+  total.className = 'receipt__total';
+  const owedLabel = document.createElement('span');
+  owedLabel.textContent = 'OWED';
+  const owedValue = document.createElement('span');
+  owedValue.textContent = String(won ? 0 : bill.owed);
+  total.append(owedLabel, owedValue);
+  paper.append(total);
+
+  const foot = document.createElement('span');
+  foot.className = 'receipt__foot';
+  foot.textContent = receiptFooter({ won, owed: bill.owed, caught: bill.caught, regular });
+  paper.append(foot);
+
+  // A player who left mid-round has no hand left to speak of; say so rather
+  // than printing a bill that looks paid.
+  if (player && player.left) {
+    const gone = document.createElement('span');
+    gone.className = 'receipt__foot receipt__foot--gone';
+    gone.textContent = 'WALKED OUT';
+    paper.append(gone);
+  }
+  return paper;
+}
+
+/**
+ * The round-over dialog: one receipt per player. Yours prints first, on every
+ * screen size, so the punchline lands on your own bill.
+ */
+function renderReceipts(snapshot, staged) {
+  const view = snapshot.game;
+  const inRound = new Set(view.players.map((p) => p.id));
+  const seats = snapshot.seats.filter((s) => inRound.has(s.id));
+  const mine = seats.filter((s) => s.id === snapshot.youId);
+  const others = seats.filter((s) => s.id !== snapshot.youId);
+  const order = [...mine, ...others];
+
+  // The ANCHOVY LOVER badge goes to whoever played the most of them. A tie is
+  // nobody's badge: three people holding it says nothing about any of them.
+  const counts = order.map((s) => ((ui.tab && ui.tab.bills.get(s.id)) || freshBill()).anchovy);
+  const most = Math.max(0, ...counts);
+  const alone = counts.filter((n) => n === most).length === 1;
+
+  const papers = new DocumentFragment();
+  order.forEach((seat, index) => {
+    const lover = most > 0 && alone && counts[index] === most;
+    papers.append(buildReceipt(snapshot, view, seat, index, lover, staged));
+  });
+
+  el.scoreboard.className = 'receipts';
+  el.scoreboard.classList.toggle('receipts--many', order.length > 3);
+  el.scoreboard.replaceChildren(papers);
+  if (el.dialog) el.dialog.classList.add('dialog--receipts');
 }
 
 // =============================================================== ACTIONS ===
@@ -1550,7 +1957,17 @@ function cardBack() {
 function closePopovers() {
   hide(el.picker);
   hide(el.calloutPop);
+  if (ui.roster) hide(ui.roster.panel);
   ui.pendingWild = null;
+}
+
+/** True while any popover, including the hire roster, is on screen. */
+function popoverOpen() {
+  return (
+    el.picker.classList.contains('is-open') ||
+    el.calloutPop.classList.contains('is-open') ||
+    Boolean(ui.roster && ui.roster.panel.classList.contains('is-open'))
+  );
 }
 
 function openPicker(card, slot) {
@@ -1740,7 +2157,14 @@ el.formJoin.addEventListener('submit', (event) => {
 
 el.btnCopyCode.addEventListener('click', () => copyCode(el.btnCopyCode));
 el.hudCode.addEventListener('click', () => copyCode(el.hudCode));
-el.btnAddBot.addEventListener('click', () => send({ type: 'addBot' }));
+el.btnAddBot.addEventListener('click', () => {
+  if (!ui.snapshot) return;
+  if (ui.roster && ui.roster.panel.classList.contains('is-open')) {
+    closePopovers();
+    return;
+  }
+  openRoster(ui.snapshot);
+});
 el.btnStart.addEventListener('click', () => send({ type: 'startGame' }));
 el.btnLeaveLobby.addEventListener('click', () => send({ type: 'leaveRoom' }));
 el.btnLeaveGame.addEventListener('click', () => send({ type: 'leaveRoom' }));
@@ -1789,9 +2213,8 @@ document.addEventListener('keydown', (event) => {
 
 // A click outside closes an open popover.
 document.addEventListener('pointerdown', (event) => {
-  const open = el.picker.classList.contains('is-open') || el.calloutPop.classList.contains('is-open');
-  if (!open) return;
-  if (event.target.closest('.popover, .card, .btn--callout')) return;
+  if (!popoverOpen()) return;
+  if (event.target.closest('.popover, .card, .btn--callout, #btn-add-bot')) return;
   closePopovers();
 });
 

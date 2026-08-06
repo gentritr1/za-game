@@ -142,6 +142,10 @@ function createGame(seats, options = {}) {
       id: seat.id,
       name: seat.name,
       isBot: Boolean(seat.isBot),
+      // A named bot says one line, on one kind of move. Both are optional and
+      // neither leaves the server: `viewFor` publishes the finished log text.
+      line: seat.line || null,
+      cue: seat.cue || null,
       hand: [],
       declaredZa: false,
       vulnerable: false, // can be called out for a missed ZA
@@ -239,6 +243,27 @@ function addLog(state, text) {
   if (state.log.length > LOG_LIMIT) state.log.splice(0, state.log.length - LOG_LIMIT);
 }
 
+/**
+ * A named bot's catchphrase, but only on the one move it belongs to. Returns
+ * the empty string for everybody else, so it can always be appended.
+ */
+function say(player, cue) {
+  if (!player || !player.line || !cue || player.cue !== cue) return '';
+  return ` "${player.line}"`;
+}
+
+/** Which catchphrase cue, if any, a played card raises. */
+function cueOfCard(card) {
+  if (!card) return null;
+  if (isWild(card)) return 'wild';
+  if (card.kind === KINDS.DRAW2) return 'draw2';
+  if (card.kind === KINDS.NUMBER) {
+    if (card.value <= 2) return 'lownumber';
+    if (card.value === 9) return 'nine';
+  }
+  return null;
+}
+
 /** Picks one of several phrasings, so the kitchen chatter stays fresh. */
 function pick(state, lines) {
   return lines[Math.floor(state.rng() * lines.length)];
@@ -301,7 +326,10 @@ function endRound(state, winner, reason) {
   state.winnerId = winner ? winner.id : null;
   state.drawnCard = null;
   if (winner) {
-    addLog(state, reason || `🏆 ${winner.name} emptied the box and takes the round!`);
+    addLog(
+      state,
+      (reason || `🏆 ${winner.name} emptied the box and takes the round!`) + say(winner, 'win')
+    );
   } else {
     addLog(state, reason || 'The round ended with nobody at the oven.');
   }
@@ -363,7 +391,7 @@ function playCard(state, playerId, cardId, chosenTopping) {
   state.currentTopping = isWild(card) ? chosenTopping : card.suit;
   state.drawnCard = null;
 
-  addLog(state, playLine(state, player, card, chosenTopping));
+  addLog(state, playLine(state, player, card, chosenTopping) + say(player, cueOfCard(card)));
 
   // Win check happens before the card effect. A last card that forces a draw
   // still ends the round.
@@ -544,6 +572,7 @@ function callOut(state, callerId, targetId) {
   addLog(
     state,
     `☝️ ${caller.name} caught ${target.name} keeping quiet! No ZA, so that is ${dealt.length} card${dealt.length === 1 ? '' : 's'} back in the hand.`
+      + say(caller, 'callout')
   );
   return { ok: true };
 }

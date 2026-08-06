@@ -189,8 +189,31 @@ All four are refused with an error when the sender is not the host.
 { "type": "addBot" }
 ```
 
-No fields. The server picks a free chef name. Only allowed in the `lobby` phase,
-and only while the table has fewer than 8 seats.
+```json
+{ "type": "addBot", "regularId": "vito" }
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `regularId` | string, **optional** | Which of the regulars to hire. Omitted, unknown, or already seated all mean the same thing: the server sends in a random regular who is free. Never an error. |
+
+Only allowed in the `lobby` phase, and only while the table has fewer than 8
+seats. **The server owns the name.** It answers with the name of whoever walked
+in, in the next `state` broadcast; the client never proposes one.
+
+The six regulars are `vito`, `carmela`, `paulie`, `pina`, `dominic` and `ray`.
+Each has a fixed name, a call-out chance, a think-pause range and a play bias —
+all server side. Nothing about a regular is published beyond the seat `name`
+they were hired under, and the catchphrase that shows up inside a `log` line on
+their signature move. There is no `regularId` in any snapshot: a client that
+wants to know who is at the table matches the seat name against the roster it
+draws.
+
+A seventh bot at a table where all six regulars are already seated gets a plain
+`Chef …` name, the old 800 ms pause and the old 70% call-out chance.
+
+`{ "type": "addBot" }` with no fields behaves exactly as it did in version 1, so
+an older client keeps working against a newer server.
 
 #### `removeSeat`
 
@@ -589,7 +612,7 @@ everything except `open`.
 | Timer | Value | Effect |
 | --- | --- | --- |
 | Tick | 250 ms | Drives every timer below. |
-| Bot think | 800 ms | Pause before a bot moves. |
+| Bot think | 250–2500 ms | Pause before a bot moves, drawn from the range of the regular in that seat (Ray 250–400, Big Paulie 1900–2500). A bot with no regular keeps the old flat 800 ms. |
 | Bot follow-up | 300 ms | Pause after a shout or a call-out, which do not end the turn. |
 | Away turn timeout | 12 s | A disconnected player whose turn it is draws 1 card and the turn moves on. |
 | Reconnect grace | 120 s | After this the seat is freed and the player is removed from the round. |
