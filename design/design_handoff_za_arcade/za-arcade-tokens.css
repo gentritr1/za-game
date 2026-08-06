@@ -1,0 +1,134 @@
+/* ==========================================================================
+   ZA! — ARCADE DIRECTION · design tokens
+   Drop-in replacement for the :root block in public/css/styles.css.
+   Legacy variable names are kept as aliases, so existing selectors keep
+   working without edits. Game logic is untouched.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Kaushan+Script&display=swap");
+
+:root {
+  /* ---------------------------------------------------------- suits ----- */
+  --sauce:        #ff2e6b;   /* pepperoni */
+  --sauce-hi:     #ff4d9d;
+  --sauce-deep:   #c11a4c;
+  --cheese:       #ffe14d;
+  --cheese-hi:    #fff08a;
+  --cheese-deep:  #c9a800;
+  --basil:        #3ddc7f;
+  --basil-deep:   #22a058;
+  --anchovy:      #4d7dff;
+  --anchovy-deep: #2a52c9;
+
+  /* ------------------------------------------------------- cabinet ----- */
+  --void:      #0d0f1a;   /* screen black, page background */
+  --console:   #080a12;   /* log / recessed panels */
+  --cabinet:   #101426;   /* panel fill */
+  --cabinet-hi:#151b33;   /* sprite window, checker light square */
+  --bezel:     #2a3355;   /* every inactive border */
+  --ui-cyan:   #7de2ff;   /* labels, hints, system text */
+
+  --text:      #e8ecff;
+  --text-dim:  #96a3c9;
+  --text-mute: #8f9bc4;
+
+  /* ------------------------------------- legacy aliases (do not remove) - */
+  --tomato:        var(--sauce);
+  --tomato-deep:   var(--sauce-deep);
+  --tomato-soft:   var(--sauce-hi);
+  --basil-soft:    var(--basil);
+  --crust:         var(--cheese);
+  --crust-deep:    var(--cheese-deep);
+  --mozzarella:    var(--text);
+  --mozzarella-dim:var(--text-dim);
+  --ink:           var(--void);
+  --ink-soft:      var(--text-dim);
+  --wood-hi:       var(--cabinet);
+  --wood-lo:       var(--void);
+
+  /* ---------------------------------------------------------- type ----- */
+  --font:         "VT323", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Press Start 2P", var(--font);
+  --font-script:  "Kaushan Script", cursive;   /* flourishes only */
+
+  /* VT323 runs small; the client base size steps up from 15px to 18px. */
+  --fs-base:  18px;
+  --fs-label: 16px;   /* VT323, letter-spacing .12em, uppercase */
+  --fs-ui:    19px;
+  --fs-h2:    14px;   /* Press Start 2P — never below 12px on screen */
+  --fs-h1:    24px;
+
+  /* ------------------------------------------------------ geometry ----- */
+  /* The arcade look has no round corners. All four radii are zero on
+     purpose, so a stray var() cannot reintroduce a curve. */
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+  --r-xl: 0;
+  --r-pill: 0;
+
+  --bd-thin:  3px;
+  --bd-thick: 4px;
+  --bd-card:  5px;
+
+  /* Offset hard shadows, never blur. Whole pixels only. */
+  --sh-card:  4px 4px 0 rgba(0, 0, 0, .50);
+  --sh-lift:  6px 6px 0 rgba(0, 0, 0, .55);
+  --sh-panel: 8px 8px 0 rgba(0, 0, 0, .60);
+  --sh-hud:   0 3px 0 var(--bezel);
+
+  /* -------------------------------------------------------- motion ----- */
+  /* Durations are unchanged from the original build. What changes is the
+     easing: pixel movement steps instead of gliding. */
+  --d-press: 150ms;
+  --d-fast:  160ms;
+  --d-mid:   220ms;
+  --d-slow:  280ms;
+  --d-exit:  130ms;
+  --d-frame: 50ms;             /* one animation frame at 20fps */
+
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-step:   steps(3, end);   /* sprite slams: small, huge, settled */
+  --ease-step-5: steps(5, end);   /* countdown bars, chain totals */
+
+  /* ------------------------------------------------------- ambience ---- */
+  --scanline: repeating-linear-gradient(rgba(0,0,0,.30) 0 2px, transparent 2px 4px);
+  --checker:  repeating-conic-gradient(var(--cabinet-hi) 0 25%, var(--cabinet) 0 50%) 0 0 / 22px 22px;
+  --bloom:    radial-gradient(80% 80% at 50% 45%, rgba(125,226,255,.07), transparent 70%);
+  --oven:     radial-gradient(46% 40% at 50% 46%, rgba(255,140,40,.26), transparent 72%);
+
+  /* ---------------------------------------------------- card geometry -- */
+  --card-w: 84px;
+  --card-ratio: 1.4;
+  --card-radius: 0;
+}
+
+/* Suit colour is carried on the card border via currentColor, so one rule
+   sets index, banner fill and keyline together. */
+.card--pepperoni { color: var(--sauce); }
+.card--basil     { color: var(--basil); }
+.card--cheese    { color: var(--cheese); }
+.card--anchovy   { color: var(--anchovy); }
+.card--is-wild   { color: var(--cheese); }
+
+.card {
+  background: var(--cabinet);
+  border: var(--bd-card) solid currentColor;
+  border-radius: 0;
+  box-shadow: var(--sh-card);
+}
+
+/* Scanlines belong on one fixed overlay, above the table and below dialogs.
+   Keep it non-interactive and out of the accessibility tree. */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: var(--scanline);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --ease-step: linear; --ease-step-5: linear; }
+}
