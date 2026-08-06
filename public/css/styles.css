@@ -25,7 +25,8 @@
 /* ZA! — ARCADE DIRECTION. Token block from the design kit (za-arcade-tokens
    .css). Legacy variable names are kept as aliases, so selectors written for
    the parlour build keep working. Game logic is untouched. */
-@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Kaushan+Script&display=swap");
+/* Fonts load once from the <link> in index.html; no @import here, which
+   would chain a second render-blocking request behind the stylesheet. */
 
 :root {
   /* suits */
