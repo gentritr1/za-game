@@ -1357,84 +1357,81 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .card--anchovy { --suit: var(--anchovy); --suit-ink: var(--anchovy); }
 .card--wild { --suit: #4a3a55; --suit-ink: #3b2c46; }
 
+/* A wild is marked by the four-quarter tint behind its window, cheese keyline. */
 .card--is-wild {
+  --suit: var(--cheese);
   background:
     conic-gradient(from 210deg,
-      var(--tomato) 0deg 90deg,
+      var(--sauce) 0deg 90deg,
       var(--basil) 90deg 180deg,
       var(--cheese) 180deg 270deg,
       var(--anchovy) 270deg 360deg);
 }
 
-.card__face {
+/* The sprite window: recessed cabinet-hi panel with the generated sprite
+   behind the big value. The only art on the card. */
+.card__window {
   position: absolute;
-  inset: 0;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 3px;
-}
-
-.card__disc {
+  inset: calc(var(--card-w) * 0.25) calc(var(--card-w) * 0.115) calc(var(--card-w) * 0.27);
   display: grid;
   place-items: center;
-  width: 64%;
-  aspect-ratio: 1 / 1.12;
-  background: #fff;
-  border: 2px solid color-mix(in srgb, var(--suit) 35%, #fff);
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+  background: var(--cabinet-hi);
+  overflow: hidden;
 }
 
-.card__glyph {
-  font-size: calc(var(--card-w) * 0.42);
-  font-weight: 800;
+.card__sprite {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  opacity: .85;
+}
+
+.card__value {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: calc(var(--card-w) * 0.25);
   line-height: 1;
-  letter-spacing: -0.04em;
-  color: var(--suit-ink);
+  color: var(--text);
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, .75);
 }
 
-.card--is-wild .card__glyph { font-size: calc(var(--card-w) * 0.34); }
-.card[data-kind="skip"] .card__glyph,
-.card[data-kind="reverse"] .card__glyph,
-.card[data-kind="draw2"] .card__glyph,
-.card[data-kind="wild4"] .card__glyph { font-size: calc(var(--card-w) * 0.32); }
-
-.card__foot {
-  max-width: 84%;
-  font-size: calc(var(--card-w) * 0.1);
-  font-weight: 800;
-  letter-spacing: .04em;
+.card__banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--card-w) * 0.05);
+  background: var(--suit, var(--bezel));
+  font-size: calc(var(--card-w) * 0.105);
+  letter-spacing: .02em;
+  white-space: nowrap;
+  overflow: hidden;
   text-transform: uppercase;
   text-align: center;
-  line-height: 1.15;
-  color: var(--suit-ink);
+  line-height: 1.5;
+  color: var(--void);
 }
-
-.card--is-wild .card__foot { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 
 .card__index {
   position: absolute;
   display: grid;
   justify-items: center;
   line-height: 1;
-  color: var(--suit-ink);
+  font-family: var(--font-display);
+  color: var(--suit, var(--text));
 }
 
-.card--is-wild .card__index { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
+.card__index--tl { top: calc(var(--card-w) * 0.045); left: calc(var(--card-w) * 0.06); }
+.card__index--br { bottom: calc(var(--card-w) * 0.045); right: calc(var(--card-w) * 0.06); transform: rotate(180deg); }
 
-.card__index--tl { top: calc(var(--card-w) * 0.06); left: calc(var(--card-w) * 0.07); }
-.card__index--br { bottom: calc(var(--card-w) * 0.06); right: calc(var(--card-w) * 0.07); transform: rotate(180deg); }
+.card__index-val { font-size: calc(var(--card-w) * 0.12); }
 
-.card__index-val { font-size: calc(var(--card-w) * 0.15); font-weight: 800; letter-spacing: -0.02em; }
-.card__index-suit { font-size: calc(var(--card-w) * 0.12); font-style: normal; }
-
-/* card back */
+/* card back: cabinet checker, cheese keyline, symmetrical both axes */
 .card--back {
-  background:
-    repeating-linear-gradient(45deg, rgba(0, 0, 0, .07) 0 6px, rgba(255, 255, 255, .05) 6px 12px),
-    linear-gradient(160deg, var(--crust) 0%, var(--crust-deep) 100%);
-  --suit: var(--crust-deep);
+  --suit: var(--cheese);
+  background: var(--checker);
 }
 
 .card__back-art {
@@ -1442,24 +1439,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   inset: 0;
   display: grid;
   place-items: center;
-  align-content: center;
-  gap: 2px;
 }
 
-.card__back-pie { font-size: calc(var(--card-w) * 0.36); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
-
 .card__back-word {
-  font-size: calc(var(--card-w) * 0.1);
-  font-weight: 800;
-  letter-spacing: .1em;
-  color: rgba(255, 255, 255, .8);
+  font-family: var(--font-display);
+  font-size: calc(var(--card-w) * 0.16);
+  letter-spacing: .02em;
+  color: var(--cheese);
+  text-shadow: 3px 3px 0 var(--sauce);
 }
 
 /* sizes */
 .card--pile { --card-w: 92px; }
-.card--mini { --card-w: 20px; border-radius: 4px; }
+.card--mini { --card-w: 20px; }
 .card--mini .card__back-word { display: none; }
-.card--mini .card__back-pie { font-size: 11px; }
 
 /* A mini card is 20px wide. The full card's 16px entry rise would throw it
    across its own stack, so it gets a rise in proportion. */
@@ -1895,15 +1888,49 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   :root { --card-w: 66px; }
   .table-center { --card-w: 76px; }
   .card--pile { --card-w: 76px; }
-  .seat { width: 88px; }
+
+  /* 48px touch targets, per the kit's mobile sheet. */
+  .btn { min-height: 48px; }
+  .btn--sm { min-height: 44px; }
+
+  /* Press Start 2P needs the room: the mobile marquee steps down like the
+     kit's own table header does, the direction indicator goes (the log
+     narrates flips), and the code chip tightens. */
+  .hud { flex-wrap: wrap; row-gap: var(--s1); }
+  .hud__turn { font-size: 11px; padding: var(--s2) var(--s2); order: 3; flex-basis: 100%; }
+  .hud__dir { display: none; }
+  .hud__code { font-size: 15px; min-height: 40px; padding: var(--s1) var(--s2); }
+
+  /* The attract logotype steps down to the mobile plate. */
+  .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
+  .logo__flourish { font-size: 22px; }
+
+  /* Seats compress to name-and-count chips in a strip. */
+  .seat {
+    width: auto;
+    min-width: 76px;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: var(--s2);
+    padding: var(--s1) var(--s2);
+  }
+  .seat__avatar { width: 22px; height: 22px; }
+  .seat__mini { display: none; }
+  .seat__badge { font-size: 9px; }
+
+  /* The log tightens to a two-line ticker above the hand. */
   .log {
     left: var(--s2);
     right: var(--s2);
     width: auto;
-    max-height: 108px;
+    max-height: 84px;
+    padding: var(--s2);
   }
+
   .hand-slot { margin-left: var(--overlap, -22px); }
   .hud__dir span:last-child { display: none; }
+
+  .hand-zone { padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-height: 620px) {

@@ -7,10 +7,15 @@
  * does not change. See the README for the full file naming convention.
  */
 
-/** The complete generated deck is installed in public/assets/cards/. */
-export const USE_IMAGES = true;
+/**
+ * Arcade direction: the frame, indexes and banner are DOM + Press Start 2P,
+ * and only the sprite in the centre window is generated art. The 55 baked
+ * card faces from the parlour build stay on disk but are not used here.
+ */
+export const USE_IMAGES = false;
 
 export const ASSET_DIR = 'assets/cards';
+export const SPRITE_DIR = 'assets/sprites';
 
 /** Topping suits. `slug` is the part used in the asset file name. */
 export const TOPPINGS = {
@@ -117,7 +122,7 @@ export function renderCard(card, options = {}) {
       return root;
     }
     const art = el('span', 'card__back-art');
-    art.append(el('span', 'card__back-pie', '🍕'), el('span', 'card__back-word', 'ZA'));
+    art.append(el('span', 'card__back-word', 'ZA!'));
     root.append(art);
     return root;
   }
@@ -148,27 +153,41 @@ export function renderCard(card, options = {}) {
     return root;
   }
 
-  // --- emoji placeholder face ---
-  const suitEmoji = isWild(card) ? '🍕' : TOPPINGS[card.suit].emoji;
+  // --- arcade face: DOM frame + sprite window ---
   const index = cornerIndex(card);
 
   const makeCorner = (side) => {
     const corner = el('span', `card__index card__index--${side}`);
     corner.setAttribute('aria-hidden', 'true');
     corner.append(el('b', 'card__index-val', index));
-    if (!isWild(card)) corner.append(el('i', 'card__index-suit', suitEmoji));
     return corner;
   };
 
-  const face = el('span', 'card__face');
-  const disc = el('span', 'card__disc');
-  disc.setAttribute('aria-hidden', 'true');
-  disc.append(el('span', 'card__glyph', centerGlyph(card)));
+  const windowEl = el('span', 'card__window');
+  windowEl.setAttribute('aria-hidden', 'true');
+  const sprite = el('img', 'card__sprite');
+  sprite.src = `${SPRITE_DIR}/${spriteSlug(card)}.png`;
+  sprite.alt = '';
+  sprite.decoding = 'async';
+  sprite.loading = 'lazy';
+  sprite.draggable = false;
+  windowEl.append(sprite, el('span', 'card__value', index));
 
-  face.append(disc, el('span', 'card__foot', footLabel(card)));
-
-  root.append(makeCorner('tl'), face, makeCorner('br'));
+  root.append(
+    makeCorner('tl'),
+    windowEl,
+    el('span', 'card__banner', footLabel(card)),
+    makeCorner('br')
+  );
   return root;
+}
+
+/** Which window sprite a card face uses. One per suit, action kind, or wild. */
+function spriteSlug(card) {
+  if (card.kind === 'wild') return 'chefs-choice';
+  if (card.kind === 'wild4') return 'whole-pie';
+  if (card.kind === 'number') return TOPPINGS[card.suit].slug;
+  return KINDS[card.kind].slug;
 }
 
 /** Small swatch used by the topping picker and the current-topping badge. */
