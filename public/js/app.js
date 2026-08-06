@@ -422,12 +422,18 @@ function resetGameView() {
   el.discardSlot.replaceChildren();
 }
 
+/** A regular's portrait when the bot is one of the six, by name. */
+function regularPortrait(name) {
+  const regular = REGULARS.find((r) => r.name === name);
+  return regular ? `assets/regulars/${regular.id}.png` : null;
+}
+
 function renderAvatar(node, person) {
   node.replaceChildren();
   if (person.isBot) {
     const image = document.createElement('img');
     image.className = 'avatar__image';
-    image.src = 'assets/avatar-chef-bot.png';
+    image.src = regularPortrait(person.name) || 'assets/avatar-chef-bot.png';
     image.alt = '';
     image.width = 256;
     image.height = 256;
@@ -545,6 +551,14 @@ function rosterTile(regular, seated) {
   const window_ = document.createElement('span');
   window_.className = 'roster-tile__window';
   window_.setAttribute('aria-hidden', 'true');
+  if (regular) {
+    const face = document.createElement('img');
+    face.className = 'roster-tile__portrait';
+    face.src = `assets/regulars/${regular.id}.png`;
+    face.alt = '';
+    face.draggable = false;
+    window_.append(face);
+  }
 
   const name = document.createElement('span');
   name.className = 'roster-tile__name';

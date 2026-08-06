@@ -1739,10 +1739,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 /* The sprite window. The portraits do not exist yet, so the frame stands in. */
 .roster-tile__window {
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: 48px;
+  height: 48px;
   background: var(--cabinet-hi);
   border: 2px dashed rgba(255, 255, 255, .2);
+  overflow: hidden;
 }
 
 .roster-tile__name { font-weight: 700; }
@@ -2875,4 +2877,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     animation-duration: 3000ms !important;
     animation-name: callout-drain !important;
   }
+}
+
+/* The regulars' portraits fill their roster windows and seat avatars. */
+.roster-tile__portrait {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
 }
