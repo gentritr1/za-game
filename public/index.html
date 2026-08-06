@@ -37,7 +37,7 @@
                  autocomplete="off" spellcheck="false" required>
         </label>
         <button class="btn btn--primary btn--block" id="btn-create" type="submit">
-          <span aria-hidden="true">🔥</span> Fire up a new table
+          <span data-icon="flame" aria-hidden="true">🔥</span> Fire up a new table
         </button>
       </form>
 
@@ -61,7 +61,7 @@
         <p class="eyebrow">Table code</p>
         <button class="code-chip" id="btn-copy-code" type="button">
           <span id="lobby-code">PIZZA-0000</span>
-          <span class="code-chip__icon" aria-hidden="true">⧉</span>
+          <span class="code-chip__icon" data-icon="copy" aria-hidden="true">⧉</span>
           <span class="code-chip__done" aria-hidden="true">Copied</span>
         </button>
         <p class="hint">Tap the code to copy it, then send it round so your friends can sit down.</p>
@@ -77,10 +77,10 @@
 
       <div class="lobby-actions">
         <button class="btn btn--ghost" id="btn-add-bot" type="button">
-          <span aria-hidden="true">👨‍🍳</span> Hire a chef bot
+          <span data-icon="chefhat" aria-hidden="true">👨‍🍳</span> Hire a chef bot
         </button>
         <button class="btn btn--primary" id="btn-start" type="button">
-          <span aria-hidden="true">🔥</span> Bake it!
+          <span data-icon="flame" aria-hidden="true">🔥</span> Bake it!
         </button>
       </div>
 
@@ -94,7 +94,7 @@
     <header class="hud">
       <button class="hud__code code-chip code-chip--sm" id="hud-code" type="button">
         <span id="hud-code-text">PIZZA-0000</span>
-        <span class="code-chip__icon" aria-hidden="true">⧉</span>
+        <span class="code-chip__icon" data-icon="copy" aria-hidden="true">⧉</span>
         <span class="code-chip__done" aria-hidden="true">Copied</span>
       </button>
 
@@ -104,7 +104,7 @@
       </p>
 
       <p class="hud__dir" id="dir-indicator">
-        <span class="dir-arrow" id="dir-arrow" aria-hidden="true">↻</span>
+        <span class="dir-arrow" id="dir-arrow" data-icon="cycle" aria-hidden="true">↻</span>
         <span id="dir-text">to the left</span>
       </p>
 
@@ -140,10 +140,10 @@
     <footer class="hand-zone">
       <div class="hand-bar">
         <button class="btn btn--za" id="btn-za" type="button">
-          <span aria-hidden="true">🍕</span> ZA!
+          <span data-icon="slice" aria-hidden="true">🍕</span> ZA!
         </button>
         <button class="btn btn--callout" id="btn-callout" type="button">
-          <span aria-hidden="true">☝️</span> <span id="btn-callout-text">Call out</span>
+          <span data-icon="point" aria-hidden="true">☝️</span> <span id="btn-callout-text">Call out</span>
         </button>
         <button class="btn btn--ghost btn--sm" id="btn-pass" type="button">Keep it &amp; pass</button>
         <span class="hand-bar__hint" id="hand-hint"></span>
@@ -180,7 +180,7 @@
     <ol class="scoreboard" id="scoreboard"></ol>
     <div class="dialog__actions">
       <button class="btn btn--primary" id="btn-next-round" type="button">
-        <span aria-hidden="true">🍕</span> Another pie!
+        <span data-icon="slice" aria-hidden="true">🍕</span> Another pie!
       </button>
       <button class="btn btn--ghost" id="btn-to-lobby" type="button">Back to the parlour</button>
     </div>

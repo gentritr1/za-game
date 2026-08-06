@@ -7,6 +7,7 @@
 
 import { Connection } from './net.js';
 import { renderCard, isWild, TOPPING_META, TOPPING_ORDER } from './cards.js';
+import { icon, suitIcon } from './icons.js';
 
 // ---------------------------------------------------------------- elements --
 const $ = (id) => document.getElementById(id);
@@ -325,7 +326,16 @@ function renderAvatar(node, person) {
     node.append(image);
     return;
   }
-  node.textContent = person.connected === false ? '💤' : '🧑';
+  const image = document.createElement('img');
+  image.className = 'avatar__image';
+  image.src = 'assets/avatar-patron.png';
+  image.alt = '';
+  image.width = 256;
+  image.height = 256;
+  image.decoding = 'async';
+  image.draggable = false;
+  node.classList.toggle('is-away', person.connected === false);
+  node.append(image);
 }
 
 // ================================================================= LOBBY ===
@@ -531,7 +541,10 @@ function updateSeat(node, player, view) {
     renderAvatar(parts.avatar, player);
   }
   parts.name.textContent = player.name;
-  parts.count.textContent = `🂠 ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`;
+  parts.count.replaceChildren(
+    icon('cardback'),
+    document.createTextNode(` ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`)
+  );
 
   node.classList.toggle('is-turn', view.turnPlayerId === player.id && view.status === 'playing');
   node.classList.toggle('is-away', !player.connected);
@@ -592,7 +605,12 @@ function renderPiles(view, yourTurn) {
   const meta = TOPPING_META[view.currentTopping];
   if (meta) {
     el.toppingNow.className = `topping-now t-${view.currentTopping}`;
-    el.toppingNow.querySelector('.topping-now__emoji').textContent = meta.emoji;
+    const emblem = el.toppingNow.querySelector('.topping-now__emoji');
+    if (emblem.dataset.suit !== view.currentTopping) {
+      emblem.dataset.suit = view.currentTopping;
+      emblem.classList.add('ico', 'ico--plate');
+      emblem.replaceChildren(...suitIcon(view.currentTopping).childNodes);
+    }
     el.toppingNow.querySelector('.topping-now__name').textContent = meta.label;
   }
 }
@@ -743,7 +761,14 @@ function renderRoundOver(snapshot, staged) {
   const winner = view.players.find((p) => p.id === view.winnerId);
   const youWon = winner && winner.id === snapshot.youId;
 
-  el.roundEmoji.textContent = youWon ? '🏆' : winner ? '🍕' : '🤷';
+  const crownArt = document.createElement('img');
+  crownArt.className = 'dialog__crown-art';
+  crownArt.src = winner ? 'assets/art-trophy.png' : 'assets/za-badge.png';
+  crownArt.alt = '';
+  crownArt.width = 96;
+  crownArt.height = 96;
+  crownArt.draggable = false;
+  el.roundEmoji.replaceChildren(crownArt);
   el.roundTitle.textContent = youWon
     ? 'Empty box. Full glory.'
     : winner ? `${winner.name} cleaned their plate` : 'Kitchen closed';
@@ -764,16 +789,21 @@ function renderRoundOver(snapshot, staged) {
     // The board deals itself in behind the crown.
     if (staged && wantsMotion()) row.style.transitionDelay = `${Math.min(220 + index * 45, 420)}ms`;
 
-    const icon = document.createElement('span');
-    icon.textContent = seat.isBot ? '👨‍🍳' : '🧑';
+    const face = document.createElement('img');
+    face.className = 'score-row__avatar';
+    face.src = seat.isBot ? 'assets/avatar-chef-bot.png' : 'assets/avatar-patron.png';
+    face.alt = '';
+    face.width = 52;
+    face.height = 52;
+    face.draggable = false;
     const name = document.createElement('span');
     name.className = 'score-row__name';
     name.textContent = seat.name + (seat.id === snapshot.youId ? ' (you)' : '');
     const wins = document.createElement('span');
     wins.className = 'score-row__wins';
-    wins.textContent = `${seat.wins} 🍕`;
+    wins.append(document.createTextNode(`${seat.wins} `), icon('slice'));
 
-    row.append(icon, name, wins);
+    row.append(face, name, wins);
     rows.append(row);
   });
   el.scoreboard.replaceChildren(rows);
@@ -1002,11 +1032,10 @@ function openPicker(card, slot) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `topping-btn t-${key}`;
-    const emoji = document.createElement('i');
-    emoji.textContent = meta.emoji;
+    const emblem = suitIcon(key, 'ico--plate');
     const label = document.createElement('span');
     label.textContent = meta.label;
-    button.append(emoji, label);
+    button.append(emblem, label);
     button.addEventListener('click', () => {
       const pending = ui.pendingWild;
       closePopovers();
@@ -1154,6 +1183,13 @@ function boot() {
   for (const screen of el.screens) {
     screen.hidden = false;
     screen.inert = screen.dataset.screen !== 'home';
+  }
+
+  // Swap the emoji fallbacks in the static markup for the parlour icon set.
+  for (const holder of document.querySelectorAll('[data-icon]')) {
+    const drawn = icon(holder.dataset.icon);
+    holder.classList.add('ico');
+    holder.replaceChildren(...drawn.childNodes);
   }
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;
