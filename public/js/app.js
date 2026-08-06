@@ -90,6 +90,12 @@ const ui = {
   copyTimers: new WeakMap(),
   dealing: false, // true for the first hand render of a round
   roundFocusReturn: null,
+  // Last-seen table state, so a new snapshot can be animated as a diff:
+  // an opponent's card flies to the oven, a penalty flies to its victim.
+  prevTopId: null,
+  prevCounts: new Map(), // playerId -> cardCount
+  prevStatus: null,
+  prevDir: 0,
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -388,6 +394,7 @@ function renderGame(snapshot) {
 
   const yourTurn = view.turnPlayerId === snapshot.youId && view.status === 'playing';
 
+  animateTableDiff(snapshot, view);
   renderTurnBanner(snapshot, view, yourTurn);
   renderDirection(view);
   renderOpponents(snapshot, view);
@@ -433,6 +440,17 @@ function setTurnText(text) {
 function renderDirection(view) {
   el.dirIndicator.classList.toggle('is-reversed', view.direction === -1);
   el.dirText.textContent = view.direction === 1 ? 'to the left' : 'to the right';
+
+  // A Flip the Pie does a full show-off spin, in the new direction of play.
+  if (ui.prevDir && ui.prevDir !== view.direction && wantsMotion() &&
+      typeof el.dirIndicator.animate === 'function') {
+    for (const running of el.dirIndicator.getAnimations()) running.cancel();
+    el.dirIndicator.animate(
+      [{ transform: 'rotate(0deg)' }, { transform: `rotate(${view.direction === -1 ? '' : '-'}360deg)` }],
+      { duration: 450, easing: EASE_OUT }
+    );
+  }
+  ui.prevDir = view.direction;
 }
 
 /** Opponents in play order, starting from the seat after you. */
@@ -565,6 +583,7 @@ function renderPiles(view, yourTurn) {
     const seed = top ? hashOf(top.id) : 0;
     holder.style.setProperty('--tilt', `${((seed % 81) / 10 - 4).toFixed(1)}deg`);
     holder.style.setProperty('--enter-spin', `${(Math.floor(seed / 7) % 13) - 6}deg`);
+    if (view.currentTopping) holder.dataset.topping = view.currentTopping;
     if (top) holder.append(renderCard(top, { size: 'pile' }));
     el.discardSlot.replaceChildren(holder);
   }
@@ -835,6 +854,62 @@ function cardMetrics(node) {
   };
 }
 
+/**
+ * Reads a new snapshot as a diff against the last one and flies cards for the
+ * moves other players made: their played card travels from their seat to the
+ * oven, and drawn cards (a routine draw or a penalty) travel from the dough
+ * pile to their seat. Your own moves already fly from the hand handlers, so
+ * they are excluded here.
+ */
+function animateTableDiff(snapshot, view) {
+  const counts = new Map();
+  for (const p of view.players) counts.set(p.id, p.cardCount);
+
+  const ready =
+    wantsMotion() &&
+    ui.prevStatus === 'playing' &&
+    view.status === 'playing' &&
+    ui.prevTopId !== null;
+
+  if (ready) {
+    // An opponent's play: the top card changed and their hand shrank.
+    if (view.topCard && view.topCard.id !== ui.prevTopId) {
+      const player = view.players.find(
+        (p) => p.id !== snapshot.youId && (ui.prevCounts.get(p.id) ?? 0) > p.cardCount
+      );
+      const seat = player && ui.seatNodes.get(player.id);
+      if (seat) {
+        flyBetween(
+          renderCard(view.topCard, { size: 'pile' }),
+          cardMetrics(seat),
+          cardMetrics(el.discardSlot),
+          (Math.random() * 10 - 5).toFixed(1)
+        );
+      }
+    }
+
+    // Opponents' draws: card backs leave the pile for the seat, one by one.
+    for (const p of view.players) {
+      if (p.id === snapshot.youId) continue;
+      const before = ui.prevCounts.get(p.id);
+      if (before === undefined || p.cardCount <= before) continue;
+      const seat = ui.seatNodes.get(p.id);
+      if (!seat) continue;
+      const flights = Math.min(p.cardCount - before, 4);
+      for (let i = 0; i < flights; i++) {
+        setTimeout(() => {
+          if (!seat.isConnected) return;
+          flyBetween(cardBack(), cardMetrics(el.drawSlot), cardMetrics(seat), -6);
+        }, i * 90);
+      }
+    }
+  }
+
+  ui.prevTopId = view.topCard ? view.topCard.id : null;
+  ui.prevCounts = counts;
+  ui.prevStatus = view.status;
+}
+
 /** The played card travels from the hand into the oven. */
 function flyToDiscard(sourceNode) {
   flyBetween(
@@ -845,16 +920,60 @@ function flyToDiscard(sourceNode) {
   );
 }
 
-/** A drawn card travels from the dough pile into its place in the hand. */
+/**
+ * A drawn card travels from the dough pile into its place in the hand, and
+ * turns over on the way: it leaves as a card back and lands face up, so the
+ * reveal happens mid-air instead of at the end.
+ */
 function flyFromDrawPile(slot, startDelay) {
   if (!wantsMotion()) return;
   const launch = () => {
     if (!slot.isConnected) return;
-    flyBetween(cardBack(), cardMetrics(el.drawSlot), cardMetrics(slot), 4);
+    flyFlip(slot.firstElementChild, cardMetrics(el.drawSlot), cardMetrics(slot));
   };
   // One frame of slack lets the fan finish respacing before the target is read.
   if (startDelay > 0) setTimeout(launch, startDelay);
   else requestAnimationFrame(launch);
+}
+
+/**
+ * Like flyBetween, but the traveller is a two-sided card that rotates 180° in
+ * flight: back showing at launch, face showing on landing. The face is a clone
+ * of the real card that will take over at the destination.
+ */
+function flyFlip(faceNode, from, to) {
+  if (!from || !to || !from.w || !to.w) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'fly-card fly-card--flip';
+  wrap.setAttribute('aria-hidden', 'true');
+
+  const back = cardBack().cloneNode(true);
+  back.classList.add('flip-side', 'flip-side--back');
+
+  const face = faceNode.cloneNode(true);
+  face.classList.remove('is-playable', 'is-dimmed', 'is-pressed', 'is-leaving');
+  face.removeAttribute('disabled');
+  face.classList.add('flip-side', 'flip-side--face');
+
+  wrap.append(back, face);
+  wrap.style.left = `${(from.cx - from.w / 2).toFixed(1)}px`;
+  wrap.style.top = `${(from.cy - from.h / 2).toFixed(1)}px`;
+  wrap.style.width = `${from.w}px`;
+  wrap.style.height = `${from.h}px`;
+  wrap.style.setProperty('--card-w', `${from.w}px`);
+  el.flyLayer.append(wrap);
+
+  const dx = to.cx - from.cx;
+  const dy = to.cy - from.cy;
+  const scale = to.w / from.w;
+
+  requestAnimationFrame(() => {
+    wrap.style.transform =
+      `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(3)}) rotateY(180deg)`;
+    wrap.style.opacity = '0.001';
+  });
+  setTimeout(() => wrap.remove(), D_FLY + 140);
 }
 
 let backTemplate = null;
