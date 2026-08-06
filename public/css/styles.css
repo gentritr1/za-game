@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Pizzuno — client styles
+   Za — client styles
 
    Design notes
    - Motion: transform and opacity only. Rings and glows live on pseudo-elements
@@ -794,12 +794,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat__badge.is-shown { opacity: 1; transform: translateX(-50%) scale(1); transition-duration: var(--d-mid); }
 
 /* One card left: a slow, small breath. Caught out: faster and more insistent. */
-.seat__badge--pizzuno {
+.seat__badge--za {
   background: var(--basil);
   color: #fff;
 }
 
-.seat__badge--pizzuno.is-shown { animation: badge-breathe 2.2s var(--ease-in-out) 240ms infinite; }
+.seat__badge--za.is-shown { animation: badge-breathe 2.2s var(--ease-in-out) 240ms infinite; }
 
 .seat__badge--caught {
   background: var(--tomato);
@@ -1072,18 +1072,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: rgba(253, 247, 234, .62);
 }
 
-.btn--pizzuno {
+.btn--za {
   --btn-bg: var(--basil);
   --btn-fg: #fff;
   letter-spacing: .05em;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 6px 18px -4px rgba(47, 107, 56, .6);
 }
 
-.btn--pizzuno.is-urgent { animation: soft-bob 1.3s var(--ease-in-out) infinite; }
+.btn--za.is-urgent { animation: soft-bob 1.3s var(--ease-in-out) infinite; }
 
 /* The bob is an animation, so it would swallow the press. Drop it while held. */
-.btn--pizzuno.is-urgent:active,
-.btn--pizzuno.is-urgent.is-pressed { animation: none; transform: scale(.97); }
+.btn--za.is-urgent:active,
+.btn--za.is-urgent.is-pressed { animation: none; transform: scale(.97); }
 
 @keyframes soft-bob {
   0%, 100% { transform: translateY(0) scale(1); }
@@ -1096,7 +1096,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .btn--pizzuno:hover:not(:disabled) { --btn-bg: #55a660; }
+  .btn--za:hover:not(:disabled) { --btn-bg: #55a660; }
   .btn--callout:hover:not(:disabled) { --btn-bg: #e2604d; }
 }
 
@@ -1678,8 +1678,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .overlay.is-open .dialog,
   .dialog__confetti,
   .btn:active, .btn.is-pressed,
-  .btn--pizzuno.is-urgent:active,
-  .btn--pizzuno.is-urgent.is-pressed,
+  .btn--za.is-urgent:active,
+  .btn--za.is-urgent.is-pressed,
   .code-chip:active, .code-chip.is-pressed,
   .topping-btn:active, .topping-btn.is-pressed,
   .callout-btn:active, .callout-btn.is-pressed,

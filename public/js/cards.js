@@ -116,7 +116,7 @@ export function renderCard(card, options = {}) {
       return root;
     }
     const art = el('span', 'card__back-art');
-    art.append(el('span', 'card__back-pie', '🍕'), el('span', 'card__back-word', 'PIZZUNO'));
+    art.append(el('span', 'card__back-pie', '🍕'), el('span', 'card__back-word', 'ZA'));
     root.append(art);
     return root;
   }

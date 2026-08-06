@@ -190,7 +190,7 @@ class Room {
       try {
         seat.socket.send(JSON.stringify(this.snapshotFor(seat.id)));
       } catch (err) {
-        console.error('[pizzuno] broadcast failed:', err && err.message);
+        console.error('[za] broadcast failed:', err && err.message);
       }
     }
   }
@@ -323,8 +323,8 @@ class RoomManager {
       case 'pass':
         result = game.passTurn(state, seatId);
         break;
-      case 'pizzuno':
-        result = game.declarePizzuno(state, seatId);
+      case 'za':
+        result = game.declareZa(state, seatId);
         break;
       case 'callout':
         result = game.callOut(state, seatId, message.targetId);
@@ -349,7 +349,7 @@ class RoomManager {
       try {
         this.tickRoom(room, now);
       } catch (err) {
-        console.error('[pizzuno] room tick failed:', err);
+        console.error('[za] room tick failed:', err);
       }
     }
   }
@@ -418,7 +418,7 @@ class RoomManager {
       }
     }
 
-    // Bots also watch for a missed PIZZUNO while it is not their turn. Each
+    // Bots also watch for a missed ZA while it is not their turn. Each
     // bot makes up its mind once per call-out window. A decision on every
     // tick would add up to a certainty, and no player would ever get away.
     if (room.phase === 'playing' && room.game && room.game.status === 'playing') {

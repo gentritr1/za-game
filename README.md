@@ -1,9 +1,9 @@
-# 🍕 Pizzuno
+# 🍕 Za!
 
-Pizzuno is a pizza parlour that pretends to be a card game. Two to eight chefs
+Za is a pizza parlour that pretends to be a card game. Two to eight chefs
 sit around a wooden table and try to empty their hands of toppings. Match by
 topping or by number, slam a **Burnt Slice** on the player who annoyed you, and
-shout **PIZZUNO!** before you put down your second to last card — because if you
+shout **ZA!** before you put down your second to last card — because if you
 keep quiet, somebody will catch you and hand you two more cards. It runs in the
 browser, it needs no account, and it hires chef bots when your friends are slow.
 
@@ -49,7 +49,7 @@ If the host leaves, the job goes to another connected human.
 
 ### The toppings
 
-Pizzuno has four topping suits in place of colours:
+Za has four topping suits in place of colours:
 
 | Topping | Colour | Emoji |
 | --- | --- | --- |
@@ -122,9 +122,9 @@ discard pile is shuffled and becomes the new draw pile, and only the top card
 stays on the table. If there is truly nothing left to deal, the turn just moves
 on.
 
-### PIZZUNO!
+### ZA!
 
-Press the big **PIZZUNO!** button when you hold **two cards or fewer**. You may
+Press the big **ZA!** button when you hold **two cards or fewer**. You may
 press it at any time in the round, also when it is not your turn.
 
 If you put down your second to last card without a shout, you are open to a
@@ -134,7 +134,7 @@ If you put down your second to last card without a shout, you are open to a
 The window is short. It closes as soon as:
 
 - somebody calls you out (only once — no double penalty),
-- you shout PIZZUNO after all, or
+- you shout ZA after all, or
 - the turn goes to another chef and then comes back to you.
 
 That last point is exact. The window closes when the turn **really moves to
@@ -181,7 +181,7 @@ The server is patient with a bad connection:
 
 ## Architecture
 
-Pizzuno is deliberately small. One dependency, no build step, no framework.
+Za is deliberately small. One dependency, no build step, no framework.
 
 **The server owns the game.** The client draws state and sends intent. It never
 decides if a move is legal. Every action is checked against the authoritative
@@ -204,7 +204,7 @@ timeout, the reconnect grace period, and the clean-up of empty rooms.
 that touches a `WebSocket`. It holds the retry ladder
 (500 ms → 1 s → 2 s → 3 s → 5 s), remembers your name and table code to take the
 seat again, and queues messages that you send while the socket is down. Nothing
-else in the client knows how the bytes travel. To move Pizzuno onto a hosted
+else in the client knows how the bytes travel. To move Za onto a hosted
 backend, replace this one module with something that speaks the same message
 types. See [PROTOCOL.md](PROTOCOL.md).
 
@@ -212,7 +212,7 @@ types. See [PROTOCOL.md](PROTOCOL.md).
 its own hand, exactly as a human client does. It has no special access. It
 prefers +2, then skip, then reverse, then numbers, and keeps its wild cards for
 last. For a wild card it names the topping it holds most of. It also watches its
-neighbours for a missed PIZZUNO. Each bot makes up its mind **once per call-out
+neighbours for a missed ZA. Each bot makes up its mind **once per call-out
 window**, with a 70 % chance of noticing — so roughly one time in three, a bot
 looks the other way and you get away with it.
 
@@ -225,7 +225,7 @@ playing the game.
 ### File layout
 
 ```
-pizzuno/
+za/
 ├── package.json          one dependency: ws
 ├── README.md
 ├── PROTOCOL.md           the wire protocol
@@ -306,7 +306,7 @@ Notes for whoever generates the art:
 
 ## Design notes
 
-Motion in Pizzuno is meant to be felt, not watched. The rules are written at the
+Motion in Za is meant to be felt, not watched. The rules are written at the
 top of `public/css/styles.css` and held in CSS custom properties:
 
 - **Transforms and opacity only.** Nothing animates a layout property. The hand
@@ -324,7 +324,7 @@ top of `public/css/styles.css` and held in CSS custom properties:
   the draw pile all answer the moment you press, not when you let go.
 - **Transitions, not keyframes, for anything you cause.** Transitions can be
   interrupted; a player who changes their mind is never blocked. Keyframes are
-  used only for ambient signals (the turn ping, the urgent PIZZUNO bob) and for
+  used only for ambient signals (the turn ping, the urgent ZA bob) and for
   the win celebration.
 - **The play reads.** When you put down a card, a clone flies from your hand to
   the oven, so you can see where it went.
@@ -345,7 +345,7 @@ npm test
 **43 tests**, and none of them need a browser. They cover:
 
 - **The rules module** — deck composition, the deal, matching, every action card,
-  the two-player reverse, draws and the recycled pile, the PIZZUNO call-out
+  the two-player reverse, draws and the recycled pile, the ZA call-out
   window (including the table-of-two case where it stays open), round end,
   players leaving, and the per-player view.
 - **A bot-versus-bot soak** — full rounds played by chef bots alone. Every round

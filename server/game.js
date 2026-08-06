@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Pizzuno rules engine.
+ * Za rules engine.
  *
  * This module is self-contained and has no knowledge of networking, rooms or
  * sockets. It builds the deck, validates every move and advances the turn.
@@ -143,8 +143,8 @@ function createGame(seats, options = {}) {
       name: seat.name,
       isBot: Boolean(seat.isBot),
       hand: [],
-      declaredPizzuno: false,
-      vulnerable: false, // can be called out for a missed PIZZUNO
+      declaredZa: false,
+      vulnerable: false, // can be called out for a missed ZA
       left: false,
       connected: true,
     })),
@@ -264,7 +264,7 @@ function dealTo(state, player, count) {
   }
   player.hand.push(...dealt);
   if (player.hand.length > 1) {
-    player.declaredPizzuno = false;
+    player.declaredZa = false;
     player.vulnerable = false;
   }
   return dealt;
@@ -373,8 +373,8 @@ function playCard(state, playerId, cardId, chosenTopping) {
   }
 
   if (player.hand.length === 1) {
-    player.vulnerable = !player.declaredPizzuno;
-    if (player.declaredPizzuno) addLog(state, `${player.name} is down to one slice. Watch them.`);
+    player.vulnerable = !player.declaredZa;
+    if (player.declaredZa) addLog(state, `${player.name} is down to one slice. Watch them.`);
   }
 
   applyCardEffect(state, card, player);
@@ -508,21 +508,21 @@ function forceSkip(state, playerId, reason) {
   return { ok: true };
 }
 
-/** The PIZZUNO! button. Legal when the hand is down to one or two cards. */
-function declarePizzuno(state, playerId) {
+/** The ZA! button. Legal when the hand is down to one or two cards. */
+function declareZa(state, playerId) {
   const player = findPlayer(state, playerId);
   if (!player) return { ok: false, error: 'Unknown player.' };
   if (state.status !== 'playing') return { ok: false, error: 'The round is over.' };
   if (player.hand.length > 2) {
-    return { ok: false, error: 'You have too many cards to call PIZZUNO.' };
+    return { ok: false, error: 'You have too many cards to call ZA.' };
   }
-  if (player.declaredPizzuno) return { ok: false, error: 'You already called PIZZUNO.' };
+  if (player.declaredZa) return { ok: false, error: 'You already called ZA.' };
 
-  player.declaredPizzuno = true;
+  player.declaredZa = true;
   player.vulnerable = false;
   addLog(state, pick(state, [
-    `📣 ${player.name} shouts PIZZUNO!`,
-    `📣 "PIZZUNO!" yells ${player.name}. The whole parlour hears it.`,
+    `📣 ${player.name} shouts ZA!`,
+    `📣 "ZA!" yells ${player.name}. The whole parlour hears it.`,
   ]));
   return { ok: true };
 }
@@ -543,7 +543,7 @@ function callOut(state, callerId, targetId) {
   const dealt = dealTo(state, target, CALLOUT_PENALTY);
   addLog(
     state,
-    `☝️ ${caller.name} caught ${target.name} keeping quiet! No PIZZUNO, so that is ${dealt.length} card${dealt.length === 1 ? '' : 's'} back in the hand.`
+    `☝️ ${caller.name} caught ${target.name} keeping quiet! No ZA, so that is ${dealt.length} card${dealt.length === 1 ? '' : 's'} back in the hand.`
   );
   return { ok: true };
 }
@@ -594,15 +594,15 @@ function viewFor(state, playerId) {
       connected: p.connected,
       left: p.left,
       cardCount: p.hand.length,
-      declaredPizzuno: p.declaredPizzuno,
+      declaredZa: p.declaredZa,
       vulnerable: p.vulnerable,
     })),
     hand: me ? me.hand.slice() : [],
     playableCardIds: me ? playableCardIds(state, playerId) : [],
     mustPlayDrawnCard: Boolean(state.drawnCard && state.drawnCard.playerId === playerId),
     canPass: Boolean(state.drawnCard && state.drawnCard.playerId === playerId),
-    canDeclarePizzuno: Boolean(
-      me && state.status === 'playing' && me.hand.length <= 2 && !me.declaredPizzuno
+    canDeclareZa: Boolean(
+      me && state.status === 'playing' && me.hand.length <= 2 && !me.declaredZa
     ),
     calloutTargets: state.players
       .filter((p) => p.id !== playerId && !p.left && p.vulnerable && p.hand.length === 1)
@@ -627,7 +627,7 @@ module.exports = {
   drawCard,
   passTurn,
   forceSkip,
-  declarePizzuno,
+  declareZa,
   callOut,
   removePlayer,
   describeCard,

@@ -53,7 +53,7 @@ function rankCard(card) {
  * @returns {{ action: 'play', cardId: string, topping?: string }
  *          |{ action: 'draw' }
  *          |{ action: 'pass' }
- *          |{ action: 'pizzuno' }
+ *          |{ action: 'za' }
  *          |{ action: 'callout', targetId: string }
  *          |null}
  */
@@ -70,7 +70,7 @@ function decide(state, botId) {
   if (game.currentPlayer(state).id !== botId) return null;
 
   // Shout before playing the second to last card.
-  if (bot.hand.length <= 2 && !bot.declaredPizzuno) return { action: 'pizzuno' };
+  if (bot.hand.length <= 2 && !bot.declaredZa) return { action: 'za' };
 
   const playableIds = new Set(game.playableCardIds(state, botId));
   const options = bot.hand.filter((c) => playableIds.has(c.id));

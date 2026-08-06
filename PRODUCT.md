@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Pizzuno is for small groups of two to eight friends who want a quick, social card game in a desktop or mobile browser, plus solo players who want to fill empty seats with chef bots. Players should be able to sit down, understand the table state at a glance, and begin a round without an account, installation, or rules tutorial.
+Za is for small groups of two to eight friends who want a quick, social card game in a desktop or mobile browser, plus solo players who want to fill empty seats with chef bots. Players should be able to sit down, understand the table state at a glance, and begin a round without an account, installation, or rules tutorial.
 
 ## Product Purpose
 
-Pizzuno turns a familiar shedding-card game into a lively neighborhood-pizzeria experience. It should make creating or joining a table effortless, keep every legal action and turn state unambiguous, and preserve the banter and suspense of playing around one physical table. Success means a new player can start a game quickly, make confident moves, notice PIZZUNO call-out moments, recover from a lost connection, and want another round.
+Za turns a familiar shedding-card game into a lively neighborhood-pizzeria experience. It should make creating or joining a table effortless, keep every legal action and turn state unambiguous, and preserve the banter and suspense of playing around one physical table. Success means a new player can start a game quickly, make confident moves, notice ZA call-out moments, recover from a lost connection, and want another round.
 
 ## Brand Personality
 

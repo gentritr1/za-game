@@ -8,7 +8,7 @@
  */
 
 const RETRY_STEPS = [500, 1000, 2000, 3000, 5000];
-const SEAT_KEY = 'pizzuno.seat.';
+const SEAT_KEY = 'za.seat.';
 
 function seatStore(code) {
   return SEAT_KEY + String(code || '').toUpperCase();

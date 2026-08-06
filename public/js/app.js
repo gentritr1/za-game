@@ -1,5 +1,5 @@
 /**
- * Pizzuno client.
+ * Za client.
  *
  * The server owns the game. This file only draws the state it receives and
  * sends the player's intent back. It never decides if a move is legal.
@@ -47,7 +47,7 @@ const el = {
   // hand
   handZone: document.querySelector('.hand-zone'),
   hand: $('hand'),
-  btnPizzuno: $('btn-pizzuno'),
+  btnZa: $('btn-za'),
   btnCallout: $('btn-callout'),
   btnCalloutText: $('btn-callout-text'),
   btnPass: $('btn-pass'),
@@ -532,8 +532,8 @@ function updateSeat(node, player, view) {
     badge.textContent = 'FORGOT!';
     badge.className = 'seat__badge seat__badge--caught is-shown';
   } else if (player.cardCount === 1) {
-    badge.textContent = 'PIZZUNO!';
-    badge.className = 'seat__badge seat__badge--pizzuno is-shown';
+    badge.textContent = 'ZA!';
+    badge.className = 'seat__badge seat__badge--za is-shown';
   } else {
     badge.className = 'seat__badge';
   }
@@ -673,8 +673,8 @@ function renderActionBar(snapshot, view, yourTurn) {
   const me = view.players.find((p) => p.id === snapshot.youId);
   const live = view.status === 'playing';
 
-  el.btnPizzuno.disabled = !view.canDeclarePizzuno;
-  el.btnPizzuno.classList.toggle('is-urgent', Boolean(view.canDeclarePizzuno && me && me.cardCount <= 2));
+  el.btnZa.disabled = !view.canDeclareZa;
+  el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2));
 
   const targets = view.calloutTargets || [];
   el.btnCallout.hidden = !live || targets.length === 0;
@@ -949,7 +949,7 @@ el.formCreate.addEventListener('submit', (event) => {
     toast('The chef needs a name to shout.');
     return;
   }
-  localStorage.setItem('pizzuno.name', name);
+  localStorage.setItem('za.name', name);
   send({ type: 'createRoom', name });
 });
 
@@ -967,7 +967,7 @@ el.formJoin.addEventListener('submit', (event) => {
     toast('Which table? Enter the code.');
     return;
   }
-  localStorage.setItem('pizzuno.name', name);
+  localStorage.setItem('za.name', name);
   // A token from an earlier visit to this table takes the same seat back.
   send({ type: 'joinRoom', name, code, token: net.storedToken(code) });
 });
@@ -985,7 +985,7 @@ el.drawPile.addEventListener('click', () => {
 });
 
 el.btnPass.addEventListener('click', () => send({ type: 'pass' }));
-el.btnPizzuno.addEventListener('click', () => send({ type: 'pizzuno' }));
+el.btnZa.addEventListener('click', () => send({ type: 'za' }));
 el.btnCallout.addEventListener('click', openCalloutPopover);
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
@@ -1036,7 +1036,7 @@ function boot() {
     screen.hidden = false;
     screen.inert = screen.dataset.screen !== 'home';
   }
-  const saved = localStorage.getItem('pizzuno.name');
+  const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;
 
   const code = new URLSearchParams(location.search).get('code');

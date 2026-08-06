@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Pizzuno server. Serves the client from /public and runs the authoritative
+ * Za server. Serves the client from /public and runs the authoritative
  * game over a WebSocket connection.
  */
 
@@ -30,7 +30,7 @@ const server = http.createServer((req, res) => {
     }
     staticHandler(req, res);
   } catch (err) {
-    console.error('[pizzuno] request failed:', err);
+    console.error('[za] request failed:', err);
     if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Server error');
   }
@@ -70,7 +70,7 @@ wss.on('connection', (socket) => {
     try {
       handleMessage(socket, session, message);
     } catch (err) {
-      console.error('[pizzuno] action failed:', err);
+      console.error('[za] action failed:', err);
       sendError(socket, 'The kitchen had a problem with that move.');
     }
   });
@@ -84,7 +84,7 @@ wss.on('connection', (socket) => {
     try {
       manager.handleDisconnect(room, seat);
     } catch (err) {
-      console.error('[pizzuno] disconnect failed:', err);
+      console.error('[za] disconnect failed:', err);
     }
   });
 
@@ -182,7 +182,7 @@ function handleMessage(socket, session, message) {
     case 'play':
     case 'draw':
     case 'pass':
-    case 'pizzuno':
+    case 'za':
     case 'callout': {
       if (room.phase !== 'playing') return sendError(socket, 'The round is not running.');
       const result = manager.applyAction(room, seatId, message);
@@ -221,7 +221,7 @@ const heartbeat = setInterval(() => {
 if (heartbeat.unref) heartbeat.unref();
 
 server.listen(PORT, () => {
-  console.log(`\n  Pizzuno is open for business.`);
+  console.log(`\n  Za! is open for business.`);
   console.log(`  Open http://localhost:${PORT} in your browser.\n`);
 });
 

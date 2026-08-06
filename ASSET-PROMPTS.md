@@ -1,6 +1,6 @@
-# Pizzuno — Image Generation Prompts (GPT Image 2)
+# Za — Image Generation Prompts (GPT Image 2)
 
-Ready-to-paste prompts for generating the final art for Pizzuno with GPT Image 2 (or any
+Ready-to-paste prompts for generating the final art for Za with GPT Image 2 (or any
 capable image model). The game already works with CSS/emoji placeholders; these assets are
 a drop-in replacement.
 
@@ -50,7 +50,7 @@ Files: `pepperoni-0.png` … `pepperoni-9.png`, `basil-0.png` … `basil-9.png`,
 
 Template — replace `{SUIT}`, `{EMBLEM}`, `{BASE}`, `{ACCENT}`, `{N}`:
 
-> [Global style block] Playing card face for the card game "Pizzuno". Background: cream
+> [Global style block] Playing card face for the card game "Za". Background: cream
 > paper `#F5EFE0` with a wide border frame in {BASE}. Large numeral "{N}" in the center on
 > a round cream plate, in a chunky friendly retro sign-painter font, colored {ACCENT}.
 > The {EMBLEM} sits tucked behind the plate, peeking out. Small "{N}" index with a tiny
@@ -65,7 +65,7 @@ for each of `pepperoni`, `basil`, `cheese`, `anchovy`.
 
 **Burnt Slice (skip)** — corner index `⊘`:
 
-> [Global style block] Action card for "Pizzuno" in the {SUIT} suit, base color {BASE}.
+> [Global style block] Action card for "Za" in the {SUIT} suit, base color {BASE}.
 > Central emblem: a pizza slice with comically charred black bubbly edges and a thin wisp
 > of smoke, on a round cream plate. A bold prohibition ring `⊘` around the slice in
 > {ACCENT}. Corner indices "⊘" top-left and bottom-right with a tiny {SUIT} icon. Bottom
@@ -73,7 +73,7 @@ for each of `pepperoni`, `basil`, `cheese`, `anchovy`.
 
 **Flip the Pie (reverse)** — corner index `⇄`:
 
-> [Global style block] Action card for "Pizzuno" in the {SUIT} suit, base color {BASE}.
+> [Global style block] Action card for "Za" in the {SUIT} suit, base color {BASE}.
 > Central emblem: a whole pizza mid-flip in the air, spinning, with two curved arrows
 > chasing each other around it in {ACCENT}, a proud chef's hand tossing it from below.
 > Corner indices "⇄" top-left and bottom-right with a tiny {SUIT} icon. Bottom banner reads
@@ -81,7 +81,7 @@ for each of `pepperoni`, `basil`, `cheese`, `anchovy`.
 
 **Extra Toppings +2 (draw two)** — corner index `+2`:
 
-> [Global style block] Action card for "Pizzuno" in the {SUIT} suit, base color {BASE}.
+> [Global style block] Action card for "Za" in the {SUIT} suit, base color {BASE}.
 > Central emblem: a generous hand raining extra toppings (olives, mushrooms, peppers, and
 > plenty of {SUIT}) down onto a waiting pizza slice on a round cream plate. A bold "+2" in
 > {ACCENT} beside the plate. Corner indices "+2" top-left and bottom-right with a tiny
@@ -91,7 +91,7 @@ for each of `pepperoni`, `basil`, `cheese`, `anchovy`.
 
 **`wild-chefs-choice.png`** — corner index `★`:
 
-> [Global style block] Wild card for "Pizzuno". Background: rich crust brown `#6B4A2F`
+> [Global style block] Wild card for "Za". Background: rich crust brown `#6B4A2F`
 > with a cream frame. Central emblem: a jolly mustachioed chef in a tall white hat,
 > presenting a pizza divided into four equal quarters — tomato red, basil green, mozzarella
 > yellow, Mediterranean blue — one quarter per suit. Corner indices "★" top-left and
@@ -99,7 +99,7 @@ for each of `pepperoni`, `basil`, `cheese`, `anchovy`.
 
 **`wild-whole-pie.png`** — corner index `+4`:
 
-> [Global style block] Wild card for "Pizzuno". Background: deep crust brown `#54391F`
+> [Global style block] Wild card for "Za". Background: deep crust brown `#54391F`
 > with a cream frame, slightly more dramatic lighting than the other cards. Central emblem:
 > a whole uncut pizza seen from above, its surface split into four quarters colored tomato
 > red, basil green, mozzarella yellow, and Mediterranean blue, with a bold "+4" stamped
@@ -111,9 +111,9 @@ for each of `pepperoni`, `basil`, `cheese`, `anchovy`.
 
 **`card-back.png`**:
 
-> [Global style block] The back of every card in "PizzUNO". Red-and-cream checkered
+> [Global style block] The back of every card in "Za!". Red-and-cream checkered
 > tablecloth pattern `#D94F3C` / `#F5EFE0` at a 45° angle, with a central round crust-brown
-> medallion containing a single pizza slice and the word "PIZZUNO" in a chunky retro
+> medallion containing a single pizza slice and the word "ZA" in a chunky retro
 > sign-painter arc. Symmetrical in both axes so it reads the same upside down. Ornamental
 > thin border line in crust brown.
 
@@ -137,10 +137,11 @@ Save these in `public/assets/` and wire them in `public/css/styles.css`.
 
 **`logo-wordmark.png`** — home screen wordmark (transparent PNG):
 
-> [Global style block] Logo wordmark "PIZZUNO" in a chunky, bouncy retro sign-painter
-> style, letters in tomato red with a cream outline and crust-brown drop edge, the letter
-> "U" replaced by a folded pizza slice. A little steam curl rises off the "O". A small
-> green "EXTRA CHEESY" award ribbon tucked behind the last letter. Transparent background.
+> [Global style block] Logo wordmark "ZA!" in a chunky, bouncy retro sign-painter
+> style, letters in tomato red with a cream outline and crust-brown drop edge. The
+> exclamation mark's stroke is a folded pizza slice and its dot is a tiny whole pepperoni
+> pizza seen from above. A little steam curl rises off the "A". A small green "EXTRA
+> CHEESY" award ribbon tucked behind the exclamation mark. Transparent background.
 
 **`favicon.png`** — browser tab icon, 256 × 256:
 
@@ -171,7 +172,7 @@ Save these in `public/assets/` and wire them in `public/css/styles.css`.
   oven door, occasional cutlery clink, low murmur. Seamless 60-second loop, unobtrusive."
 - **Card play:** "One soft card snap on a wooden table, warm, dry, under 300 ms."
 - **Draw:** "A quick card slide off a paper deck, subtle, under 250 ms."
-- **PIZZUNO shout sting:** "A tiny playful two-note kazoo-and-bell sting, under 1 second."
+- **ZA shout sting:** "A tiny playful two-note kazoo-and-bell sting, under 1 second."
 - **Win:** "A short cheerful trattoria fanfare: accordion + hand claps, 2 seconds."
 
 ## Consistency checklist (read before generating the batch)

@@ -51,7 +51,7 @@ function scenario(names, hands, top, topping) {
 const card = (suit, kind, value = null) => ({ id: `x${Math.random().toString(36).slice(2)}`, suit, kind, value });
 const num = (suit, value) => card(suit, 'number', value);
 
-console.log('\nPizzuno rules\n');
+console.log('\nZa rules\n');
 
 // ---------------------------------------------------------------- the deck --
 test('the deck holds 108 cards', () => {
@@ -227,7 +227,7 @@ test('a card that is not in the hand is refused', () => {
   assert.strictEqual(result.ok, false);
 });
 
-// --------------------------------------------------------------- PIZZUNO --
+// --------------------------------------------------------------- ZA --
 test('a silent player with one card can be called out for two cards', () => {
   const play = num('pepperoni', 3);
   const state = scenario(['Ana', 'Bo'], [[play, num('basil', 1)], []], num('pepperoni', 5));
@@ -241,10 +241,10 @@ test('a silent player with one card can be called out for two cards', () => {
   assert.strictEqual(game.callOut(state, 'p1', 'p0').ok, false, 'no double penalty');
 });
 
-test('a player who shouts PIZZUNO cannot be called out', () => {
+test('a player who shouts ZA cannot be called out', () => {
   const play = num('pepperoni', 3);
   const state = scenario(['Ana', 'Bo'], [[play, num('basil', 1)], []], num('pepperoni', 5));
-  assert.ok(game.declarePizzuno(state, 'p0').ok, 'may shout with two cards');
+  assert.ok(game.declareZa(state, 'p0').ok, 'may shout with two cards');
   assert.ok(game.playCard(state, 'p0', play.id).ok);
   assert.strictEqual(state.players[0].vulnerable, false);
   assert.strictEqual(game.callOut(state, 'p1', 'p0').ok, false);
@@ -266,17 +266,17 @@ test('the call-out window closes when the turn comes back round', () => {
   assert.strictEqual(state.players[0].vulnerable, false, 'too late now');
 });
 
-test('PIZZUNO is refused with three cards or more', () => {
+test('ZA is refused with three cards or more', () => {
   const state = scenario(['Ana', 'Bo'], [[num('pepperoni', 1), num('pepperoni', 2), num('pepperoni', 3)], []], num('pepperoni', 5));
-  assert.strictEqual(game.declarePizzuno(state, 'p0').ok, false);
+  assert.strictEqual(game.declareZa(state, 'p0').ok, false);
 });
 
-test('drawing cards cancels an early PIZZUNO shout', () => {
+test('drawing cards cancels an early ZA shout', () => {
   const state = scenario(['Ana', 'Bo'], [[num('basil', 1), num('basil', 2)], []], num('pepperoni', 5));
-  assert.ok(game.declarePizzuno(state, 'p0').ok);
+  assert.ok(game.declareZa(state, 'p0').ok);
   state.drawPile = [num('cheese', 9), num('cheese', 8)];
   game.drawCard(state, 'p0');
-  assert.strictEqual(state.players[0].declaredPizzuno, false);
+  assert.strictEqual(state.players[0].declaredZa, false);
 });
 
 // ------------------------------------------------------------- round end --
@@ -382,7 +382,7 @@ test('full rounds of chef bots keep all 108 cards and always find a winner', () 
       else if (move.action === 'play') result = game.playCard(state, current.id, move.cardId, move.topping);
       else if (move.action === 'draw') result = game.drawCard(state, current.id);
       else if (move.action === 'pass') result = game.passTurn(state, current.id);
-      else if (move.action === 'pizzuno') result = game.declarePizzuno(state, current.id);
+      else if (move.action === 'za') result = game.declareZa(state, current.id);
       else result = game.callOut(state, current.id, move.targetId);
       assert.ok(result.ok, `seed ${seed}: ${move && move.action} refused: ${result.error}`);
       assert.strictEqual(cards(), 108, `seed ${seed}: cards went missing`);

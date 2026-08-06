@@ -1,4 +1,4 @@
-# Pizzuno wire protocol
+# Za wire protocol
 
 **Protocol version: 1** (app version `1.0.0`)
 
@@ -88,7 +88,7 @@ Rules of the token:
 The reference client keeps it per browser tab:
 
 ```
-sessionStorage["pizzuno.seat.<ROOM-CODE>"] = {"name":"Gentrit","token":"9f2c…"}
+sessionStorage["za.seat.<ROOM-CODE>"] = {"name":"Gentrit","token":"9f2c…"}
 ```
 
 `sessionStorage` is deliberate. The seat survives a page reload, and it dies when
@@ -289,15 +289,15 @@ Refused with `"Play the drawn card or pass."` when a drawn card is still pending
 Gives up the turn after a draw. Refused with
 `"You must draw a card before you pass."` when you did not draw first.
 
-#### `pizzuno`
+#### `za`
 
 ```json
-{ "type": "pizzuno" }
+{ "type": "za" }
 ```
 
 The shout. Legal with **2 cards or fewer**, at any time in the round, also when
-it is not your turn. Errors: `"You have too many cards to call PIZZUNO."`,
-`"You already called PIZZUNO."`
+it is not your turn. Errors: `"You have too many cards to call ZA."`,
+`"You already called ZA."`
 
 #### `callout`
 
@@ -432,7 +432,7 @@ only**. Other hands are a count. No other player's cards are ever sent.
       "connected": true,
       "left": false,
       "cardCount": 2,
-      "declaredPizzuno": false,
+      "declaredZa": false,
       "vulnerable": false
     }
   ],
@@ -443,7 +443,7 @@ only**. Other hands are a count. No other player's cards are ever sent.
   "playableCardIds": ["k12"],
   "mustPlayDrawnCard": false,
   "canPass": false,
-  "canDeclarePizzuno": true,
+  "canDeclareZa": true,
   "calloutTargets": [],
   "log": [
     { "id": 21, "text": "🔥 Gentrit slammed down a Burnt Slice!", "ts": 1754400000000 }
@@ -468,7 +468,7 @@ only**. Other hands are a count. No other player's cards are ever sent.
 | `playableCardIds` | array of string | Already filtered for the turn and for a pending drawn card. The client only needs to obey it. |
 | `mustPlayDrawnCard` | boolean | You drew a playable card. Only that card is legal. |
 | `canPass` | boolean | Same condition as above, in the current code. |
-| `canDeclarePizzuno` | boolean | Round is live, you hold ≤ 2 cards, and you have not shouted. |
+| `canDeclareZa` | boolean | Round is live, you hold ≤ 2 cards, and you have not shouted. |
 | `calloutTargets` | array of string | Player ids you may call out right now. |
 | `log` | array | The last **30** entries. `id` counts up for the whole round, so a client can append only what is new. `ts` is server `Date.now()`. |
 
@@ -537,7 +537,7 @@ client                                   server
 
 The client calls `net.remember(youName, roomCode, token)` when `joined` arrives.
 That writes the credentials into the `Connection` and mirrors the name and token
-into `sessionStorage` under `pizzuno.seat.<ROOM-CODE>`.
+into `sessionStorage` under `za.seat.<ROOM-CODE>`.
 
 A player who reloads the page has lost the in-memory `Connection`, so the client
 reads the token back out of `sessionStorage` when the join form is submitted:
@@ -622,7 +622,7 @@ Identity is the triple **(room code, cleaned name, seat token)** — see
   `"That chef is already seated. Pick another name."` and the seat, and its hand,
   stay private. The token lives in `sessionStorage`, so it survives a reload but
   dies with the tab; from a different browser, the seat cannot be reclaimed.
-  Room codes are still guessable, so treat Pizzuno rooms as unlisted, not as
+  Room codes are still guessable, so treat Za rooms as unlisted, not as
   secret.
 
 ---
@@ -644,7 +644,7 @@ connection.forget()                       // drop them
 `onMessage(message)` receives a parsed object. `onStatus(status)` receives one of
 `connecting`, `reconnecting`, `open`, `closed`.
 
-To move Pizzuno onto a hosted backend, write a new module with the **same
+To move Za onto a hosted backend, write a new module with the **same
 members** and keep the message types. Nothing in `app.js` has to change.
 
 ### What a replacement must do
