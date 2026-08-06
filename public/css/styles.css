@@ -880,6 +880,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-variant-numeric: tabular-nums;
 }
 
+.seat__count-long { display: flex; align-items: center; gap: var(--s1); }
+
+/* The chef column prints the count as a two-digit scoreboard number. It is
+   decoration for the spoken "5 cards" next to it, so it only exists there. */
+.seat__count-num { display: none; }
+
+/* SCORE / RND tiles: the foot of the desktop chef column, nowhere else. */
+.chef-stats { display: none; }
+
 .seat__mini {
   display: flex;
   justify-content: center;
@@ -943,7 +952,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   justify-content: center;
   gap: clamp(var(--s4), 5vw, var(--s8));
   padding-bottom: var(--s4);
-  --card-w: 92px;
+  /* The pile slot and the card that fills it have to agree, or the window
+     insets are computed for one width and drawn at another. Both are 96px. */
+  --card-w: 96px;
 }
 
 .table-center::before {
@@ -1287,7 +1298,41 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   justify-content: center;
   align-items: flex-end;
   min-height: calc(var(--card-w) * var(--card-ratio) + 14px);
-  padding-top: 10px;
+  padding: 10px 8px 0;
+}
+
+/* A hand that has eaten two Whole Pies does not get squeezed into slivers.
+   Past 55% overlap the strip scrolls instead (see `layoutHand`), and in that
+   mode the cards stand straight so nothing needs vertical room it hasn't got.
+
+   `overflow-x: auto` forces the block axis to `auto` too, so the lift, the
+   cheese ring and the hard shadow have to live inside the padding box — the
+   padding here is exactly that room, and the 8px sides also keep the glow on
+   the first and last card off the clip edge. */
+.hand.is-scrolling {
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 22px 8px 10px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bezel) var(--console);
+}
+
+/* Cabinet scrollbar: square, recessed track, no blur, no radius. */
+.hand.is-scrolling::-webkit-scrollbar { height: 8px; }
+.hand.is-scrolling::-webkit-scrollbar-track {
+  background: var(--console);
+  border-top: 2px solid var(--bezel);
+}
+.hand.is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--bezel);
+  border-radius: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hand.is-scrolling::-webkit-scrollbar-thumb:hover { background: var(--ui-cyan); }
 }
 
 /* The overlap is a layout value, so it updates immediately when the hand
@@ -1379,6 +1424,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: grid;
   place-items: center;
   background: var(--cabinet-hi);
+  /* The kit draws the window as a cut-out, not a panel: a dashed hairline at
+     20% white, the same at every card size. */
+  border: 2px dashed rgba(255, 255, 255, .2);
   overflow: hidden;
 }
 
@@ -1406,7 +1454,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   right: 0;
   bottom: calc(var(--card-w) * 0.05);
   background: var(--suit, var(--bezel));
-  font-size: calc(var(--card-w) * 0.105);
+  /* Nothing on the frame scales with the card: the keyline stays 5px, the
+     banner stays VT323 13px and the corner index stays Press Start 2P 11px,
+     at hand size and at pile size alike. */
+  font-size: 13px;
   letter-spacing: .02em;
   white-space: nowrap;
   overflow: hidden;
@@ -1428,7 +1479,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .card__index--tl { top: calc(var(--card-w) * 0.045); left: calc(var(--card-w) * 0.06); }
 .card__index--br { bottom: calc(var(--card-w) * 0.045); right: calc(var(--card-w) * 0.06); transform: rotate(180deg); }
 
-.card__index-val { font-size: calc(var(--card-w) * 0.12); }
+.card__index-val { font-size: 11px; }
 
 /* card back: cabinet checker, cheese keyline, symmetrical both axes */
 .card--back {
@@ -1452,9 +1503,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* sizes */
-.card--pile { --card-w: 100px; }
+.card--pile { --card-w: 96px; }
 .card--mini { --card-w: 20px; }
 .card--mini .card__back-word { display: none; }
+
+/* At mini the frame is all that is left: no banner, no index, as today. */
+.card--mini .card__banner,
+.card--mini .card__index { display: none; }
 
 /* A mini card is 20px wide. The full card's 16px entry rise would throw it
    across its own stack, so it gets a rise in proportion. */
@@ -1906,6 +1961,218 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 @media (max-height: 620px) {
   .log { display: none; }
   .table { padding-top: var(--s2); }
+}
+
+/* ------------------------------------------------ table — desktop (kit 03) */
+/* The kit's board is a static 820x600 frame with the 211px action bar drawn
+   into it, so it pins the chef column and the log at `bottom: 222px` — eleven
+   pixels of air above the bar. Here the action bar is a real grid row and
+   `.table` already ends exactly where it starts, so those eleven pixels are
+   the table's own bottom padding and the clearance holds even when the hand
+   strip grows a scrollbar. Below 721px the seats stay the chip row they are
+   today; this whole column is desktop only. */
+@media (min-width: 721px) {
+  .table {
+    grid-template-columns: 186px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: var(--s3) var(--s6);
+    padding: var(--s3) 18px 11px var(--s3);
+  }
+
+  /* CHEFS — fixed 186px, full height of the table, clear of the action bar. */
+  .opponents {
+    grid-area: 1 / 1 / 3 / 2;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--s2);
+    min-height: 0;
+    padding: 0;
+    /* A full table only needs to scroll on a short window. The block axis has
+       to be `auto` for that, which would make the inline axis scrollable off
+       the active panel's 4px hard shadow — so that one is clipped instead. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bezel) transparent;
+  }
+
+  .opponents::before {
+    content: "CHEFS · " attr(data-chefs);
+    flex: none;
+    font-family: var(--font);
+    font-size: var(--fs-label);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* One panel per chef: name on the left, card count on the right. */
+  .opponents .seat {
+    width: auto;
+    min-width: 0;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding: 6px 9px;
+    background: var(--cabinet);
+    border: var(--bd-thin) solid var(--bezel);
+    transform: none;
+    animation: none;
+  }
+
+  .opponents .seat__avatar,
+  .opponents .seat__mini { display: none; }
+
+  .opponents .seat__name {
+    flex: 1;
+    min-width: 0;
+    font-size: 20px;
+    font-weight: 400;
+    text-align: left;
+  }
+
+  .opponents .seat__count {
+    order: 2;
+    flex: none;
+    gap: 0;
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--ui-cyan);
+  }
+
+  /* The spoken count stays in the accessibility tree; the eye gets the
+     two-digit plate the kit draws. */
+  .opponents .seat__count-long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  /* `<b>` in Press Start 2P would synthesise a bold the font does not have. */
+  .opponents .seat__count-num { display: block; font-weight: 400; }
+
+  /* Whoever is at the oven: inverted, sauce fill and a cheese keyline. */
+  .opponents .seat.is-turn {
+    background: var(--sauce);
+    border-color: var(--cheese);
+    box-shadow: var(--sh-card);
+    transform: none;
+    animation: none;
+  }
+
+  .opponents .seat.is-turn::after { opacity: 0; }
+  .opponents .seat.is-turn .seat__name,
+  .opponents .seat.is-turn .seat__count { color: var(--void); }
+  /* The kit's turn marker is a solid triangle. Drawn with borders rather than
+     set as a glyph: neither VT323 nor Press Start 2P carries U+25B8, and a
+     tofu box on the active chef is worse than no marker at all. */
+  .opponents .seat.is-turn .seat__name::after {
+    content: "";
+    display: inline-block;
+    margin-left: 6px;
+    border: 5px solid transparent;
+    border-right-width: 0;
+    border-left-color: currentColor;
+  }
+
+  /* A chef inside a call-out window: dashed sauce, name in sauce-hi. */
+  .opponents .seat.is-vulnerable {
+    border-style: dashed;
+    border-color: var(--sauce);
+  }
+
+  .opponents .seat.is-vulnerable .seat__name { color: var(--sauce-hi); }
+
+  /* A Burnt Slice at a table of two hands the turn straight back, so the same
+     chef can be at the oven and inside a call-out window at once. The panel
+     keeps the inverted turn fill and dashes its cheese keyline instead. */
+  .opponents .seat.is-turn.is-vulnerable { border-color: var(--cheese); }
+  .opponents .seat.is-turn.is-vulnerable .seat__name { color: var(--void); }
+
+  /* The badge joins the row instead of floating over the panel's top edge,
+     which the column's own scroll would clip. */
+  .opponents .seat__badge {
+    position: static;
+    order: 1;
+    flex: none;
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    font-family: var(--font);
+    font-size: var(--fs-label);
+    letter-spacing: .04em;
+    transform: none;
+    animation: none;
+  }
+
+  .opponents .seat__badge:not(.is-shown) { display: none; }
+  .opponents .seat__badge--za { color: var(--basil); }
+  .opponents .seat__badge--caught { color: var(--sauce-hi); }
+  .opponents .seat.is-turn .seat__badge { color: var(--void); }
+
+  /* SCORE and RND sit side by side: they do not fit stacked in 186px. */
+  .chef-stats {
+    display: flex;
+    flex: none;
+    gap: var(--s2);
+  }
+
+  .chef-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px;
+    background: var(--cabinet);
+    border: var(--bd-thin) solid var(--bezel);
+  }
+
+  .chef-stat--score { flex: 1; min-width: 0; }
+  .chef-stat--rnd { flex: none; }
+
+  .chef-stat__label {
+    font-family: var(--font);
+    font-size: var(--fs-label);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .chef-stat__value {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chef-stat--score .chef-stat__value { color: var(--cheese); }
+  .chef-stat--rnd .chef-stat__value { color: var(--ui-cyan); }
+
+  /* Centre column: piles on top, console log under them. */
+  .table-center {
+    grid-area: 1 / 2 / 2 / 3;
+    position: relative;
+  }
+
+  .log {
+    position: static;
+    grid-area: 2 / 2 / 3 / 3;
+    width: auto;
+    min-height: 0;
+    max-height: 178px;
+    padding: 9px 11px;
+    box-shadow: none;
+  }
 }
 
 /* -------------------------------------------------------- reduced motion -- */
