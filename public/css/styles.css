@@ -1319,10 +1319,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   box-shadow: var(--sh-card), 0 0 0 2px var(--cheese), 0 0 20px -3px rgba(229, 177, 58, .7);
 }
 
+/* Unplayable cards step back but stay readable: the player still has to plan
+   around them. The gold ring on playable cards carries the distinction, so
+   the dim only has to whisper. Hovering one restores it fully for study. */
 .hand .card.is-dimmed {
-  opacity: .5;
-  filter: saturate(.5) brightness(.94);
+  opacity: .8;
+  filter: saturate(.65) brightness(.96);
   pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hand-slot:hover .card.is-dimmed {
+    opacity: 1;
+    filter: none;
+  }
 }
 
 /* Hover is declared before the press rules on purpose: they share its
