@@ -22,26 +22,60 @@
    ========================================================================== */
 
 /* ---------------------------------------------------------------- tokens -- */
+/* ZA! — ARCADE DIRECTION. Token block from the design kit (za-arcade-tokens
+   .css). Legacy variable names are kept as aliases, so selectors written for
+   the parlour build keep working. Game logic is untouched. */
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Kaushan+Script&display=swap");
+
 :root {
-  /* palette */
-  --tomato: #d94f3c;
-  --tomato-deep: #a8382a;
-  --tomato-soft: #e8776a;
-  --basil: #479e55;
-  --basil-deep: #2f6b38;
-  --cheese: #e5b13a;
-  --cheese-hi: #f2c455;
-  --cheese-deep: #a87d17;
-  --anchovy: #4a7fb5;
-  --anchovy-deep: #2f5c8c;
-  --crust: #c8923f;
-  --crust-deep: #7d5426;
-  --mozzarella: #fdf7ea;
-  --mozzarella-dim: #efe3cc;
-  --ink: #2b1a11;
-  --ink-soft: #6b5344;
-  --wood-hi: #4d3020;
-  --wood-lo: #21120b;
+  /* suits */
+  --sauce:        #ff2e6b;   /* pepperoni */
+  --sauce-hi:     #ff4d9d;
+  --sauce-deep:   #c11a4c;
+  --cheese:       #ffe14d;
+  --cheese-hi:    #fff08a;
+  --cheese-deep:  #c9a800;
+  --basil:        #3ddc7f;
+  --basil-deep:   #22a058;
+  --anchovy:      #4d7dff;
+  --anchovy-deep: #2a52c9;
+
+  /* cabinet */
+  --void:      #0d0f1a;   /* screen black, page background */
+  --console:   #080a12;   /* log / recessed panels */
+  --cabinet:   #101426;   /* panel fill */
+  --cabinet-hi:#151b33;   /* sprite window, checker light square */
+  --bezel:     #2a3355;   /* every inactive border */
+  --ui-cyan:   #7de2ff;   /* labels, hints, system text */
+
+  --text:      #e8ecff;
+  --text-dim:  #96a3c9;
+  --text-mute: #8f9bc4;
+
+  /* legacy aliases (do not remove) */
+  --tomato:        var(--sauce);
+  --tomato-deep:   var(--sauce-deep);
+  --tomato-soft:   var(--sauce-hi);
+  --crust:         var(--cheese);
+  --crust-deep:    var(--cheese-deep);
+  --mozzarella:    var(--text);
+  --mozzarella-dim:var(--text-dim);
+  --ink:           var(--void);
+  --ink-soft:      var(--text-dim);
+  --wood-hi:       var(--cabinet);
+  --wood-lo:       var(--void);
+
+  /* type */
+  --font:         "VT323", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Press Start 2P", var(--font);
+  --font-script:  "Kaushan Script", cursive;   /* flourishes only */
+
+  /* VT323 runs small; the base size steps up from 15px to 18px. */
+  --fs-base:  18px;
+  --fs-label: 16px;
+  --fs-ui:    19px;
+  --fs-h2:    14px;   /* Press Start 2P — never below 12px on screen */
+  --fs-h1:    24px;
 
   /* spacing scale */
   --s1: 4px;
@@ -51,48 +85,56 @@
   --s6: 24px;
   --s8: 32px;
 
-  /* radius scale */
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 16px;
-  --r-xl: 24px;
-  --r-pill: 999px;
+  /* geometry: the arcade look has no round corners. All radii are zero on
+     purpose, so a stray var() cannot reintroduce a curve. */
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+  --r-xl: 0;
+  --r-pill: 0;
 
-  /* motion */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  /* Overshoots by ~5% and settles: for things that should land with a bounce.
-     Only on transforms that start AND end on screen (never for exits). */
-  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --bd-thin:  3px;
+  --bd-thick: 4px;
+  --bd-card:  5px;
+
+  /* Offset hard shadows, never blur. Whole pixels only. */
+  --sh-card:  4px 4px 0 rgba(0, 0, 0, .50);
+  --sh-lift:  6px 6px 0 rgba(0, 0, 0, .55);
+  --sh-panel: 8px 8px 0 rgba(0, 0, 0, .60);
+  --sh-hud:   0 3px 0 var(--bezel);
+
+  /* motion: durations unchanged; the easing steps instead of gliding. */
   --d-press: 150ms;
-  --d-fast: 160ms;
-  --d-mid: 220ms;
-  --d-slow: 280ms;
-  --d-exit: 130ms;
-  /* screens: the exit is roughly half the enter, so the old screen is gone
-     before the new one is opaque. Nothing overlaps for longer than the exit. */
+  --d-fast:  160ms;
+  --d-mid:   220ms;
+  --d-slow:  280ms;
+  --d-exit:  130ms;
+  --d-frame: 50ms;             /* one animation frame at 20fps */
   --d-screen-out: 120ms;
   --d-screen-in: 220ms;
   --d-screen-cover: 170ms;
 
-  /* elevation */
-  --sh-card: 0 1px 2px rgba(0, 0, 0, .08), 0 4px 12px rgba(0, 0, 0, .12);
-  --sh-lift: 0 2px 6px rgba(0, 0, 0, .12), 0 16px 32px rgba(0, 0, 0, .26);
-  --sh-panel: 0 2px 6px rgba(0, 0, 0, .14), 0 28px 64px rgba(0, 0, 0, .40);
-  --sh-hud: 0 1px 2px rgba(0, 0, 0, .18), 0 8px 24px rgba(0, 0, 0, .28);
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-step:   steps(3, end);   /* sprite slams: small, huge, settled */
+  --ease-step-5: steps(5, end);   /* countdown bars, chain totals */
+  /* The parlour overshoot curve now slams in steps instead. */
+  --ease-pop:    var(--ease-step);
+
+  /* ambience */
+  --scanline: repeating-linear-gradient(rgba(0,0,0,.30) 0 2px, transparent 2px 4px);
+  --checker:  repeating-conic-gradient(var(--cabinet-hi) 0 25%, var(--cabinet) 0 50%) 0 0 / 22px 22px;
+  --bloom:    radial-gradient(80% 80% at 50% 45%, rgba(125,226,255,.07), transparent 70%);
+  --oven:     radial-gradient(46% 40% at 50% 46%, rgba(255,140,40,.26), transparent 72%);
 
   /* card geometry */
   --card-w: 84px;
   --card-ratio: 1.4;
-  /* There is deliberately no `--card-h`. A custom property is substituted where
-     it is declared, so a height token declared here would have frozen the root
-     84px and every re-declaration of `--card-w` (pile, mini, breakpoints) would
-     have been ignored. Card height is always
-     `calc(var(--card-w) * var(--card-ratio))`, worked out on the card itself. */
-  --card-radius: 9px;
+  --card-radius: 0;
+}
 
-  --font: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Fredoka", var(--font);
+@media (prefers-reduced-motion: reduce) {
+  :root { --ease-step: linear; --ease-step-5: linear; }
 }
 
 /* ----------------------------------------------------------------- reset -- */
@@ -103,39 +145,42 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: var(--font);
-  font-size: 15px;
+  font-size: var(--fs-base);
   line-height: 1.5;
-  color: var(--mozzarella);
-  background-color: var(--wood-lo);
-  background-image:
-    linear-gradient(rgba(20, 11, 7, .22), rgba(20, 11, 7, .32)),
-    url("../assets/bg-table-wood.png");
-  background-size: auto, 768px 768px;
-  background-repeat: no-repeat, repeat;
+  color: var(--text);
+  /* The room is off: flat void with a static cyan tube-centre haze. */
+  background-color: var(--void);
+  background-image: var(--bloom);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
 button, input { font: inherit; color: inherit; }
 
-h1, h2, h3 { margin: 0; line-height: 1.12; letter-spacing: -0.01em; font-weight: 700; }
+h1, h2, h3 { margin: 0; line-height: 1.3; letter-spacing: 0; font-weight: 400; }
 
-/* The parlour voice: rounded sign-painter display type on everything that
-   speaks (headings, buttons, banners, badges, labels); Nunito does the prose. */
+/* The cabinet voice: Press Start 2P on everything that speaks (headings,
+   buttons, banners, badges, labels); VT323 does the prose and the log. */
 h1, h2, h3,
-.btn,
+.btn--primary,
+.btn--za,
 .hud__turn,
-.seat__name,
 .seat__badge,
+.pile__count {
+  font-family: var(--font-display);
+}
+
+/* System labels: VT323, spaced and uppercased, cabinet-manual style. */
 .pile__label,
-.pile__count,
-.topping-now,
-.code-chip,
 .field__label,
 .divider,
 .log__title,
+.seat__name,
+.topping-now,
+.code-chip,
 .hand-bar__hint {
-  font-family: var(--font-display);
+  font-family: var(--font);
+  text-transform: uppercase;
 }
 
 p { margin: 0; }
@@ -163,6 +208,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   border-radius: var(--r-sm);
 }
 
+/* Scanlines: one fixed overlay, above the table and below dialogs (overlay
+   z-index is 20+, toasts 30). Non-interactive, out of the accessibility tree. */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  background: var(--scanline);
+}
+
 /* ------------------------------------------------------------------ icons -- */
 /* Inline SVG glyphs from icons.js. Sized off the local font so an icon in a
    small label stays small and one in a big button grows with it. */
@@ -182,9 +237,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: 1.6em;
   height: 1.6em;
   padding: 3px;
-  background: var(--mozzarella);
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(125, 84, 38, .25);
+  background: var(--console);
+  border-radius: 0;
+  box-shadow: inset 0 0 0 2px var(--bezel);
 }
 
 .eyebrow {
@@ -196,9 +251,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .hint {
-  font-size: 12.5px;
+  font-size: 17px;
   line-height: 1.5;
-  color: var(--ink-soft);
+  color: var(--text-dim);
 }
 
 /* --------------------------------------------------------------- screens -- */
@@ -238,19 +293,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     visibility 0s linear 0s;
 }
 
-/* Home and lobby sit on a checkered tablecloth. */
+/* Home and lobby float in the void; the body carries the tube bloom. */
 .screen--home,
 .screen--lobby {
   display: grid;
   place-items: center;
   padding: var(--s4);
   overflow-y: auto;
-  background-color: #c1442f;
-  background-image:
-    linear-gradient(rgba(168, 56, 42, .08), rgba(125, 84, 38, .10)),
-    url("../assets/bg-tablecloth.png");
-  background-size: auto, 512px 512px;
-  background-repeat: no-repeat, repeat;
+  background: transparent;
 }
 
 /* ---------------------------------------------------------------- panels -- */
@@ -258,77 +308,93 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: 100%;
   max-width: 380px;
   padding: var(--s8) var(--s6) var(--s6);
-  background: var(--mozzarella);
-  color: var(--ink);
-  border-radius: var(--r-xl);
+  background: var(--cabinet);
+  color: var(--text);
+  border: var(--bd-thick) solid var(--bezel);
   box-shadow: var(--sh-panel);
-  border: 1px solid rgba(43, 26, 17, .08);
+}
+
+/* The home form floats straight on the void, like an attract screen. */
+.panel--home {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  max-width: 460px;
 }
 
 .panel--lobby { max-width: 440px; }
 
 .stack { display: grid; gap: var(--s3); }
 
-/* Generated wordmark; the text equivalent remains in the document heading. */
+/* Attract-mode logotype: type only, no image asset. The script flourish is
+   the one Kaushan moment this screen gets. */
 .logo {
   position: relative;
   display: grid;
-  place-items: center;
-  margin-bottom: var(--s3);
+  justify-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s4);
   min-height: 96px;
 }
 
-.logo__art {
-  display: block;
-  width: 100%;
-  height: auto;
+.logo__flourish {
+  font-family: var(--font-script);
+  font-size: 28px;
+  line-height: 1;
+  color: var(--sauce-hi);
+}
+
+.logo__type {
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 1;
+  color: var(--cheese);
+  text-shadow: 7px 7px 0 var(--sauce), 14px 14px 0 rgba(0, 0, 0, .65);
   transform-origin: 50% 70%;
-  animation: logo-land 620ms var(--ease-out) 80ms both;
+  animation: logo-land 620ms var(--ease-step) 80ms both;
 }
 
 @keyframes logo-land {
-  0% { transform: translateY(-8px) rotate(-1.5deg) scale(.96); opacity: 0; }
-  65% { transform: translateY(1px) rotate(.5deg) scale(1.015); opacity: 1; }
+  0% { transform: translateY(-8px) scale(.96); opacity: 0; }
+  65% { transform: translateY(1px) scale(1.02); opacity: 1; }
   100% { transform: none; opacity: 1; }
 }
 
 .tagline {
   margin-bottom: var(--s6);
   text-align: center;
-  font-size: 14px;
-  line-height: 1.45;
-  font-weight: 500;
-  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1.5;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ui-cyan);
   text-wrap: balance;
 }
 
 .field { display: grid; gap: var(--s1); }
 
 .field__label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  letter-spacing: .16em;
+  color: var(--text-dim);
 }
 
 .input {
   width: 100%;
   padding: var(--s3) var(--s4);
-  background: #fff;
-  border: 1.5px solid var(--mozzarella-dim);
-  border-radius: var(--r-md);
-  font-size: 16px;
-  font-weight: 600;
-  transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out);
+  background: var(--cabinet);
+  color: var(--text);
+  border: var(--bd-thick) solid var(--bezel);
+  border-radius: 0;
+  font-size: 21px;
+  transition: border-color var(--d-fast) var(--ease-out);
 }
 
-.input::placeholder { color: #7d6658; font-weight: 500; }
+.input::placeholder { color: var(--text-mute); }
 
 .input:focus {
   outline: none;
-  border-color: var(--tomato);
-  box-shadow: 0 0 0 4px rgba(217, 79, 60, .16);
+  border-color: var(--ui-cyan);
 }
 
 .input--code {
@@ -342,19 +408,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   gap: var(--s3);
   margin: var(--s6) 0 var(--s4);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--ink-soft) 70%, transparent);
+  font-size: var(--fs-label);
+  letter-spacing: .16em;
+  color: var(--text-dim);
 }
 
 .divider::before,
 .divider::after {
   content: "";
   flex: 1;
-  height: 1px;
-  background: var(--mozzarella-dim);
+  height: 3px;
+  background: var(--bezel);
 }
 
 .join-row { display: flex; gap: var(--s2); }
@@ -374,11 +438,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: var(--s3) var(--s4);
   background: var(--btn-bg);
   color: var(--btn-fg);
-  border: none;
-  border-radius: var(--r-md);
-  font-size: 14.5px;
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  border: var(--bd-thin) solid transparent;
+  border-radius: 0;
+  font-size: var(--fs-ui);
+  letter-spacing: .04em;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -405,49 +468,33 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .btn--sm { padding: var(--s2) var(--s3); font-size: 13px; border-radius: var(--r-sm); }
 
 .btn--primary {
-  --btn-bg: var(--tomato);
-  --btn-fg: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .12), 0 6px 16px -4px rgba(168, 56, 42, .5);
+  --btn-bg: var(--cheese);
+  --btn-fg: var(--void);
+  font-size: 14px;
+  border-color: var(--void);
+  border-width: var(--bd-thick);
+  box-shadow: var(--sh-lift);
 }
 
 .btn--ghost {
-  --btn-bg: transparent;
-  --btn-fg: var(--ink);
-  box-shadow: inset 0 0 0 1.5px var(--mozzarella-dim);
+  --btn-bg: var(--cabinet);
+  --btn-fg: var(--ui-cyan);
+  border-color: var(--bezel);
 }
 
 .btn--quiet {
   --btn-bg: transparent;
-  --btn-fg: var(--ink-soft);
-  font-weight: 600;
+  --btn-fg: var(--text-dim);
 }
 
-/* Ghost and quiet buttons default to dark ink, which is right on the cream
-   panels but invisible on the dark table. Every dark surface flips the ink and
-   the outline to cream so the label reads in the idle and disabled state too. */
-.hud .btn--ghost,
-.hand-bar .btn--ghost {
-  --btn-fg: var(--mozzarella);
-  box-shadow: inset 0 0 0 1.5px rgba(253, 247, 234, .38);
-}
-
-.hud .btn--quiet,
-.hand-bar .btn--quiet {
-  --btn-fg: rgba(253, 247, 234, .82);
-}
-
-/* Half-strength cream on wood is still hard to read, so disabled stays higher. */
+/* Every surface is dark now, so one treatment works everywhere. */
 .hud .btn:disabled,
 .hand-bar .btn:disabled { opacity: .62; }
 
 @media (hover: hover) and (pointer: fine) {
-  .btn--primary:hover:not(:disabled) { --btn-bg: #e2604d; }
-  .btn--ghost:hover:not(:disabled) { --btn-bg: rgba(43, 26, 17, .05); }
-  .btn--quiet:hover:not(:disabled) { --btn-fg: var(--ink); }
-  .hud .btn--ghost:hover:not(:disabled),
-  .hand-bar .btn--ghost:hover:not(:disabled) { --btn-bg: rgba(253, 247, 234, .14); }
-  .hud .btn--quiet:hover:not(:disabled),
-  .hand-bar .btn--quiet:hover:not(:disabled) { --btn-fg: var(--mozzarella); }
+  .btn--primary:hover:not(:disabled) { --btn-bg: var(--cheese-hi); }
+  .btn--ghost:hover:not(:disabled) { border-color: var(--ui-cyan); }
+  .btn--quiet:hover:not(:disabled) { --btn-fg: var(--text); }
 }
 
 /* code chip ---------------------------------------------------------------- */
@@ -458,12 +505,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   gap: var(--s2);
   min-height: 44px;
   padding: var(--s2) var(--s3);
-  background: var(--ink);
-  color: var(--mozzarella);
-  border: none;
-  border-radius: var(--r-md);
-  font-size: 20px;
-  font-weight: 800;
+  background: var(--console);
+  color: var(--ui-cyan);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
+  font-size: 21px;
   letter-spacing: .06em;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -499,7 +545,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .code-chip--sm .code-chip__done { font-size: 11px; }
 
 @media (hover: hover) and (pointer: fine) {
-  .code-chip:hover { background: #3b2417; }
+  .code-chip:hover { border-color: var(--ui-cyan); }
   .code-chip--sm:hover { background: rgba(0, 0, 0, .5); }
 }
 
@@ -578,7 +624,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat-row__kick.is-pressed { transform: scale(.9); }
 
 @media (hover: hover) and (pointer: fine) {
-  .seat-row__kick:hover { background: rgba(217, 79, 60, .14); color: var(--tomato-deep); }
+  .seat-row__kick:hover { background: rgba(255, 46, 107, .18); color: var(--sauce-hi); }
 }
 
 .lobby-note {
@@ -621,10 +667,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   gap: var(--s3);
   padding: var(--s2) var(--s3);
-  background: rgba(20, 11, 7, .55);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  background: var(--cabinet);
+  border-bottom: var(--bd-thin) solid var(--bezel);
   box-shadow: var(--sh-hud);
   z-index: 3;
 }
@@ -642,7 +686,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
-  background: rgba(255, 255, 255, .06);
+  background: var(--cabinet-hi);
   transform: none;
   transition:
     background-color var(--d-mid) var(--ease-out),
@@ -657,7 +701,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: 0 0 18px -2px rgba(229, 177, 58, .8);
+  box-shadow: 0 0 0 3px rgba(255, 225, 77, .4);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--d-mid) var(--ease-out);
@@ -665,7 +709,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hud__turn.is-you {
   background: linear-gradient(180deg, var(--cheese-hi), var(--cheese));
-  color: #3d2a04;
+  color: var(--void);
   transform: scale(1.025);
   transition-timing-function: var(--ease-pop);
 }
@@ -714,7 +758,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   gap: var(--s1);
   font-size: 12px;
   font-weight: 600;
-  color: rgba(253, 247, 234, .7);
+  color: var(--text-dim);
 }
 
 .dir-arrow {
@@ -753,8 +797,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   justify-items: center;
   gap: var(--s1);
   padding: var(--s2) var(--s2) var(--s3);
-  background: rgba(253, 247, 234, .07);
-  border: 1px solid rgba(255, 255, 255, .08);
+  background: var(--cabinet);
+  border: var(--bd-thin) solid var(--bezel);
   border-radius: var(--r-lg);
   transform: translateY(var(--arc, 0px));
   opacity: 1;
@@ -784,14 +828,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: 0 0 0 2px var(--cheese), 0 0 28px -4px rgba(229, 177, 58, .65);
+  box-shadow: 0 0 0 3px var(--cheese);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--d-mid) var(--ease-out);
 }
 
 .seat.is-turn {
-  background: rgba(229, 177, 58, .16);
+  background: rgba(255, 225, 77, .16);
   transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.035);
 }
 
@@ -829,7 +873,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   gap: var(--s1);
   font-size: 11.5px;
   font-weight: 600;
-  color: rgba(253, 247, 234, .65);
+  color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
 
@@ -907,7 +951,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: min(560px, 84vw);
   aspect-ratio: 1;
   transform: translate(-50%, -46%);
-  background: radial-gradient(circle, rgba(229, 177, 58, .10) 0%, rgba(229, 177, 58, 0) 62%);
+  background: radial-gradient(circle, rgba(255, 225, 77, .10) 0%, rgba(255, 225, 77, 0) 62%);
   pointer-events: none;
   z-index: -1;
 }
@@ -927,7 +971,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-weight: 800;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: rgba(253, 247, 234, .5);
+  color: var(--text-mute);
 }
 
 .pile__slot {
@@ -961,7 +1005,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   position: absolute;
   inset: -5px;
   border-radius: 13px;
-  box-shadow: 0 0 0 2px var(--cheese), 0 0 22px -4px rgba(229, 177, 58, .6);
+  box-shadow: 0 0 0 3px var(--cheese);
   pointer-events: none;
 }
 
@@ -983,7 +1027,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   min-width: 22px;
   padding: 1px 5px;
   background: var(--ink);
-  border: 1.5px solid rgba(253, 247, 234, .25);
+  border: 2px solid var(--bezel);
   border-radius: var(--r-pill);
   font-size: 11px;
   font-weight: 800;
@@ -1007,7 +1051,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: 100%;
   opacity: 1;
   transform: none;
-  animation: oven-land var(--d-slow) var(--ease-out) both;
+  animation: oven-land var(--d-slow) var(--ease-step) both;
 }
 
 @keyframes oven-land {
@@ -1047,7 +1091,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: 18px;
   margin-left: -9px;
   border-radius: 50%;
-  background: rgba(253, 247, 234, .5);
+  background: rgba(232, 236, 255, .5);
   filter: blur(4px);
   opacity: 0;
   pointer-events: none;
@@ -1068,7 +1112,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   inset: 0;
   z-index: 6;
   pointer-events: none;
-  box-shadow: inset 0 0 140px 24px rgba(217, 79, 60, .55);
+  box-shadow: inset 0 0 0 8px rgba(255, 46, 107, .8);
   animation: table-heat 720ms var(--ease-in-out) both;
 }
 
@@ -1100,7 +1144,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .topping-now.t-pepperoni { background: var(--tomato); color: #fff; }
 .topping-now.t-basil { background: var(--basil); color: #fff; }
-.topping-now.t-cheese { background: var(--cheese); color: #3d2a04; }
+.topping-now.t-cheese { background: var(--cheese); color: var(--void); }
 .topping-now.t-anchovy { background: var(--anchovy); color: #fff; }
 
 /* ------------------------------------------------------------------- log -- */
@@ -1114,10 +1158,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   flex-direction: column;
   gap: var(--s1);
   padding: var(--s3);
-  background: rgba(20, 11, 7, .5);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, .08);
+  background: var(--console);
+  border: var(--bd-thin) solid var(--bezel);
   border-radius: var(--r-lg);
   box-shadow: var(--sh-hud);
   z-index: 2;
@@ -1128,7 +1170,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: rgba(253, 247, 234, .45);
+  color: var(--text-dim);
 }
 
 .log__list {
@@ -1141,15 +1183,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-size: 12.5px;
   line-height: 1.4;
   scrollbar-width: thin;
-  scrollbar-color: rgba(253, 247, 234, .25) transparent;
+  scrollbar-color: rgba(150, 163, 201, .4) transparent;
   overscroll-behavior: contain;
 }
 
 .log__list::-webkit-scrollbar { width: 5px; }
-.log__list::-webkit-scrollbar-thumb { background: rgba(253, 247, 234, .22); border-radius: var(--r-pill); }
+.log__list::-webkit-scrollbar-thumb { background: rgba(150, 163, 201, .35); border-radius: 0; }
 
 .log__entry {
-  color: rgba(253, 247, 234, .82);
+  color: var(--text-dim);
   opacity: 1;
   transform: none;
   transition: opacity var(--d-mid) var(--ease-out), transform var(--d-mid) var(--ease-out);
@@ -1168,12 +1210,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: grid;
   gap: var(--s2);
   padding: var(--s3) var(--s3) var(--s4);
-  background:
-    linear-gradient(to top, rgba(253, 247, 234, .12), rgba(253, 247, 234, .04));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, .1);
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, .35);
+  background: var(--cabinet);
+  border-top: var(--bd-thin) solid var(--bezel);
 }
 
 /* a warm rail lights up when it is your turn */
@@ -1201,15 +1239,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand-bar__hint {
   font-size: 12.5px;
   font-weight: 600;
-  color: rgba(253, 247, 234, .62);
+  color: var(--text-dim);
 }
 
 .btn--za {
   --btn-bg: var(--basil);
   --btn-fg: #fff;
+  --btn-fg: var(--void);
+  font-size: 14px;
   letter-spacing: .05em;
-  background-image: linear-gradient(180deg, #55b164, var(--basil));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 6px 18px -4px rgba(47, 107, 56, .6);
+  border-color: var(--void);
+  border-width: var(--bd-thick);
+  box-shadow: var(--sh-lift);
 }
 
 /* When the shout is legal, the button wiggles like it can't hold it in:
@@ -1234,7 +1275,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 @media (hover: hover) and (pointer: fine) {
   .btn--za:hover:not(:disabled) { --btn-bg: #55a660; }
-  .btn--callout:hover:not(:disabled) { --btn-bg: #e2604d; }
+  .btn--callout:hover:not(:disabled) { --btn-bg: var(--sauce-hi); }
 }
 
 /* the fan ---------------------------------------------------------------- */
@@ -1278,9 +1319,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: calc(var(--card-w) * var(--card-ratio));
   padding: 0;
   border: none;
-  border-radius: var(--card-radius);
-  background: var(--mozzarella);
-  color: var(--ink);
+  border-radius: 0;
+  background: var(--cabinet);
+  color: var(--text);
   box-shadow: var(--sh-card);
   overflow: hidden;
   user-select: none;
@@ -1303,17 +1344,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .55), inset 0 0 0 3px var(--suit, var(--crust));
+  box-shadow: inset 0 0 0 var(--bd-card) var(--suit, var(--bezel));
   pointer-events: none;
 }
 
 .card__art { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* suit identity */
-.card--pepperoni { --suit: var(--tomato); --suit-ink: var(--tomato-deep); }
-.card--basil { --suit: var(--basil); --suit-ink: var(--basil-deep); }
-.card--cheese { --suit: var(--cheese); --suit-ink: var(--cheese-deep); }
-.card--anchovy { --suit: var(--anchovy); --suit-ink: var(--anchovy-deep); }
+.card--pepperoni { --suit: var(--sauce); --suit-ink: var(--sauce-hi); }
+.card--basil { --suit: var(--basil); --suit-ink: var(--basil); }
+.card--cheese { --suit: var(--cheese); --suit-ink: var(--cheese); }
+.card--anchovy { --suit: var(--anchovy); --suit-ink: var(--anchovy); }
 .card--wild { --suit: #4a3a55; --suit-ink: #3b2c46; }
 
 .card--is-wild {
@@ -1432,7 +1473,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand .card.is-playable { cursor: pointer; }
 
 .hand .card.is-playable {
-  box-shadow: var(--sh-card), 0 0 0 2px var(--cheese), 0 0 20px -3px rgba(229, 177, 58, .7);
+  box-shadow: var(--sh-card), 0 0 0 3px var(--cheese);
 }
 
 /* Unplayable cards step back but stay readable: the player still has to plan
@@ -1492,10 +1533,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: grid;
   gap: var(--s3);
   padding: var(--s4);
-  background: var(--mozzarella);
-  color: var(--ink);
-  border: 1.5px solid rgba(125, 84, 38, .3);
-  border-radius: var(--r-lg);
+  background: var(--cabinet);
+  color: var(--text);
+  border: var(--bd-thick) solid var(--bezel);
+  border-radius: 0;
   box-shadow: var(--sh-panel);
   opacity: 0;
   visibility: hidden;
@@ -1544,7 +1585,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .topping-btn .ico--plate { font-size: 15px; }
 .topping-btn.t-pepperoni { background: var(--tomato); }
 .topping-btn.t-basil { background: var(--basil); }
-.topping-btn.t-cheese { background: var(--cheese); color: #3d2a04; }
+.topping-btn.t-cheese { background: var(--cheese); color: var(--void); }
 .topping-btn.t-anchovy { background: var(--anchovy); }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1639,10 +1680,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   gap: var(--s3);
   justify-items: center;
   padding: var(--s8) var(--s6) var(--s6);
-  background: var(--mozzarella);
-  color: var(--ink);
-  border: 1.5px solid rgba(125, 84, 38, .3);
-  border-radius: var(--r-xl);
+  background: var(--cabinet);
+  color: var(--text);
+  border: var(--bd-thick) solid var(--bezel);
+  border-radius: 0;
   box-shadow: var(--sh-panel);
   text-align: center;
   overflow: hidden;
@@ -1720,7 +1761,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
-.dialog__title { font-size: 27px; color: var(--tomato-deep); }
+.dialog__title { font-size: 20px; color: var(--cheese); font-family: var(--font-display); }
 .overlay.is-open .dialog__title { animation: line-rise 240ms var(--ease-out) 110ms both; }
 .dialog__sub { font-size: 14px; font-weight: 500; color: var(--ink-soft); }
 .overlay.is-open .dialog__sub { animation: line-rise 240ms var(--ease-out) 160ms both; }
@@ -1738,7 +1779,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: 26px;
   border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 0 0 1.5px rgba(125, 84, 38, .35);
+  box-shadow: 0 0 0 2px var(--bezel);
 }
 
 .score-row__wins .ico { vertical-align: -0.24em; }
@@ -1779,7 +1820,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: var(--s3) var(--s4);
   background: var(--ink);
   color: var(--mozzarella);
-  border: 1px solid rgba(200, 146, 63, .4);
+  border: var(--bd-thin) solid var(--bezel);
   border-radius: var(--r-md);
   font-size: 13.5px;
   font-weight: 600;

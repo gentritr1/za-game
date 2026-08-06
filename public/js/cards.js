@@ -25,10 +25,11 @@ export const TOPPING_ORDER = ['pepperoni', 'basil', 'cheese', 'anchovy'];
 /** Card kinds. `index` is the small corner symbol, like on a real card. */
 const KINDS = {
   number: { label: null, emoji: null, index: null, slug: null },
-  skip: { label: 'Burnt Slice', emoji: '🔥', index: '⊘', slug: 'burnt-slice' },
-  reverse: { label: 'Flip the Pie', emoji: '🔄', index: '⇄', slug: 'flip-the-pie' },
+  /* ASCII indexes: Press Start 2P has no glyph for ⊘ ⇄ ★. */
+  skip: { label: 'Burnt Slice', emoji: '🔥', index: 'X', slug: 'burnt-slice' },
+  reverse: { label: 'Flip the Pie', emoji: '🔄', index: '<>', slug: 'flip-the-pie' },
   draw2: { label: 'Extra Toppings', emoji: '🫒', index: '+2', slug: 'extra-toppings' },
-  wild: { label: "Chef's Choice", emoji: '👨‍🍳', index: '★', slug: 'chefs-choice' },
+  wild: { label: "Chef's Choice", emoji: '👨‍🍳', index: '*', slug: 'chefs-choice' },
   wild4: { label: 'The Whole Pie', emoji: '🍕', index: '+4', slug: 'whole-pie' },
 };
 

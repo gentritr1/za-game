@@ -8,19 +8,20 @@
  * their own brand colours.
  */
 
+/* Arcade direction: neon suits on cabinet darks. */
 const PALETTE = {
-  tomato: '#d94f3c',
-  tomatoDeep: '#a8382a',
-  basil: '#479e55',
-  basilDeep: '#2f6b38',
-  cheese: '#e5b13a',
-  cheeseDeep: '#a87d17',
-  anchovy: '#4a7fb5',
-  anchovyDeep: '#2f5c8c',
-  crust: '#c8923f',
-  crustDeep: '#7d5426',
-  cream: '#fdf7ea',
-  cheesePale: '#f3e3bd',
+  tomato: '#ff2e6b',
+  tomatoDeep: '#c11a4c',
+  basil: '#3ddc7f',
+  basilDeep: '#22a058',
+  cheese: '#ffe14d',
+  cheeseDeep: '#c9a800',
+  anchovy: '#4d7dff',
+  anchovyDeep: '#2a52c9',
+  crust: '#ffe14d',
+  crustDeep: '#c9a800',
+  cream: '#e8ecff',
+  cheesePale: '#fff08a',
 };
 
 const P = PALETTE;
