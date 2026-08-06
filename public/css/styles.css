@@ -103,8 +103,10 @@ body {
   color: var(--mozzarella);
   background-color: var(--wood-lo);
   background-image:
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, .16) 0 2px, rgba(255, 255, 255, .02) 2px 5px, rgba(0, 0, 0, 0) 5px 26px),
-    radial-gradient(120% 90% at 50% -10%, var(--wood-hi) 0%, var(--wood-lo) 72%);
+    linear-gradient(rgba(20, 11, 7, .22), rgba(20, 11, 7, .32)),
+    url("../assets/bg-table-wood.png");
+  background-size: auto, 768px 768px;
+  background-repeat: no-repeat, repeat;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -116,6 +118,21 @@ h1, h2, h3 { margin: 0; line-height: 1.12; letter-spacing: -0.02em; font-weight:
 p { margin: 0; }
 
 ol, ul { margin: 0; padding: 0; list-style: none; }
+
+/* Component display rules must never override the platform's hidden state. */
+[hidden] { display: none !important; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 :focus-visible {
   outline: 2px solid var(--cheese);
@@ -183,10 +200,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   overflow-y: auto;
   background-color: #c1442f;
   background-image:
-    linear-gradient(45deg, rgba(253, 247, 234, .93) 25%, transparent 25% 75%, rgba(253, 247, 234, .93) 75%),
-    linear-gradient(45deg, rgba(253, 247, 234, .93) 25%, transparent 25% 75%, rgba(253, 247, 234, .93) 75%);
-  background-size: 76px 76px;
-  background-position: 0 0, 38px 38px;
+    linear-gradient(rgba(168, 56, 42, .08), rgba(125, 84, 38, .10)),
+    url("../assets/bg-tablecloth.png");
+  background-size: auto, 512px 512px;
+  background-repeat: no-repeat, repeat;
 }
 
 /* ---------------------------------------------------------------- panels -- */
@@ -205,69 +222,27 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .stack { display: grid; gap: var(--s3); }
 
-/* wordmark: stacked crust-and-cheese letters, each one tipped a little */
+/* Generated wordmark; the text equivalent remains in the document heading. */
 .logo {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s2);
+  display: grid;
+  place-items: center;
   margin-bottom: var(--s3);
-  padding-top: var(--s2);
+  min-height: 96px;
 }
 
-.logo__pie {
-  font-size: 34px;
-  line-height: 1;
-  transform-origin: 70% 80%;
-  animation: pie-toss 720ms var(--ease-out) 120ms both;
+.logo__art {
+  display: block;
+  width: 100%;
+  height: auto;
+  transform-origin: 50% 70%;
+  animation: logo-land 620ms var(--ease-out) 80ms both;
 }
 
-@keyframes pie-toss {
-  0% { transform: rotate(-38deg) scale(.8); opacity: 0; }
-  60% { transform: rotate(9deg) scale(1.08); opacity: 1; }
-  100% { transform: rotate(-6deg) scale(1); opacity: 1; }
-}
-
-.logo__word {
-  display: flex;
-  font-size: clamp(38px, 10vw, 50px);
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.logo__word span {
-  display: inline-block;
-  color: var(--tomato);
-  text-shadow:
-    0 2px 0 var(--cheese-deep),
-    0 3px 0 var(--crust),
-    0 5px 0 var(--crust-deep),
-    0 8px 10px rgba(90, 45, 20, .35);
-}
-
-.logo__word span:nth-child(odd) { transform: rotate(-4deg); }
-.logo__word span:nth-child(even) { transform: rotate(3.5deg) translateY(2px); }
-.logo__word span:nth-child(4) { transform: rotate(-2deg) translateY(-2px); }
-
-/* a little "extra cheesy" sticker slapped on the corner */
-.logo__stamp {
-  position: absolute;
-  right: -6px;
-  top: -4px;
-  padding: 3px 7px;
-  background: var(--basil);
-  color: #fff;
-  border-radius: var(--r-sm);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  text-align: center;
-  transform: rotate(11deg);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .22);
+@keyframes logo-land {
+  0% { transform: translateY(-8px) rotate(-1.5deg) scale(.96); opacity: 0; }
+  65% { transform: translateY(1px) rotate(.5deg) scale(1.015); opacity: 1; }
+  100% { transform: none; opacity: 1; }
 }
 
 .tagline {
@@ -301,7 +276,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out);
 }
 
-.input::placeholder { color: color-mix(in srgb, var(--ink-soft) 45%, transparent); font-weight: 500; }
+.input::placeholder { color: #7d6658; font-weight: 500; }
 
 .input:focus {
   outline: none;
@@ -348,6 +323,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   justify-content: center;
   gap: var(--s2);
+  min-height: 44px;
   padding: var(--s3) var(--s4);
   background: var(--btn-bg);
   color: var(--btn-fg);
@@ -433,6 +409,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
+  min-height: 44px;
   padding: var(--s2) var(--s3);
   background: var(--ink);
   color: var(--mozzarella);
@@ -510,7 +487,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   background: var(--mozzarella-dim);
   border-radius: var(--r-pill);
   font-size: 17px;
+  overflow: hidden;
 }
+
+.avatar__image { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 .seat-row__name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -531,8 +511,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .seat-row__kick {
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   background: transparent;
@@ -558,6 +538,23 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-weight: 600;
   color: var(--ink-soft);
   min-height: 1.5em;
+}
+
+.lobby-empty {
+  display: grid;
+  place-items: center;
+  max-height: 154px;
+  margin-top: var(--s2);
+  overflow: hidden;
+}
+
+.lobby-empty[hidden] { display: none; }
+
+.lobby-empty__art {
+  display: block;
+  width: min(100%, 270px);
+  height: auto;
+  margin: -18px 0 -26px;
 }
 
 .lobby-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s2); }
@@ -744,6 +741,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   background: rgba(0, 0, 0, .3);
   border-radius: var(--r-pill);
   font-size: 19px;
+  overflow: hidden;
 }
 
 .seat.is-turn .seat__avatar { background: rgba(0, 0, 0, .45); }
@@ -1111,10 +1109,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding-top: 10px;
 }
 
-/* `margin-left` is the one layout property that animates here. The fan respaces
-   whenever a card leaves or arrives and there is no transform that can move a
-   flex item's neighbours, so this is the accordion-height exception. Everything
-   else about a hand card is transform and opacity. */
+/* The overlap is a layout value, so it updates immediately when the hand
+   respaces. The cards themselves still settle through their transform. */
 .hand-slot {
   position: relative;
   flex: none;
@@ -1123,7 +1119,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   margin-left: var(--overlap, -26px);
   transform: rotate(var(--tilt, 0deg)) translateY(var(--rise, 0px));
   transform-origin: 50% 130%;
-  transition: transform var(--d-slow) var(--ease-out), margin-left var(--d-slow) var(--ease-out);
+  transition: transform var(--d-slow) var(--ease-out);
 }
 
 .hand-slot:first-child { margin-left: 0; }
@@ -1453,6 +1449,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .overlay.is-open { opacity: 1; visibility: visible; transition-duration: var(--d-slow), 0s; }
 
 .dialog {
+  position: relative;
+  isolation: isolate;
   width: 100%;
   max-width: 360px;
   display: grid;
@@ -1466,6 +1464,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   text-align: center;
   transform: scale(.96) translateY(8px);
   transition: transform var(--d-exit) var(--ease-out);
+}
+
+.dialog > :not(.dialog__confetti) { position: relative; z-index: 1; }
+
+.dialog__confetti {
+  position: absolute;
+  z-index: 0;
+  inset: -72px;
+  width: calc(100% + 144px);
+  height: auto;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(.9) rotate(-3deg);
+}
+
+.overlay.is-open .dialog.is-win .dialog__confetti {
+  opacity: .78;
+  animation: confetti-bloom 640ms var(--ease-out) 40ms both;
+}
+
+@keyframes confetti-bloom {
+  from { opacity: 0; transform: scale(.82) rotate(-8deg); }
+  to { opacity: .78; transform: scale(1) rotate(0deg); }
 }
 
 .overlay.is-open .dialog { transform: none; transition-duration: var(--d-slow); }
@@ -1655,6 +1676,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .score-row,
   .dialog,
   .overlay.is-open .dialog,
+  .dialog__confetti,
   .btn:active, .btn.is-pressed,
   .btn--pizzuno.is-urgent:active,
   .btn--pizzuno.is-urgent.is-pressed,

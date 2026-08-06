@@ -7,8 +7,8 @@
  * does not change. See the README for the full file naming convention.
  */
 
-/** Set to true after you put artwork in public/assets/cards/. */
-export const USE_IMAGES = false;
+/** The complete generated deck is installed in public/assets/cards/. */
+export const USE_IMAGES = true;
 
 export const ASSET_DIR = 'assets/cards';
 
@@ -106,6 +106,15 @@ export function renderCard(card, options = {}) {
   if (faceDown || !card) {
     root.classList.add('card--back');
     root.setAttribute('aria-hidden', 'true');
+    if (USE_IMAGES) {
+      const img = el('img', 'card__art');
+      img.src = cardAssetPath(null);
+      img.alt = '';
+      img.decoding = 'async';
+      img.draggable = false;
+      root.append(img);
+      return root;
+    }
     const art = el('span', 'card__back-art');
     art.append(el('span', 'card__back-pie', '🍕'), el('span', 'card__back-word', 'PIZZUNO'));
     root.append(art);
@@ -122,12 +131,17 @@ export function renderCard(card, options = {}) {
 
   const label = describeCard(card);
   if (interactive) root.setAttribute('aria-label', `Play ${label}`);
-  else root.setAttribute('aria-label', label);
+  else {
+    root.setAttribute('role', 'img');
+    root.setAttribute('aria-label', label);
+  }
 
   if (USE_IMAGES) {
     const img = el('img', 'card__art');
     img.src = cardAssetPath(card);
-    img.alt = label;
+    img.alt = '';
+    img.decoding = 'async';
+    img.draggable = false;
     img.loading = 'lazy';
     root.append(img);
     return root;

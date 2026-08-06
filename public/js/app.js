@@ -12,6 +12,7 @@ import { renderCard, isWild, TOPPING_META, TOPPING_ORDER } from './cards.js';
 const $ = (id) => document.getElementById(id);
 
 const el = {
+  app: $('app'),
   screens: Array.from(document.querySelectorAll('.screen')),
   // home
   formCreate: $('form-create'),
@@ -22,6 +23,7 @@ const el = {
   lobbyCode: $('lobby-code'),
   btnCopyCode: $('btn-copy-code'),
   seatList: $('seat-list'),
+  lobbyEmpty: $('lobby-empty'),
   lobbyNote: $('lobby-note'),
   btnAddBot: $('btn-add-bot'),
   btnStart: $('btn-start'),
@@ -87,6 +89,7 @@ const ui = {
   toastTimer: 0,
   copyTimers: new WeakMap(),
   dealing: false, // true for the first hand render of a round
+  roundFocusReturn: null,
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -169,6 +172,38 @@ function handleMessage(message) {
 function show(node) { node.classList.add('is-open'); }
 function hide(node) { node.classList.remove('is-open'); }
 
+function openRoundOverlay() {
+  if (el.overlay.classList.contains('is-open')) return;
+  ui.roundFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  show(el.overlay);
+  el.app.inert = true;
+  requestAnimationFrame(() => {
+    const firstAction = !el.btnNextRound.hidden
+      ? el.btnNextRound
+      : !el.btnToLobby.hidden
+        ? el.btnToLobby
+        : el.dialog;
+    firstAction.focus({ preventScroll: true });
+  });
+}
+
+function closeRoundOverlay() {
+  const wasOpen = el.overlay.classList.contains('is-open');
+  hide(el.overlay);
+  el.app.inert = false;
+  if (!wasOpen) return;
+  const returnTarget = ui.roundFocusReturn;
+  ui.roundFocusReturn = null;
+  requestAnimationFrame(() => {
+    if (returnTarget && returnTarget.isConnected && !returnTarget.closest('[inert]')) {
+      returnTarget.focus({ preventScroll: true });
+      return;
+    }
+    const fallback = ui.screen === 'game' ? el.btnLeaveGame : el.btnLeaveLobby;
+    if (fallback && !fallback.hidden) fallback.focus({ preventScroll: true });
+  });
+}
+
 function toast(text) {
   el.toast.textContent = text;
   show(el.toast);
@@ -236,7 +271,7 @@ function applySnapshot(snapshot) {
 
   if (snapshot.phase === 'lobby') {
     closePopovers();
-    hide(el.overlay);
+    closeRoundOverlay();
     renderLobby(snapshot);
     showScreen('lobby');
     resetGameView();
@@ -250,10 +285,10 @@ function applySnapshot(snapshot) {
     // Only the first snapshot of the round-over stages the scoreboard. A later
     // one, from somebody arriving or leaving, just updates it in place.
     renderRoundOver(snapshot, !el.overlay.classList.contains('is-open'));
-    show(el.overlay);
+    openRoundOverlay();
     closePopovers();
   } else {
-    hide(el.overlay);
+    closeRoundOverlay();
   }
 }
 
@@ -270,6 +305,23 @@ function resetGameView() {
   el.discardSlot.replaceChildren();
 }
 
+function renderAvatar(node, person) {
+  node.replaceChildren();
+  if (person.isBot) {
+    const image = document.createElement('img');
+    image.className = 'avatar__image';
+    image.src = 'assets/avatar-chef-bot.png';
+    image.alt = '';
+    image.width = 256;
+    image.height = 256;
+    image.decoding = 'async';
+    image.draggable = false;
+    node.append(image);
+    return;
+  }
+  node.textContent = person.connected === false ? '💤' : '🧑';
+}
+
 // ================================================================= LOBBY ===
 function renderLobby(snapshot) {
   const rows = new DocumentFragment();
@@ -279,7 +331,7 @@ function renderLobby(snapshot) {
 
     const avatar = document.createElement('span');
     avatar.className = 'seat-row__avatar';
-    avatar.textContent = seat.isBot ? '👨‍🍳' : '🧑';
+    renderAvatar(avatar, seat);
     row.append(avatar);
 
     const name = document.createElement('span');
@@ -307,6 +359,7 @@ function renderLobby(snapshot) {
 
   const count = snapshot.seats.length;
   const enough = count >= snapshot.minPlayers;
+  el.lobbyEmpty.hidden = count !== 1;
   el.btnStart.disabled = !snapshot.isHost || !enough;
   el.btnAddBot.disabled = !snapshot.isHost || count >= snapshot.maxPlayers;
 
@@ -454,7 +507,11 @@ function buildSeat(player) {
 
 function updateSeat(node, player, view) {
   const parts = node._parts;
-  parts.avatar.textContent = player.isBot ? '👨‍🍳' : player.connected ? '🧑' : '💤';
+  const avatarState = `${player.isBot}:${player.connected}`;
+  if (node.dataset.avatarState !== avatarState) {
+    node.dataset.avatarState = avatarState;
+    renderAvatar(parts.avatar, player);
+  }
   parts.name.textContent = player.name;
   parts.count.textContent = `🂠 ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`;
 
@@ -937,6 +994,25 @@ el.btnToLobby.addEventListener('click', () => send({ type: 'backToLobby' }));
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closePopovers();
+  if (event.key !== 'Tab' || !el.overlay.classList.contains('is-open')) return;
+
+  const controls = Array.from(el.dialog.querySelectorAll('button:not([disabled]):not([hidden])'))
+    .filter((control) => control.offsetParent !== null);
+  if (controls.length === 0) {
+    event.preventDefault();
+    el.dialog.focus({ preventScroll: true });
+    return;
+  }
+
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus({ preventScroll: true });
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus({ preventScroll: true });
+  }
 });
 
 // A click outside closes an open popover.

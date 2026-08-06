@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#2a1810">
 <meta name="description" content="Pizzuno - an online pizza-themed card game for 2 to 8 players.">
 <title>Pizzuno</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>&#127829;</text></svg>">
+<link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -22,12 +22,8 @@
   <section class="screen screen--home is-active" data-screen="home" aria-label="Start">
     <div class="panel panel--home">
       <div class="logo">
-        <span class="logo__pie" aria-hidden="true">🍕</span>
-        <h1 class="logo__word" aria-label="Pizzuno"><span aria-hidden="true">P</span><span
-          aria-hidden="true">I</span><span aria-hidden="true">Z</span><span
-          aria-hidden="true">Z</span><span aria-hidden="true">U</span><span
-          aria-hidden="true">N</span><span aria-hidden="true">O</span></h1>
-        <span class="logo__stamp" aria-hidden="true">extra<br>cheesy</span>
+        <img class="logo__art" src="assets/logo-wordmark.png" width="900" height="300" alt="">
+        <h1 class="sr-only">Pizzuno</h1>
       </div>
       <p class="tagline">Match the topping. Empty your box. Shout&nbsp;PIZZUNO before anyone catches you.</p>
 
@@ -69,6 +65,10 @@
       </header>
 
       <ul class="seat-list" id="seat-list"></ul>
+
+      <div class="lobby-empty" id="lobby-empty" hidden aria-hidden="true">
+        <img class="lobby-empty__art" src="assets/empty-table.png" width="720" height="540" alt="">
+      </div>
 
       <p class="lobby-note" id="lobby-note"></p>
 
@@ -169,7 +169,8 @@
 
 <!-- ============================ ROUND OVER ============================ -->
 <div class="overlay" id="overlay-round" role="dialog" aria-modal="true" aria-labelledby="round-title">
-  <div class="dialog">
+  <div class="dialog" tabindex="-1">
+    <img class="dialog__confetti" src="assets/win-confetti.png" width="900" height="900" alt="" aria-hidden="true">
     <div class="dialog__crown" id="round-emoji" aria-hidden="true">🏆</div>
     <h2 class="dialog__title" id="round-title">Round over</h2>
     <p class="dialog__sub" id="round-sub"></p>
