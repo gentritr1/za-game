@@ -110,7 +110,6 @@
   --d-mid:   220ms;
   --d-slow:  280ms;
   --d-exit:  130ms;
-  --d-frame: 50ms;             /* one animation frame at 20fps */
   --d-screen-out: 120ms;
   --d-screen-in: 220ms;
   --d-screen-cover: 170ms;
@@ -745,9 +744,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   opacity: .5;
 }
 
+/* 2.4s: two beats of the 1.2s glow above it, one beat of the seat breath. */
 .hud__turn.is-you .turn-dot {
   opacity: 1;
-  animation: turn-ping 1.6s var(--ease-in-out) infinite;
+  animation: turn-ping 2.4s var(--ease-in-out) infinite;
 }
 
 @keyframes turn-ping {
@@ -816,12 +816,21 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .seat { opacity: 0; transform: translateY(-10px) scale(.96); }
 }
 
-/* The player whose turn it is breathes gently: alive, thinking, about to act. */
-.seat.is-turn { animation: seat-breathe 2.6s var(--ease-in-out) infinite; }
+/* The player whose turn it is breathes gently: alive, thinking, about to act.
+
+   The lift declared on `.seat.is-turn` below is folded in here rather than
+   left to the rule: an animation out-cascades a declaration, so while this is
+   running the -3px rise and the 1.035 step-up never rendered at all. The rule
+   stays as the still frame for when the animation is off; these keyframes are
+   what the player actually sees, and they now breathe from the lifted pose
+   instead of from the resting one.
+
+   2.4s, not 2.6s, so it phase-locks with the 1.2s marquee glow. */
+.seat.is-turn { animation: seat-breathe 2.4s var(--ease-in-out) infinite; }
 
 @keyframes seat-breathe {
-  0%, 100% { transform: translateY(var(--arc, 0px)) scale(1); }
-  50% { transform: translateY(var(--arc, 0px)) scale(1.02); }
+  0%, 100% { transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.035); }
+  50% { transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.055); }
 }
 
 /* The ring and the glow fade in on a pseudo-element: opacity only, no
@@ -890,16 +899,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* SCORE / RND tiles: the foot of the desktop chef column, nowhere else. */
 .chef-stats { display: none; }
 
-.seat__mini {
-  display: flex;
-  justify-content: center;
-  height: 26px;
-  margin-top: 2px;
-}
-
-.seat__mini .card--mini { margin-left: -11px; }
-.seat__mini .card--mini:first-child { margin-left: 0; }
-
 /* One status word per chef bot. Empty most of the time, and it holds its own
    line height either way so the seat never jumps. */
 .seat__status {
@@ -958,11 +957,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .seat__badge--za.is-shown { animation: badge-breathe 2.2s var(--ease-in-out) 240ms infinite; }
 
+/* The pulse waits for the badge to finish arriving, the same way the ZA! one
+   does. Undelayed it started on the same frame as `.is-shown`, and an
+   animation out-cascades the entry transition — the badge simply appeared. */
 .seat__badge--caught {
   background: var(--tomato);
   color: #fff;
-  animation: soft-pulse 1.1s var(--ease-in-out) infinite;
 }
+
+.seat__badge--caught.is-shown { animation: soft-pulse 1.1s var(--ease-in-out) 240ms infinite; }
 
 @keyframes badge-breathe {
   0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
@@ -1427,11 +1430,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   -webkit-tap-highlight-color: transparent;
   opacity: 1;
   transform: none;
+  /* Compositor properties only. `box-shadow` and `filter` both used to be in
+     here, and a turn flip toggles is-playable/is-dimmed on every card in the
+     hand at once — that was a full paint per frame per card for 220ms, on the
+     hottest path in the game. Both still change, they just change on the spot;
+     the ring below fades an opacity instead, which covers the swap. */
   transition:
     transform var(--d-mid) var(--ease-out),
-    opacity var(--d-mid) var(--ease-out),
-    filter var(--d-mid) var(--ease-out),
-    box-shadow var(--d-fast) var(--ease-out);
+    opacity var(--d-mid) var(--ease-out);
 }
 
 @starting-style {
@@ -1573,10 +1579,28 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand .card.is-playable { cursor: pointer; }
 
-.hand .card.is-playable {
-  transform: translateY(-12px);
-  box-shadow: var(--sh-card), 0 0 0 3px var(--cheese);
+.hand .card.is-playable { transform: translateY(-12px); }
+
+/* The playable ring, on a pseudo-element that only ever fades — the same
+   pattern as `.seat::after` and `.hud__turn::before`.
+
+   `.card` is `overflow: hidden`, so a ring 3px outside the card would be
+   clipped away entirely. It is drawn on the outermost 3px of the card instead:
+   the pseudo sits 3px in and spreads 3px back out, which lands the band
+   exactly on the card's own edge. The frame lights up rather than growing a
+   halo — the silhouette no longer changes size when a card becomes playable. */
+.hand .card::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: 2;
+  box-shadow: 0 0 0 3px var(--cheese);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--d-fast) var(--ease-out);
 }
+
+.hand .card.is-playable::after { opacity: 1; }
 
 /* Unplayable cards step back but stay readable: the player still has to plan
    around them. The gold ring on playable cards carries the distinction, so
@@ -1585,6 +1609,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   opacity: .85;
   filter: saturate(.7) brightness(.92);
   pointer-events: none;
+}
+
+/* This rule and the `@starting-style .card` one at the top of the section have
+   the same specificity, so the later of the two wins the before-change style —
+   which was this one. An unplayable card therefore arrived already at its
+   final opacity and rose into the fan without ever fading, while the playable
+   cards beside it faded in. Restated here, after it, so both halves of a dealt
+   hand enter the same way. */
+@starting-style {
+  .hand .card.is-dimmed { opacity: 0; }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -2508,7 +2542,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     padding: var(--s1) var(--s2);
   }
   .seat__avatar { width: 22px; height: 22px; }
-  .seat__mini { display: none; }
   .seat__badge { font-size: 12px; }
 
   /* The log tightens to a two-line ticker above the hand. */
@@ -2616,8 +2649,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     animation: none;
   }
 
-  .opponents .seat__avatar,
-  .opponents .seat__mini { display: none; }
+  .opponents .seat__avatar { display: none; }
 
   .opponents .seat__name {
     flex: 1;
@@ -2790,10 +2822,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hud__turn.is-you,
   .log__entry,
   .seat-row,
-  .score-row,
   .dialog,
   .overlay.is-open .dialog,
-  .dialog__confetti,
   .btn:active, .btn.is-pressed,
   .btn--za.is-urgent:active,
   .btn--za.is-urgent.is-pressed,
@@ -2858,6 +2888,542 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .callout-drain__fill {
     animation-duration: 3000ms !important;
     animation-name: callout-drain !important;
+  }
+}
+
+/* ==========================================================================
+   JUICE & RETENTION — tiles 01-14 of the juice board (10 is held back)
+
+   The same house rules as the effects above: transform and opacity only,
+   never ease-in, every new movement neutralised under reduced motion. The
+   idle loops (breathing hand, blinking bots, pilot light, hop, sway, chalk)
+   are the one place a duration runs past 300ms — they are ambience, not a
+   response to an action, and a 200ms breath would be a twitch.
+   ========================================================================== */
+
+/* --- 01 · the hand breathes ---------------------------------------------- */
+/* It is on while it is NOT your turn and off the frame it is: the stop is the
+   signal, so it is driven by a class on the hand rather than a per-card timer.
+   The slot owns the fan transform, so the breath is on the card inside it and
+   the two never contend for the same property. */
+.hand.is-breathing .card {
+  animation: breathe 3.2s var(--ease-in-out) var(--breathe-delay, 0ms) infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Three ways it stands down: a scrolling strip clips on both axes and a rise
+   would be cut off; a playable card is already lifted and about to be
+   hovered; a card handing over to its flying clone must not be re-raised. */
+.hand.is-scrolling.is-breathing .card,
+.hand.is-breathing .card.is-playable,
+.hand.is-breathing .card.is-leaving { animation: none; }
+
+/* --- 02 · the bots blink -------------------------------------------------- */
+/* The portraits are baked busts, so there is nothing to close. The blink is an
+   eyelid: one dark frame dipped over the face and gone. Bot avatars only. */
+.seat-row__avatar { position: relative; }
+
+.seat__avatar.is-bot::after,
+.seat-row__avatar.is-bot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--void);
+  opacity: 0;
+  pointer-events: none;
+  animation: blinkeye var(--blink-dur, 7s) steps(1, end) var(--blink-delay, 0s) infinite;
+}
+
+@keyframes blinkeye {
+  0%, 94% { opacity: 0; }
+  95%, 96% { opacity: .5; }
+  97%, 100% { opacity: 0; }
+}
+
+/* --- 03 · the pilot light ------------------------------------------------- */
+/* The standing bloom over the table is the flame; the chain's ember layer is
+   `.table-center::after` and is left exactly as it was, so the two compose:
+   the oven flickers whether or not a chain is running, and a link still steps
+   the brightness up underneath it. */
+.table-center::before {
+  transform-origin: 50% 100%;
+  animation: flame 2.6s var(--ease-in-out) infinite;
+}
+
+@keyframes flame {
+  0%, 100% { transform: translate(-50%, -46%) scaleY(1); opacity: .8; }
+  25% { transform: translate(-50%, -46%) scaleY(1.25); opacity: 1; }
+  60% { transform: translate(-50%, -46%) scaleY(.9); opacity: .7; }
+}
+
+/* --- 04 · the nudge ------------------------------------------------------- */
+/* One wobble, then silence for another five seconds. The lift is carried
+   through every frame so a playable card wobbles where it already stands
+   instead of dropping back into the fan for the length of the animation. */
+.hand .card.is-nudging {
+  animation: wobble 400ms var(--ease-in-out) 1;
+}
+
+@keyframes wobble {
+  0%, 100% { transform: translateY(-12px) rotate(0deg); }
+  25% { transform: translateY(-12px) rotate(-4deg); }
+  50% { transform: translateY(-12px) rotate(4deg); }
+  75% { transform: translateY(-12px) rotate(-2deg); }
+}
+
+/* A hand on the card outranks the table clearing its throat. */
+.hand .card.is-nudging:hover,
+.hand .card.is-nudging:active,
+.hand .card.is-nudging.is-pressed { animation: none; }
+
+/* --- 05 · the cheese pull ------------------------------------------------- */
+/* One strand, born pointing at the oven and never measured again: the flight
+   is a scaleX on a fixed-width element from its own left edge. */
+.cheese-pull {
+  position: fixed;
+  height: 4px;
+  z-index: 1;
+  background: var(--cheese);
+  transform-origin: 0 50%;
+  transform: rotate(var(--pull-angle, 0deg)) scaleX(0);
+  opacity: 0;
+  pointer-events: none;
+  animation-name: pull;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+}
+
+@keyframes pull {
+  0%, 25% { transform: rotate(var(--pull-angle, 0deg)) scaleX(0); opacity: 0; }
+  35% { transform: rotate(var(--pull-angle, 0deg)) scaleX(.4); opacity: 1; }
+  70%, 77% { transform: rotate(var(--pull-angle, 0deg)) scaleX(1); opacity: 1; }
+  78%, 100% { transform: rotate(var(--pull-angle, 0deg)) scaleX(1); opacity: 0; }
+}
+
+/* --- 06 · the box lid ----------------------------------------------------- */
+/* The card count is also a pizza box seen from the side. Seven cards or more
+   and the lid stands wide open; one card and it is all but shut. */
+.pizza-box {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 17px;
+  height: 11px;
+  margin-left: 3px;
+  perspective: 90px;
+}
+
+.pizza-box__base {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  background: var(--cheese-deep);
+  box-shadow: inset 0 0 0 2px var(--void);
+}
+
+.pizza-box__lid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 7px;
+  background: var(--cheese);
+  box-shadow: inset 0 0 0 2px var(--void);
+  transform-origin: 50% 0%;
+  transform: rotateX(var(--lid, 0deg));
+  transition: transform var(--d-slow) var(--ease-in-out);
+}
+
+/* Two cards at once is not a lid easing open. One step, wide, then rest. */
+.pizza-box__lid.is-slam { animation: lid-slam 420ms steps(1, end); }
+
+@keyframes lid-slam {
+  0%, 60% { transform: rotateX(-62deg); }
+  100% { transform: rotateX(var(--lid, 0deg)); }
+}
+
+/* --- 07 · topping confetti ------------------------------------------------ */
+/* Not confetti: the pizza coming apart over the dialog. Twelve pieces, one
+   pass each, and the nodes are removed behind them. */
+.topping-fleck {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+.topping-fleck.is-pepperoni {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--sauce);
+}
+
+.topping-fleck.is-cheese {
+  width: 10px;
+  height: 5px;
+  background: var(--cheese);
+}
+
+.topping-fleck.is-basil {
+  width: 11px;
+  height: 11px;
+  background: var(--basil);
+}
+
+@keyframes fall {
+  0% { transform: translateY(-18px) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(var(--fall, 320px)) rotate(220deg); opacity: 0; }
+}
+
+/* --- 08 · your turn, loudly ----------------------------------------------- */
+/* You have no chef panel of your own, so the ring pings off the action rail —
+   the strip that holds ZA!, the call-out and the pass. It sits under the
+   buttons and is out of the pointer's way entirely. */
+.hand-zone { transition: border-color var(--d-slow) var(--ease-out); }
+.hand-zone.is-your-turn { border-top-color: var(--cheese); }
+
+.hand-zone.is-your-turn .hand-bar::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: 0;
+  box-shadow: 0 0 0 3px var(--cheese);
+  pointer-events: none;
+  animation: ping 1.6s var(--ease-out) infinite;
+}
+
+/* The board's ping expands a small panel by half. The rail is wide and short,
+   so the amplitude is stated per axis instead: the same ~11px of travel off
+   each long edge the tile draws, and only 6px off the ends, where a literal
+   1.5 would throw the ring 150px past the screen. */
+@keyframes ping {
+  0% { transform: scale(1, 1); opacity: .9; }
+  100% { transform: scale(1.02, 1.5); opacity: 0; }
+}
+
+/* The marquee warms with it: bezel at rest, cheese while it is yours. Both
+   rings are static box-shadows — only the glow on ::before fades. */
+.hud__turn { box-shadow: inset 0 0 0 3px var(--bezel); }
+.hud__turn.is-you { box-shadow: inset 0 0 0 3px var(--cheese); }
+
+/* --- 09 · the warm lobby -------------------------------------------------- */
+/* Nobody has to be the person who suggests one more game. */
+.warm {
+  display: grid;
+  justify-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: var(--s3) var(--s3) var(--s2);
+  background: var(--console);
+  border: var(--bd-thin) solid var(--bezel);
+}
+
+.warm__title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--cheese);
+  text-shadow: 3px 3px 0 var(--sauce);
+  animation: hop 2.2s var(--ease-in-out) infinite;
+}
+
+@keyframes hop {
+  0%, 70%, 100% { transform: translateY(0); }
+  78% { transform: translateY(-7px); }
+  86% { transform: translateY(0); }
+}
+
+.warm__bar {
+  display: block;
+  width: 100%;
+  height: 10px;
+  background: var(--void);
+  border: 2px solid var(--cheese);
+  overflow: hidden;
+}
+
+/* The board's `eat` keyframe animates width. Redrawn as a scaleX off the left
+   edge, which is the same picture on the GPU instead of in layout. */
+.warm__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--cheese);
+  transform-origin: 0 50%;
+  transform: scaleX(1);
+}
+
+.warm__fill.is-draining { animation: drain 5000ms var(--ease-step-5) both; }
+
+@keyframes drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.warm__count {
+  font-family: var(--font);
+  font-size: var(--fs-label);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+}
+
+/* --- 11 · special of the day ---------------------------------------------- */
+/* The chalkboard by the door. Seven gags on a weekday rotation, and not one
+   of them touches the deck. */
+.chalkboard {
+  margin-top: var(--s6);
+  padding: var(--s3) var(--s4);
+  background: var(--cabinet-hi);
+  border: 5px solid #7d5426;
+  text-align: center;
+  animation: chalk 5s steps(1, end) infinite;
+}
+
+@keyframes chalk {
+  0%, 90%, 100% { opacity: 1; }
+  93% { opacity: .55; }
+}
+
+.chalkboard__head {
+  font-family: var(--font-script);
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.chalkboard__dish {
+  margin-top: var(--s1);
+  font-family: var(--font-display);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: .04em;
+  color: var(--cheese);
+}
+
+.chalkboard__line {
+  margin-top: var(--s1);
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--text-dim);
+  text-wrap: balance;
+}
+
+/* --- 12 · the wall of fame ------------------------------------------------ */
+/* Polaroids taped to the lobby wall. Social proof, not a leaderboard: no
+   ranking, no order, no score — a face and how many plates they cleaned. */
+.wall { margin-top: var(--s4); }
+
+.wall__title {
+  margin-bottom: var(--s2);
+  font-family: var(--font);
+  font-size: var(--fs-label);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.wall__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s3);
+}
+
+.polaroid {
+  margin: 0;
+  width: 62px;
+  padding: 4px 4px 3px;
+  background: var(--text);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .5);
+  transform: rotate(-3deg);
+  animation: sway var(--sway-dur, 6s) var(--ease-in-out) var(--sway-off, 0s) infinite;
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+.polaroid__photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--console);
+  overflow: hidden;
+}
+
+.polaroid__face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.polaroid__cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  padding-top: 2px;
+  color: var(--void);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.polaroid__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.polaroid__wins { flex: none; font-weight: 700; }
+
+/* --- 13 · earned nicknames ------------------------------------------------ */
+.nickname {
+  flex: none;
+  max-width: 100%;
+  padding: 1px 5px;
+  background: var(--console);
+  font-family: var(--font-display);
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+.nickname--basil { color: var(--basil); }
+.nickname--anchovy { color: var(--anchovy); }
+.nickname--sauce { color: var(--sauce-hi); }
+.nickname--cheese { color: var(--cheese); }
+.nickname--cyan { color: var(--ui-cyan); }
+
+.seat__nick { max-width: 100%; }
+
+/* On the desktop chef column the panel is one flex row, so the chip takes its
+   own line under the name — and only when there is one to take. */
+@media (min-width: 721px) {
+  .opponents .seat { flex-wrap: wrap; }
+  .opponents .seat__nick { order: 5; flex-basis: 100%; text-align: left; }
+}
+
+.receipt__nick {
+  align-self: center;
+  margin-top: 3px;
+  padding: 1px 5px;
+  background: var(--void);
+  color: var(--cheese);
+  font-family: var(--font-display);
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: .02em;
+}
+
+/* --- 14 · the shutter wipe ------------------------------------------------ */
+/* A screen change is the parlour pulling its roller shutter down, swapping the
+   room behind it and rolling it back up. Above the round-over dialog (20),
+   below the toast (30) and the connection banner (40): a screen change should
+   never hide the thing telling you the kitchen dropped out. */
+.shutter {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--bezel) 0 7px,
+    var(--cabinet-hi) 7px 14px
+  );
+  transform: translateY(-100%);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.shutter__word {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: .1em;
+  color: var(--cheese);
+  text-shadow: 3px 3px 0 var(--void);
+}
+
+/* steps(3) across each leg: three visible slats down, three back up. */
+.shutter.is-rolling { animation: shutter 420ms steps(3, end) both; }
+
+@keyframes shutter {
+  0%, 10% { transform: translateY(-100%); }
+  40%, 55% { transform: translateY(0); }
+  90%, 100% { transform: translateY(-100%); }
+}
+
+/* --- reduced motion for everything above ---------------------------------- */
+/* The ambience goes quiet, the movement goes away, and the two things that
+   carry information keep working: the lid still shows how full a box is, and
+   the warm-lobby bar still drains for its five seconds, exactly as the
+   call-out drain above it is already exempted. */
+@media (prefers-reduced-motion: reduce) {
+  .hand.is-breathing .card,
+  .hand .card.is-nudging,
+  .seat__avatar.is-bot::after,
+  .seat-row__avatar.is-bot::after,
+  .table-center::before,
+  .pizza-box__lid,
+  .pizza-box__lid.is-slam,
+  .hand-zone.is-your-turn .hand-bar::after,
+  .warm__title,
+  .chalkboard,
+  .polaroid,
+  .shutter,
+  .shutter.is-rolling {
+    animation: none !important;
+  }
+
+  /* Position is restored by hand where a keyframe had been holding it. */
+  .hand.is-breathing .card,
+  .hand .card.is-nudging,
+  .warm__title,
+  .shutter,
+  .shutter.is-rolling { transform: none !important; }
+
+  .table-center::before { transform: translate(-50%, -46%) !important; }
+  .polaroid { transform: rotate(-3deg) !important; }
+
+  /* Both purely decorative one-shots are dropped rather than flattened. */
+  .cheese-pull,
+  .topping-fleck { display: none !important; }
+
+  /* The shutter never covers anything, so it must never sit over the screen. */
+  .shutter { visibility: hidden !important; }
+
+  /* The ping stops travelling but the rail keeps its warm keyline: the turn
+     is still stated, it just no longer moves. */
+  .hand-zone.is-your-turn .hand-bar::after { opacity: .9 !important; transform: none !important; }
+
+  /* The countdown is the only thing telling a player the round restarts by
+     itself. It keeps its five seconds; the five steps flatten to a slide via
+     the --ease-step-5 fallback. */
+  .warm__fill.is-draining {
+    animation-name: drain !important;
+    animation-duration: 5000ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 
