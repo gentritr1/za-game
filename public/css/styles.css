@@ -3533,3 +3533,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 @media (prefers-reduced-motion: reduce) {
   .seat-row__press, .attract-line { animation: none; }
 }
+
+/* ------------------------------------------------ hand density management -- */
+/* A fat hand shrinks before it scrolls, and sheds its banner noise: the
+   corner index and the sprite carry identity at small sizes. Thresholds:
+   11+ cards = tight (72px), 16+ = packed (62px). */
+.hand[data-density="tight"] .card { --card-w: 72px; }
+.hand[data-density="packed"] .card { --card-w: 62px; }
+
+.hand[data-density="tight"] .card__banner,
+.hand[data-density="packed"] .card__banner { display: none; }
+
+/* A crowd of playable cards at full lift is a jagged skyline; half-lift
+   keeps the signal without the chaos. */
+.hand[data-density="tight"] .card.is-playable { transform: translateY(-8px); }
+.hand[data-density="packed"] .card.is-playable { transform: translateY(-6px); }
+
+/* The scroll edges announce themselves: void fades on both sides. */
+.hand.is-scrolling {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+}
+
+@media (max-width: 720px) {
+  .hand[data-density="tight"] .card { --card-w: 60px; }
+  .hand[data-density="packed"] .card { --card-w: 54px; }
+}

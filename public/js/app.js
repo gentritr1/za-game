@@ -1430,13 +1430,25 @@ function renderPiles(view, yourTurn) {
   }
 }
 
+const SUIT_SORT = { pepperoni: 0, basil: 1, cheese: 2, anchovy: 3 };
+const KIND_SORT = { number: 0, skip: 1, reverse: 2, draw2: 3, wild: 4, wild4: 5 };
+
+/** Suits together, numbers ascending, actions behind them, wilds last. */
+function handSortKey(card) {
+  const suit = isWild(card) ? 9 : SUIT_SORT[card.suit] ?? 8;
+  const kind = KIND_SORT[card.kind] ?? 7;
+  const value = card.kind === 'number' ? card.value : 10 + kind;
+  return suit * 100 + value;
+}
+
 function renderHand(snapshot, view, yourTurn) {
   const playable = new Set(view.playableCardIds);
   const seen = new Set();
   const fresh = [];
   const order = [];
 
-  for (const card of view.hand) {
+  const sortedHand = [...view.hand].sort((a, b) => handSortKey(a) - handSortKey(b) || (a.id < b.id ? -1 : 1));
+  for (const card of sortedHand) {
     seen.add(card.id);
     let slot = ui.handSlots.get(card.id);
     if (!slot) {
@@ -1650,6 +1662,11 @@ function layoutHand(slots) {
     el.hand.classList.remove('is-scrolling');
     return;
   }
+  // Density drives card size and chrome via CSS. Written before the width
+  // read below, so the measurement sees the size this count will render at.
+  const density = total >= 16 ? 'packed' : total >= 11 ? 'tight' : 'easy';
+  if (el.hand.dataset.density !== density) el.hand.dataset.density = density;
+
   const cardWidth = slots[0].offsetWidth || 84;
   // `.hand` carries 8px of side padding in both modes, so this is the room the
   // cards actually get, and it does not change when the strip starts scrolling.
