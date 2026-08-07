@@ -58,7 +58,7 @@ then 13. **10 (punch card) is explicitly held back** until the loop is fun.
 
 ## Keyframes from the board (values are final)
 breathe: 0/100% translateY(0); 50% translateY(-4px)
-blinkeye: 0,94,100% scaleY(1); 96% scaleY(.1)
+blinkeye: 0,94,100% scaleY(1); 96% scaleY(.1)   (NOTE: shipped as an opacity dip on an eyelid overlay — the portraits are baked PNGs with no separable eyes)
 flame: 0/100% scaleY(1) op .8; 25% scaleY(1.25) op 1; 60% scaleY(.9) op .7
 pull: 0,25% scaleX(0) op 0; 35% op 1; 70% scaleX(1) op 1; 78→100% scaleX(1) op 0
 fall: 0% translateY(-18px) rot 0 op 0; 12% op 1; 100% translateY(130px) rot 220deg op 0
@@ -66,7 +66,7 @@ stamp: 0,60% scale(2.4) op 0; 68% scale(1) op 1; 100% scale(1) op 1
 shutter: 0,10% translateY(-100%); 40,55% translateY(0); 90,100% translateY(-100%)
 wobble: 0,88,100% rot 0; 91% -4deg; 94% 4deg; 97% -2deg
 ping: 0% scale(1) op .9; 100% scale(1.5) op 0
-lid: 0,55% rotateX(0); 80,100% rotateX(-62deg)
+lid: 0,55% rotateX(0); 80,100% rotateX(-62deg)   (NOTE: shipped inverted — the angle is driven by var(--lid), open at -62deg for a full hand and closing toward 0 as cards are shed, which is the direction the tile's own captions describe)
 sway: 0/100% rot -3deg; 50% rot 3deg
 eat: 0% width 100%; 100% width 0%   (NOTE: width animation — reimplement as scaleX)
 chalk: 0,90,100% op 1; 93% op .55

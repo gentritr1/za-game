@@ -175,6 +175,7 @@ const ui = {
   shutter: null, // 14 · the corrugated screen-change cover
   shutterSwap: null,
   shutterRunning: false,
+  shutterSwapped: false,
   breatheTimer: 0, // 01 · re-arms the idle hand once entries have landed
   entrySettleAt: 0, // when the newest wave of cards finishes arriving
   nudgeTimer: 0, // 04 · the 5s inactivity clock
@@ -385,8 +386,14 @@ function shutterNode() {
 
 function rollShutter(swap) {
   const node = shutterNode();
+  // A roll that has not covered yet can still carry a newer swap. One that
+  // already swapped is on its way back up, so a new screen needs its own roll.
+  if (ui.shutterRunning && !ui.shutterSwapped) {
+    ui.shutterSwap = swap;
+    return;
+  }
   ui.shutterSwap = swap;
-  if (ui.shutterRunning) return; // already covered; the new swap rides along
+  ui.shutterSwapped = false;
   ui.shutterRunning = true;
   restartAnimation(node, 'is-rolling', 'shutter');
   sound.play('tape-scrub'); // rides the shutter itself, nothing else
@@ -402,7 +409,10 @@ function rollShutter(swap) {
 function coveredSwap() {
   const swap = ui.shutterSwap;
   ui.shutterSwap = null;
-  if (swap) swap();
+  if (swap) {
+    ui.shutterSwapped = true;
+    swap();
+  }
 }
 
 function flashCopied(chip) {
@@ -720,7 +730,13 @@ function renderLobby(snapshot) {
 function renderWall(snapshot) {
   const winners = snapshot.seats.filter((s) => Number(s.wins) >= 1).slice(0, 8);
   if (!winners.length) {
-    if (ui.wall && ui.wall.isConnected) ui.wall.remove();
+    if (ui.wall) {
+      ui.wall.remove();
+      // The row is reused when the wall refills, so it cannot keep the
+      // polaroids whose handles are about to be dropped.
+      const row = ui.wall.querySelector('.wall__row');
+      if (row) row.replaceChildren();
+    }
     ui.wallCards.clear();
     return;
   }

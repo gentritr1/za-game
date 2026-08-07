@@ -1579,7 +1579,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand .card.is-playable { cursor: pointer; }
 
-.hand .card.is-playable { transform: translateY(-12px); }
+/* How far a playable card stands out of the fan. The wobble reads the same
+   property, so a crowded hand's shorter lift cannot desync from its nudge. */
+.hand .card { --lift: 0px; }
+.hand .card.is-playable { --lift: -12px; transform: translateY(var(--lift)); }
 
 /* The playable ring, on a pseudo-element that only ever fades — the same
    pattern as `.seat::after` and `.hud__turn::before`.
@@ -1632,7 +1635,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    specificity, so the later one wins while the pointer is held down. */
 @media (hover: hover) and (pointer: fine) {
   .hand .card.is-playable:hover {
-    transform: translateY(-12px);
+    transform: translateY(var(--lift));
     transition-duration: var(--d-mid);
     transition-timing-function: var(--ease-pop);
   }
@@ -2970,10 +2973,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 @keyframes wobble {
-  0%, 100% { transform: translateY(-12px) rotate(0deg); }
-  25% { transform: translateY(-12px) rotate(-4deg); }
-  50% { transform: translateY(-12px) rotate(4deg); }
-  75% { transform: translateY(-12px) rotate(-2deg); }
+  0%, 100% { transform: translateY(var(--lift)) rotate(0deg); }
+  25% { transform: translateY(var(--lift)) rotate(-4deg); }
+  50% { transform: translateY(var(--lift)) rotate(4deg); }
+  75% { transform: translateY(var(--lift)) rotate(-2deg); }
 }
 
 /* A hand on the card outranks the table clearing its throat. */
@@ -3354,8 +3357,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   );
   transform: translateY(-100%);
   pointer-events: none;
-  will-change: transform;
 }
+
+.shutter.is-rolling { will-change: transform; }
 
 .shutter__word {
   font-family: var(--font-display);
@@ -3546,8 +3550,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 /* A crowd of playable cards at full lift is a jagged skyline; half-lift
    keeps the signal without the chaos. */
-.hand[data-density="tight"] .card.is-playable { transform: translateY(-8px); }
-.hand[data-density="packed"] .card.is-playable { transform: translateY(-6px); }
+.hand[data-density="tight"] .card.is-playable { --lift: -8px; }
+.hand[data-density="packed"] .card.is-playable { --lift: -6px; }
 
 /* The scroll edges announce themselves: void fades on both sides. */
 .hand.is-scrolling {
