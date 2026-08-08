@@ -4606,6 +4606,9 @@ function boot() {
   document.querySelector('.screen--home').append(attract);
   buildSpecialBoard();
   buildMuteToggle();
+  // The live region exists from boot: a region inserted in the same tick as
+  // its first sentence is the one announcement some readers swallow.
+  announcerNode();
   bindPit();
 
   const saved = localStorage.getItem('za.name');
