@@ -189,9 +189,12 @@
           <span class="code-chip__done" aria-hidden="true">Copied</span>
         </button>
 
+        <!-- Two presses in the game, one in the lobby. The label is its own
+             node because the screw head lives in the button too, and writing
+             the button would wipe the head out of the DOM. -->
         <button class="screw screw--leave" id="btn-leave-game" type="button">
           <span class="screw__head" aria-hidden="true"></span>
-          <span class="screw__label">Leave</span>
+          <span class="screw__label" id="btn-leave-game-label">Leave</span>
         </button>
       </div>
     </footer>

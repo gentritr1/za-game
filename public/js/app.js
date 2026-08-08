@@ -50,6 +50,7 @@ const el = {
   dirChase: $('dir-chase'),
   dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
+  btnLeaveGameLabel: $('btn-leave-game-label'),
   // table
   opponents: $('opponents'),
   drawPile: $('draw-pile'),
@@ -171,6 +172,9 @@ const ui = {
   idleDeadline: 0,
   idleWarnMs: 0,
   idleTimer: 0,
+  // 03 · the leave screw, waiting for the second press.
+  leaveArmed: false,
+  leaveTimer: 0,
   pendingWild: null, // { cardId, sourceEl }
   toastTimer: 0,
   copyTimers: new WeakMap(),
@@ -347,6 +351,9 @@ function syncDesynced() {
   ui.idleTimer = 0;
   ui.idleDeadline = 0;
   paintIdleCountdown();
+  // An armed screw across a dropped line would forfeit the round on the press
+  // that was only meant to ask. It starts again from Leave.
+  disarmLeave();
 }
 
 function handleMessage(message) {
@@ -667,6 +674,7 @@ function resetGameView() {
   ui.idleTimer = 0;
   ui.idleDeadline = 0;
   paintIdleCountdown();
+  disarmLeave();
   ui.handSlots.clear();
   ui.handCards.clear();
   ui.handOrder = [];
@@ -4246,7 +4254,52 @@ el.btnAddBot.addEventListener('click', () => {
 });
 el.btnStart.addEventListener('click', () => send({ type: 'startGame' }));
 el.btnLeaveLobby.addEventListener('click', () => send({ type: 'leaveRoom' }));
-el.btnLeaveGame.addEventListener('click', () => send({ type: 'leaveRoom' }));
+
+// ------------------------------------------------- 03 · the armed screw ----
+/**
+ * Leaving a round in progress is a forfeit — the seat goes, the hand goes, and
+ * the round can end on the way out — and it used to happen on one press of a
+ * 44px screw sitting next to the code chip. The mis-tap and the deliberate
+ * exit were the same gesture.
+ *
+ * So the screw arms first. One press flips the label to SURE? in sauce; a
+ * second press inside four seconds leaves; silence disarms it. No modal: this
+ * is the cabinet idiom, and a dialog over a live table would hide the very
+ * thing somebody is deciding whether to walk away from. The lobby screw is
+ * untouched — leaving a lobby costs nothing and asking twice would be rude.
+ *
+ * For a screen reader the accessible name is the whole signal, so it changes
+ * with the state: "Leave" → "Confirm leave". Nothing depends on the colour.
+ */
+const LEAVE_ARM_MS = 4000;
+
+function disarmLeave() {
+  clearTimeout(ui.leaveTimer);
+  ui.leaveTimer = 0;
+  if (!ui.leaveArmed) return;
+  ui.leaveArmed = false;
+  el.btnLeaveGameLabel.textContent = 'Leave';
+  el.btnLeaveGame.classList.remove('is-armed');
+  el.btnLeaveGame.removeAttribute('aria-label');
+}
+
+function armLeave() {
+  ui.leaveArmed = true;
+  el.btnLeaveGameLabel.textContent = 'SURE?';
+  el.btnLeaveGame.classList.add('is-armed');
+  el.btnLeaveGame.setAttribute('aria-label', 'Confirm leave');
+  clearTimeout(ui.leaveTimer);
+  ui.leaveTimer = setTimeout(disarmLeave, LEAVE_ARM_MS);
+}
+
+el.btnLeaveGame.addEventListener('click', () => {
+  if (!ui.leaveArmed) {
+    armLeave();
+    return;
+  }
+  disarmLeave();
+  send({ type: 'leaveRoom' });
+});
 
 el.drawPile.addEventListener('click', () => {
   if (el.drawPile.disabled) return;

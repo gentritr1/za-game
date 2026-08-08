@@ -4547,6 +4547,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .screw--sound .screw__head::before { transform: rotate(45deg); }
 .screw--leave .screw__head::before { transform: rotate(90deg); }
 
+/* 03 · armed. One press asks, the next one leaves, and four seconds of nothing
+   puts it back. Colour only — no new box, no ring, no border-radius — because
+   the screw is already the right size and the word is what changed. The
+   accessible name changes with it in JS; none of this is load-bearing. */
+.screw--leave.is-armed { color: var(--sauce); }
+.screw--leave.is-armed .screw__label { color: var(--sauce); }
+.screw--leave.is-armed .screw__head { border-color: var(--sauce); }
+.screw--leave.is-armed .screw__head::before { background: var(--sauce); }
+
 .screw__label {
   line-height: 1;
   font-variant-numeric: tabular-nums;
