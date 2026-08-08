@@ -156,6 +156,7 @@ const ui = {
   nearRow: [], // the near rail as last laid out, for a resize to re-space it
   peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
   peekCardId: null, // which rib the peek is showing
+  pitGeom: null,    // the strip's geometry, measured once per scrub session
   seatNodes: new Map(), // playerId -> seat element
   gameId: null,
   lastLogId: -1,
@@ -1638,6 +1639,8 @@ function renderHand(snapshot, view, yourTurn) {
   // The pit is filled first: a card demoting out of the near rail has to be
   // out of it before the near rail is spaced, or the gap would close twice.
   fillRail(el.handPit, pit.map((e) => e.slot), 'rib');
+  // The ribs just moved, so any cached scrub geometry describes the old strip.
+  invalidatePit();
   const raised = fillRail(el.handNear, near.map((e) => e.slot), 'hand');
   layoutNear(near);
   labelPit(pit.length, yourTurn);
@@ -1932,18 +1935,64 @@ function releaseEntry(slot, delay) {
  * show the neighbouring card. Nothing in here can play a card; play happens
  * only in the near rail, which is exactly what the peek lands on top of.
  */
-function ribUnder(clientX, clientY) {
-  let best = null;
-  let bestD = Infinity;
+/**
+ * The scrub's geometry, measured once per session rather than per move.
+ *
+ * A scrub is a drag: the pointer moves dozens of times a second and NOTHING it
+ * reads can change while it is down. The old path read every rib's rect, the
+ * hand's rect and the pit's offsets on every single `pointermove` — 8 rect
+ * reads and 2 offset reads per move with six ribs, each one a forced layout
+ * because `showPeek` had just written to the peek's style. Measured on the
+ * probe: 30 moves inside one frame cost 300 layout reads.
+ *
+ * So the strip is measured once, at pointerdown, and every move after that is
+ * arithmetic. The cache is dropped whenever the thing it describes could have
+ * moved: a resize, a re-render of the rails, or the end of the session.
+ *
+ * Deliberately NOT rAF-batched. The writes left in the move path are two
+ * custom properties on one element and no read follows them, so they cannot
+ * force a reflow and the browser already coalesces them to the next frame. An
+ * rAF hop would add a way for the peek to never land at all — rAF is starved
+ * whenever the document is hidden, and a queued write is a bug waiting for a
+ * throttled tab.
+ */
+function measurePit() {
+  const ribs = [];
   for (const slot of el.handPit.children) {
     const r = slot.getBoundingClientRect();
+    ribs.push({ slot, left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width });
+  }
+  const box = el.hand.getBoundingClientRect();
+  ui.pitGeom = {
+    ribs,
+    boxLeft: box.left,
+    boxWidth: box.width,
+    peekTop: el.handPit.offsetTop + el.handPit.offsetHeight + 8,
+  };
+  return ui.pitGeom;
+}
+
+/** The strip moved or was rebuilt: the next read has to measure again. */
+function invalidatePit() {
+  ui.pitGeom = null;
+}
+
+function pitGeom() {
+  return ui.pitGeom || measurePit();
+}
+
+function ribUnder(clientX, clientY) {
+  const geom = pitGeom();
+  let best = null;
+  let bestD = Infinity;
+  for (const r of geom.ribs) {
     const dx = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
     // The pit wraps to two rows at review width, so the row counts too.
     const dy = clientY < r.top ? r.top - clientY : clientY > r.bottom ? clientY - r.bottom : 0;
     const d = dx * dx + dy * dy;
     if (d < bestD) {
       bestD = d;
-      best = slot;
+      best = r.slot;
     }
   }
   return best;
@@ -1962,14 +2011,27 @@ function showPeek(slot) {
     face.removeAttribute('role');
     el.handPeek.replaceChildren(face);
   }
-  const box = el.hand.getBoundingClientRect();
-  const rib = slot.getBoundingClientRect();
-  const x = rib.left - box.left + rib.width / 2 - 42;
+  // Every number below comes off the cached measurement — no layout read on
+  // the move path at all. A rib that is not in the cache (the strip was
+  // rebuilt under a held pointer) forces one re-measure and no more.
+  let geom = pitGeom();
+  let rib = geom.ribs.find((r) => r.slot === slot);
+  if (!rib) {
+    geom = measurePit();
+    rib = geom.ribs.find((r) => r.slot === slot);
+    if (!rib) return;
+  }
+  const x = rib.left - geom.boxLeft + rib.width / 2 - 42;
   // It lands over the near rail: at 375px there is only 15px of room above the
   // pit, and covering the place you play from is one more way of saying a peek
   // is not a play.
-  el.handPeek.style.setProperty('--peek-top', `${el.handPit.offsetTop + el.handPit.offsetHeight + 8}px`);
-  el.handPeek.style.setProperty('--peek-x', `${Math.round(Math.max(0, Math.min(x, box.width - 84)))}px`);
+  const top = `${geom.peekTop}px`;
+  const left = `${Math.round(Math.max(0, Math.min(x, geom.boxWidth - 84)))}px`;
+  // The pointer crosses many pixels per rib, so most moves resolve to numbers
+  // that are already on the element. Writing them again is churn.
+  const style = el.handPeek.style;
+  if (style.getPropertyValue('--peek-top') !== top) style.setProperty('--peek-top', top);
+  if (style.getPropertyValue('--peek-x') !== left) style.setProperty('--peek-x', left);
   el.handPeek.hidden = false;
   el.hand.classList.add('has-peek');
 }
@@ -1983,6 +2045,8 @@ function clearPeek() {
 
 function bindPit() {
   el.handPit.addEventListener('pointerdown', (event) => {
+    // One measurement opens the session; every move inside it is arithmetic.
+    invalidatePit();
     const slot = ribUnder(event.clientX, event.clientY);
     if (!slot) return;
     ui.peekPointer = event.pointerId;
@@ -2002,6 +2066,7 @@ function bindPit() {
   const end = (event) => {
     if (ui.peekPointer !== event.pointerId) return;
     ui.peekPointer = -1;
+    invalidatePit();
     clearPeek();
   };
   el.handPit.addEventListener('pointerup', end);
@@ -2012,7 +2077,11 @@ function bindPit() {
   // landing on a rib shows the same peek, leaving it clears it.
   el.handPit.addEventListener('focusin', (event) => {
     const slot = event.target.closest('.hand-slot');
-    if (slot) showPeek(slot);
+    if (!slot) return;
+    // Tabbing is not a drag — there is no session to hold a measurement open,
+    // and a focus move is rare enough that measuring each time costs nothing.
+    invalidatePit();
+    showPeek(slot);
   });
   el.handPit.addEventListener('focusout', (event) => {
     if (ui.peekPointer >= 0) return;
@@ -3787,6 +3856,7 @@ window.addEventListener('resize', () => {
       layoutNear(ui.nearRow);
     }
     // The pit's height moves when it re-wraps, and the peek hangs off it.
+    invalidatePit();
     if (ui.peekCardId) {
       const slot = ui.handSlots.get(ui.peekCardId);
       if (slot && slot.parentElement === el.handPit) showPeek(slot);
