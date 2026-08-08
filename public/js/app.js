@@ -1187,7 +1187,7 @@ function seatingFurniture() {
     el.opponents.append(token);
     ui.token = token;
   }
-  return ui;
+  return { belt: ui.belt, token: ui.token };
 }
 
 /**
@@ -1229,7 +1229,9 @@ function placeToken(token, order, ranks, view) {
   let to = null;
   let known = false;
   for (const node of order) {
-    const rank = Number(node.dataset.rank);
+    // The ranks map is the authority; the dataset copy is display plumbing
+    // and could lag it on a relayout path.
+    const rank = ranks.get(node.dataset.id);
     if (rank === 0) { from = node; known = true; }
     if (rank === 1) { to = node; known = true; }
   }
@@ -1319,6 +1321,10 @@ function placeSeats(order, ranks, view) {
       body.style.transform = `translateX(${dx.toFixed(1)}px)`;
     }
     if (!moved) return;
+    // Each loop pass's offsetLeft read commits the PREVIOUS node's write, so
+    // without one more read the final seat's inverse transform is still
+    // uncommitted when release runs — it snaps while everyone else slides.
+    void el.opponents.offsetLeft;
     const release = () => {
       for (const node of order) {
         node._parts.body.style.removeProperty('transition');
@@ -1445,6 +1451,11 @@ function renderOpponents(snapshot, view) {
   el.opponents.dataset.crowd = atTable >= 7 ? '1' : '0';
   placeSeats(order, ranks, view);
   renderChefStats(snapshot);
+  // The flip is spent once the seating has consumed it. Without this, a
+  // resize between the flip snapshot and the next one re-runs placeSeats via
+  // relayoutSeating and replays the reverse animation on a board that did
+  // not reverse.
+  ui.dirJustFlipped = false;
 }
 
 /**
@@ -4162,7 +4173,7 @@ function calloutFromSeat(node) {
 }
 
 el.opponents.addEventListener('click', (event) => {
-  const seat = event.target.closest('.seat');
+  const seat = event.target.closest('.seat[role="button"]');
   if (seat) calloutFromSeat(seat);
 });
 

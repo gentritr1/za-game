@@ -965,6 +965,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .opponents {
   --k: 1;
   --port: 54px;
+
   position: relative;
   min-width: 0;
   display: flex;
@@ -1042,12 +1043,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    beside it, then 03, 04. The head is a fixed place on the screen and the
    chefs move through it. The strip is content-sized rather than a fixed
    height — the fan is the tallest thing in it and it grows with the notch. */
-/* Strip, belt, then the table. The belt is 8px of furniture and must not be
-   handed the free row — without this it takes the 1fr and the piles are pushed
-   a hundred pixels down the phone. */
-@media (max-width: 519.98px) {
-  .table { grid-template-rows: auto auto minmax(0, 1fr); }
-}
+/* The queue's row list lives beside the phone log-row rule (~line 3270): the
+   two must cascade in one deliberate order, and from here the later log rule
+   was overriding this one below 520px — handing the 8px belt the free row
+   and pushing the piles a hundred pixels down the phone. */
 
 .opponents[data-mode="queue"] {
   display: flex;
@@ -1448,9 +1447,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   outline-offset: calc(9px * var(--k, 1));
 }
 
+/* The lift rides `.seat__id`, not `.seat__body`: the queue slide writes an
+   inline transform on the body, and two owners of one transform means the
+   hover either stomps the slide or snaps diagonally when it releases. */
 @media (hover: hover) and (pointer: fine) {
-  .seat.is-target:hover .seat__body { transform: translateY(-3px); }
-  .seat__body { transition: transform var(--d-fast) var(--ease-step); }
+  .seat.is-target:hover .seat__id { transform: translateY(-3px); }
+  .seat__id { transition: transform var(--d-fast) var(--ease-step); }
 }
 
 /* --- 2A/5 · the rank, printed ---------------------------------------------
@@ -3270,6 +3272,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      phone. Full bleed to the hand zone's own edges, like everything else
      that learned that lesson. */
   .table { grid-template-rows: auto minmax(0, 1fr) auto; }
+
+  /* Below 520px the queue's conveyor belt is a fourth box between the strip
+     and the felt, and it is 8px of furniture that must not be handed the
+     free row. Declared AFTER the three-row rule above so the queue always
+     wins where the queue exists — the reverse order once gave the belt the
+     1fr and pushed the piles a hundred pixels down the phone. */
+  @media (max-width: 519.98px) {
+    .table { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  }
 
   .log {
     position: static;
