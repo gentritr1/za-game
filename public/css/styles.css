@@ -3255,13 +3255,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   .seat__badge { font-size: 12px; }
 
-  /* The log tightens to a two-line ticker above the hand. */
+  /* On a phone the chatter is an attendant calling ONE line, not a board on
+     the felt: the box was taking the exact space the piles needed. Newest
+     entry only, no title, one thin strip — every older line already had its
+     moment when it arrived (and was announced then; the live region only
+     ever speaks additions). */
   .log {
     left: var(--s2);
     right: var(--s2);
+    bottom: var(--s2);
     width: auto;
-    max-height: 84px;
-    padding: var(--s2);
+    max-height: none;
+    padding: 4px 8px;
+  }
+
+  .log__title { display: none; }
+
+  .log__entry { display: none; }
+
+  .log__entry:last-child {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .hand-zone { padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px)); }
