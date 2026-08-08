@@ -2739,7 +2739,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      kit's own table header does, the direction indicator goes (the log
      narrates flips), and the code chip tightens. */
   .hud { flex-wrap: wrap; row-gap: var(--s1); }
-  .hud__turn { font-size: 11px; padding: var(--s2) var(--s2); order: 3; flex-basis: 100%; }
+  .hud__turn { padding: var(--s2) var(--s2); gap: var(--s2); order: 3; flex-basis: 100%; }
+  /* The turn text holds the 14px floor the type scale sets; what gives way on
+     a phone is the furniture either side of it, so the flavour line still
+     reads in full inside the wrapped row. The ellipsis is the backstop. */
+  .marquee__mark { font-size: 14px; }
+  .marquee__dir { font-size: 12px; gap: 1px; }
+  .screws { gap: var(--s1) var(--s3); }
 
   /* The attract logotype steps down to the mobile plate. */
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
@@ -3080,6 +3086,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     animation: none !important;
     transform: none !important;
   }
+
+  /* THE CHASE STOPS DEAD. Direction is never animation-only, so the static
+     arrow the HUD shipped takes the chevrons' place — mirrored on a reverse,
+     the way the old .dir-arrow was — and the visually-hidden words in
+     .marquee__sr are there in both modes regardless. */
+  .za-chev {
+    display: none;
+    animation: none !important;
+  }
+
+  .marquee__arrow { display: inline-flex; }
+  .hud__turn.is-reversed .marquee__arrow { transform: rotateY(180deg); }
 
   /* The starburst is pure spectacle; the button slam is what it decorated. */
   .za-burst { display: none !important; }
