@@ -756,13 +756,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   right: var(--panel-w);
 }
 
+/* The screws left, so the marquee is the HUD's only tenant — and a strip
+   inset by header padding reads as a bar IN a header, not as the cabinet's
+   marquee. Full bleed instead: no padding, no second border underneath. The
+   marquee's own bezel is the line the board below aligns to, at every width
+   the same width as the strip itself. */
 .hud {
   display: flex;
-  align-items: center;
-  gap: var(--s3);
-  padding: var(--s2) var(--s3);
+  align-items: stretch;
   background: var(--cabinet);
-  border-bottom: var(--bd-thin) solid var(--bezel);
   box-shadow: var(--sh-hud);
   z-index: 3;
 }
@@ -4307,8 +4309,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   :root { --fs-base: 20px; --fs-ui: 21px; --fs-label: 17px; }
   .hand__near .hand-slot, .hand__peek .card { --card-w: 100px; }
   .table-center, .card--pile { --card-w: 112px; }
-  .card--rib { --card-w: 24px; }
-  .hand[data-mode="review"] .card--rib { --card-w: 38px; }
+  /* The ribs are most of a crowded hand, and 24px of rib on a 27-inch screen
+     was the one thing still laptop-sized. They take the notch like everything
+     else — width AND height, because the rib's 46px is a fixed strip height,
+     not a ratio. 32 clears the 22px a two-glyph index needs with room over. */
+  .card--rib { --card-w: 32px; }
+  .hand[data-mode="review"] .card--rib { --card-w: 48px; }
+  .hand__pit .hand-slot, .card--rib { height: 56px; }
   .hud__turn { font-size: 16px; }
   .marquee__mark { font-size: 21px; }
   .marquee__dir { font-size: 22px; }
@@ -4322,6 +4329,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   :root { --fs-base: 22px; --fs-ui: 23px; }
   .hand__near .hand-slot, .hand__peek .card { --card-w: 116px; }
   .table-center, .card--pile { --card-w: 128px; }
+  .card--rib { --card-w: 40px; }
+  .hand[data-mode="review"] .card--rib { --card-w: 56px; }
+  .hand__pit .hand-slot, .card--rib { height: 66px; }
   .hud__turn { font-size: 18px; }
   .marquee__mark { font-size: 23px; }
   .marquee__dir { font-size: 24px; }
