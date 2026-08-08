@@ -658,6 +658,42 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .lobby-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s2); }
 
+/* ------------------------------------------------------------- the shell -- */
+/* One box owns how wide the game is allowed to be, and everything under it
+   asks the shell instead of asking the viewport. That is the whole point: when
+   the cabinet direction lands and the play column stops at 1900px, the side
+   panels come out of `--panel-w` and nothing below has to be touched.
+
+   `--play-max` is the knob, and it is `none` today — uncapped. `none` is not a
+   length, so `(100vw - var(--play-max))` cannot be arithmetic; worse, a custom
+   property that holds an unusable-but-present value does NOT fall back, so
+   every `var(--panel-w, 0px)` consumer would quietly compute `width: auto`
+   instead of zero. So the arithmetic is gated behind `--play-cap`, the same
+   cap expressed as a length: 100vw while uncapped, and set to the same length
+   as `--play-max` by the cabinet step. With the gate at 100vw the identity
+   holds exactly — `--panel-w * 2 + --play-cap == 100vw`, both sides zero-panel
+   today — and it keeps holding the moment the cap becomes real.
+
+   `display: contents` is deliberate: the shell is a policy carrier, not a box.
+   It inherits the properties down and adds no geometry of its own, so nothing
+   about today's layout moves. The cabinet step is what gives it a box. */
+.shell {
+  display: contents;
+
+  --play-max: none;
+  --play-cap: 100vw;
+  --panel-w: max(0px, (100vw - var(--play-cap)) / 2);
+  --play-w: calc(100vw - 2 * var(--panel-w));
+}
+
+/* Border-box for the whole subtree, restated here rather than relied on from
+   the reset: under content-box the panel padding and the play column's borders
+   add on top of the declared widths and overrun the viewport. */
+.shell,
+.shell *,
+.shell *::before,
+.shell *::after { box-sizing: border-box; }
+
 /* ------------------------------------------------------------------- HUD -- */
 .screen--game {
   display: grid;
@@ -1847,7 +1883,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   left: 50%;
   bottom: calc(var(--card-w) * var(--card-ratio) + 78px);
   z-index: 8;
-  width: min(320px, calc(100vw - var(--s8)));
+  /* The play column, not the viewport — see "the shell". */
+  width: min(320px, calc(var(--play-w, 100vw) - var(--s8)));
   display: grid;
   gap: var(--s3);
   padding: var(--s4);

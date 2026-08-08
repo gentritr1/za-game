@@ -89,6 +89,10 @@
   </section>
 
   <!-- ============================ GAME ============================ -->
+  <!-- THE SHELL owns the width policy for everything under it (see "the shell"
+       in styles.css). Nothing inside it measures the viewport for itself any
+       more; it asks the shell for the play column instead. -->
+  <div class="shell">
   <section class="screen screen--game" data-screen="game" aria-label="Game table" hidden>
 
     <header class="hud">
@@ -196,6 +200,7 @@
 
     <div class="fly-layer" id="fly-layer" aria-hidden="true"></div>
   </section>
+  </div><!-- /.shell -->
 
 </main>
 
