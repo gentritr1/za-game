@@ -3271,49 +3271,191 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   78%, 100% { transform: rotate(var(--pull-angle, 0deg)) scaleX(1); opacity: 0; }
 }
 
-/* --- 06 · the box lid ----------------------------------------------------- */
-/* The card count is also a pizza box seen from the side. Seven cards or more
-   and the lid stands wide open; one card and it is all but shut. */
-.pizza-box {
+/* --- 2A/2 · the card object ------------------------------------------------
+   A count as a thing on the table rather than a number beside a name. Up to
+   seven cards it is a literal fan — one sliver per card, and you count them
+   without meaning to. At eight the fan turns to mush at this size, so it
+   becomes a deck: the block says "a lot" and the numeral says how many.
+
+   06 · the pizza box stays and gains a job: it is the tray the fan stands in,
+   and the two-digit count is printed on its front, so the object and the
+   numeral are one element instead of two competing ones. The lid angle is the
+   shipped map, unchanged — wide open at -62deg on seven or more, all but shut
+   at -6deg on one. */
+.seat__cards {
   position: relative;
-  display: inline-block;
   flex: none;
-  width: 17px;
-  height: 11px;
-  margin-left: 3px;
-  perspective: 90px;
+  width: calc(var(--box-w) + 10px * var(--k, 1));
+  height: calc(var(--ch) + var(--box-base-h) + 6px * var(--k, 1));
+  --cw: calc(25px * var(--k, 1));
+  --ch: calc(35px * var(--k, 1));
+  --box-w: calc(var(--cw) * 2.6);
+  --box-base-h: calc(17px * var(--k, 1));
+  --box-lid-h: calc(30px * var(--k, 1));
+  /* Where the slivers stand: on the floor of the tray, or on the table when
+     the box has been dropped. */
+  --sit: calc(var(--box-base-h) - 4px * var(--k, 1));
+  --hatch: repeating-linear-gradient(45deg, var(--cabinet-hi) 0 3px, var(--cabinet) 3px 6px);
+}
+
+/* Under 40px of portrait there is no room for a box under the fan. It goes,
+   and the numeral becomes its own chip. */
+.seat[data-box="0"] .seat__cards {
+  height: calc(var(--ch) + 14px);
+  --sit: 0px;
+}
+
+.seat[data-box="0"] .pizza-box { display: none; }
+
+/* One sliver per card. `transform-origin: 50% 128%` puts the pivot below the
+   card, which is where a hand of cards actually hinges. */
+.seat__fan,
+.seat__deck { position: absolute; inset: 0; z-index: 1; }
+
+.seat__sliver {
+  position: absolute;
+  left: 50%;
+  bottom: var(--sit);
+  width: var(--cw);
+  height: var(--ch);
+  background: var(--hatch);
+  border: 2px solid var(--void);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .45);
+  transform-origin: 50% 128%;
+  transform: translateX(-50%) rotate(var(--a, 0deg));
+  transition: transform 220ms steps(3, end);
+}
+
+/* Eight or more: one card back and two hard offset shadows behind it. */
+.seat__deck::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: var(--sit);
+  width: var(--cw);
+  height: var(--ch);
+  background: var(--hatch);
+  border: 2px solid var(--void);
+  box-shadow:
+    -3px -3px 0 var(--cabinet-hi),
+    -6px -6px 0 var(--void),
+    3px 3px 0 rgba(0, 0, 0, .5);
+  transform: translateX(-50%);
+}
+
+.seat__deck[hidden] { display: none; }
+
+/* One card is the state that matters, and it should be visible from across a
+   room: the sliver stands alone in a sauce hatch with a sauce keyline, the
+   box under it is filled sauce, and the whole thing pulses in two steps. */
+.seat[data-hand="one"] .seat__sliver {
+  background: repeating-linear-gradient(45deg, var(--sauce-deep) 0 3px, var(--void) 3px 6px);
+  border-color: var(--sauce);
+  box-shadow: 0 0 0 3px rgba(255, 46, 107, .5);
+  animation: sliver-danger 640ms steps(2, end) infinite;
+}
+
+@keyframes sliver-danger {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .32; }
+}
+
+/* The box. Base and lid, hinged at the back edge — a 2D rotation, because the
+   tray is drawn flat like everything else in the cabinet. */
+.pizza-box {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .pizza-box__base {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   bottom: 0;
-  height: 7px;
-  background: var(--cheese-deep);
-  box-shadow: inset 0 0 0 2px var(--void);
+  z-index: 2;
+  width: var(--box-w);
+  height: var(--box-base-h);
+  background: var(--cabinet-hi);
+  border: 2px solid var(--bezel);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
+  transform: translateX(-50%);
+  transition: border-color var(--d-fast) var(--ease-step), background-color var(--d-fast) var(--ease-step);
 }
 
 .pizza-box__lid {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 7px;
-  background: var(--cheese);
-  box-shadow: inset 0 0 0 2px var(--void);
-  transform-origin: 50% 0%;
-  transform: rotateX(var(--lid, 0deg));
-  transition: transform var(--d-slow) var(--ease-in-out);
+  left: 50%;
+  bottom: calc(var(--box-base-h) - 2px);
+  z-index: 0;
+  width: var(--box-w);
+  height: var(--box-lid-h);
+  background: var(--cabinet-hi);
+  border: 2px solid var(--bezel);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .45);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotate(var(--lid, 0deg));
+  transition: transform 260ms steps(4, end), border-color var(--d-fast) var(--ease-step);
+}
+
+.seat[data-hand="one"] .pizza-box__base {
+  background: var(--sauce);
+  border-color: var(--sauce);
 }
 
 /* Two cards at once is not a lid easing open. One step, wide, then rest. */
 .pizza-box__lid.is-slam { animation: lid-slam 420ms steps(1, end); }
 
 @keyframes lid-slam {
-  0%, 60% { transform: rotateX(-62deg); }
-  100% { transform: rotateX(var(--lid, 0deg)); }
+  0%, 60% { transform: translateX(-50%) rotate(-62deg); }
+  100% { transform: translateX(-50%) rotate(var(--lid, 0deg)); }
 }
+
+/* The count, printed on the front of the box. */
+.seat__count {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--box-base-h) / 2);
+  z-index: 3;
+  font-family: var(--font-display);
+  font-size: max(11px, calc(11px * var(--k, 1)));
+  line-height: 1;
+  color: var(--text);
+  transform: translate(-50%, 50%);
+}
+
+.seat[data-count="1"] .seat__count,
+.seat[data-count="2"] .seat__count { color: var(--cheese); }
+
+.seat[data-hand="one"] .seat__count {
+  color: var(--void);
+  animation: count-buzz 500ms steps(2, end) infinite;
+}
+
+@keyframes count-buzz {
+  0%, 100% { transform: translate(-50%, 50%) translateX(-1px); }
+  50% { transform: translate(-50%, 50%) translateX(1px); }
+}
+
+/* With the box dropped the numeral has nothing to be printed on, so it becomes
+   its own chip under the fan. */
+.seat[data-box="0"] .seat__count {
+  bottom: 0;
+  padding: 3px 5px;
+  font-size: 11px;
+  background: var(--console);
+  color: var(--text-mute);
+  border: 2px solid var(--bezel);
+  transform: translate(-50%, 0);
+  animation: none;
+}
+
+.seat[data-box="0"][data-hand="one"] .seat__count {
+  background: var(--sauce);
+  color: var(--void);
+  border-color: var(--sauce);
+}
+
+.seat__count-num { font-weight: 400; }
 
 /* --- 07 · topping confetti ------------------------------------------------ */
 /* Not confetti: the pizza coming apart over the dialog. Twelve pieces, one

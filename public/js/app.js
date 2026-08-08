@@ -1211,6 +1211,8 @@ function buildSeat(player) {
   const node = document.createElement('div');
   node.className = 'seat';
   node.dataset.id = player.id;
+  // The tray is on until an arrangement says the portrait is too small for it.
+  node.dataset.box = '1';
 
   const body = document.createElement('div');
   body.className = 'seat__body';
@@ -1313,6 +1315,42 @@ function lidAngle(cardCount) {
 }
 
 /**
+ * 2A/2 · the card object — the piece that makes a count physical.
+ *
+ * One to seven cards is a literal fan: one sliver per card, so the number is
+ * something you count without meaning to. Eight and over a fan at opponent
+ * scale is mush, so it becomes a deck — one card back with two hard offset
+ * shadows behind it — and the numeral printed on the box says how many.
+ *
+ * The slivers are seat furniture, not cards: they carry no rank, no suit and
+ * no id, and `renderCard()` stays the single source of real card markup.
+ */
+const FAN_MAX = 7;
+
+function renderCardObject(parts, cardCount) {
+  const count = Math.max(0, cardCount);
+  const deckMode = count >= 8;
+  const shown = Math.min(count, FAN_MAX);
+  // Symmetric about centre, and it stops widening at 64 degrees — past that
+  // the outermost sliver lies flat and the fan stops reading as a hand.
+  const spread = Math.min(count * 11, 64);
+
+  parts.deck.hidden = !deckMode;
+  const wanted = deckMode ? 0 : shown;
+  const fan = parts.fan;
+  while (fan.childElementCount > wanted) fan.lastElementChild.remove();
+  while (fan.childElementCount < wanted) {
+    const sliver = document.createElement('i');
+    sliver.className = 'seat__sliver';
+    fan.append(sliver);
+  }
+  for (let i = 0; i < wanted; i++) {
+    const angle = shown === 1 ? 0 : -spread / 2 + spread * (i / (shown - 1));
+    fan.children[i].style.setProperty('--a', `${angle.toFixed(1)}deg`);
+  }
+}
+
+/**
  * One status word for a chef bot, from state the snapshot already carries.
  * A human opponent gets nothing: their tell is their own business.
  */
@@ -1346,6 +1384,10 @@ function updateSeat(node, player, view, exposed) {
   // reason to fly open before settling back.
   const previous = node.dataset.count === undefined ? null : Number(node.dataset.count);
   node.dataset.count = String(player.cardCount);
+  // 2A/2 · the fan, the deck and the one-card state. `data-hand` is what the
+  // stylesheet switches on, so the three readings can never be on at once.
+  node.dataset.hand = player.cardCount >= 8 ? 'deck' : player.cardCount === 1 ? 'one' : 'fan';
+  renderCardObject(parts, player.cardCount);
   parts.boxLid.style.setProperty('--lid', `${lidAngle(player.cardCount).toFixed(1)}deg`);
   if (previous !== null && player.cardCount - previous >= 2 && wantsMotion()) {
     restartAnimation(parts.boxLid, 'is-slam', 'lid-slam');
