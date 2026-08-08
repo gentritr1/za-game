@@ -1088,6 +1088,81 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .seat.is-away { opacity: .82; }
 
+/* --- 2A/3 · three weights that cannot be confused --------------------------
+   Not one treatment at three brightnesses — three different shapes, so a
+   player never has to compare two dimnesses to work out which is which and a
+   colourblind player gets the whole distinction from geometry.
+
+   NOW is ENCLOSED: a ring on all four sides, a pool of cheese light under the
+   seat, the name plate filled, breathing on the shipped 2.4s seat-breathe.
+   NEXT is ONE EDGE: a single 6px bar at 62% on the side play is arriving
+   from — no ring, no lift, no breathing.
+   IDLE is bezel everywhere and a 62% portrait, which is the base state above. */
+.seat__ring {
+  position: absolute;
+  inset: calc(-9px * var(--k, 1));
+  z-index: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px var(--cheese);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(255, 225, 77, .16), transparent 72%);
+  opacity: 0;
+  /* The handoff: 130ms off the old seat, 130ms onto the new one, both in two
+     visible steps. Nothing else about a seat moves. */
+  transition: opacity 130ms steps(2, end);
+}
+
+.seat.is-turn .seat__ring {
+  opacity: 1;
+  animation: seat-breathe 2.4s var(--ease-in-out) infinite;
+}
+
+/* The breath belongs to the ring, not to the seat: a seat that scaled would
+   move its own cards, its name plate and its place on the counter, and the
+   handoff rule is that nothing else moves. */
+@keyframes seat-breathe {
+  0%, 100% { transform: scale(1.03); }
+  50% { transform: scale(1.06); }
+}
+
+.seat__edge {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--cheese);
+  opacity: 0;
+  transition: opacity 130ms steps(2, end);
+}
+
+/* Play arrives from the top for a chef along the counter's top edge, and from
+   the outer wall for one sitting down a side. */
+.seat[data-anchor="t"] .seat__edge {
+  left: 0;
+  right: 0;
+  top: calc(-9px * var(--k, 1));
+  height: calc(6px * var(--k, 1));
+}
+
+.seat[data-anchor="l"] .seat__edge {
+  top: 0;
+  bottom: 0;
+  left: calc(-9px * var(--k, 1));
+  width: calc(6px * var(--k, 1));
+}
+
+.seat[data-anchor="r"] .seat__edge {
+  top: 0;
+  bottom: 0;
+  right: calc(-9px * var(--k, 1));
+  width: calc(6px * var(--k, 1));
+}
+
+.seat.is-next .seat__edge { opacity: .62; }
+
+/* NOW also owns the portrait keyline and the tray. */
+.seat.is-turn .seat__avatar { border-color: var(--cheese); box-shadow: 4px 4px 0 rgba(0, 0, 0, .55); }
+.seat.is-turn .pizza-box__base,
+.seat.is-turn .pizza-box__lid { border-color: var(--cheese); }
+
 /* The spoken count. It never draws — the fan and the printed plate are what a
    sighted player reads — but it keeps the number in the accessibility tree. */
 .seat__count-long {

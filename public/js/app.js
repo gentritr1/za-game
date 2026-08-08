@@ -1087,8 +1087,35 @@ function orderedOpponents(snapshot, view) {
   return view.direction === -1 ? after.reverse() : after;
 }
 
+/**
+ * 2A/5 · one number drives every weight on the table.
+ *
+ * `rank` is how far a seat is from the chef playing, counted along the
+ * direction of play: 0 is NOW, 1 is NEXT, everything else is idle, and in the
+ * queue the same number prints as the ordinal chip. It is computed once per
+ * render, here, and handed to the seats — nothing downstream works out "who is
+ * next" a second time.
+ *
+ * `-1` means there is nobody at the oven (the round is over, or the snapshot
+ * arrived between turns), and every seat reads as idle.
+ */
+function seatRanks(view) {
+  const players = view.players.filter((p) => !p.left);
+  const n = players.length;
+  const active = players.findIndex((p) => p.id === view.turnPlayerId);
+  const ranks = new Map();
+  if (n === 0) return ranks;
+  const live = active !== -1 && view.status === 'playing';
+  const dir = view.direction === -1 ? -1 : 1;
+  for (let i = 0; i < n; i++) {
+    ranks.set(players[i].id, live ? ((i - active) * dir + n * 4) % n : -1);
+  }
+  return ranks;
+}
+
 function renderOpponents(snapshot, view) {
   const list = orderedOpponents(snapshot, view);
+  const ranks = seatRanks(view);
   const seen = new Set();
   const order = [];
 
@@ -1106,7 +1133,7 @@ function renderOpponents(snapshot, view) {
       node = buildSeat(player);
       ui.seatNodes.set(player.id, node);
     }
-    updateSeat(node, player, view, exposed);
+    updateSeat(node, player, view, exposed, ranks.get(player.id) ?? -1);
     order.push(node);
   }
 
@@ -1213,6 +1240,9 @@ function buildSeat(player) {
   node.dataset.id = player.id;
   // The tray is on until an arrangement says the portrait is too small for it.
   node.dataset.box = '1';
+  // Which way the seat faces across the counter. The arrangement overwrites
+  // it; a chef along the top edge is the default.
+  node.dataset.anchor = 't';
 
   const body = document.createElement('div');
   body.className = 'seat__body';
@@ -1354,14 +1384,16 @@ function renderCardObject(parts, cardCount) {
  * One status word for a chef bot, from state the snapshot already carries.
  * A human opponent gets nothing: their tell is their own business.
  */
-function seatStatus(player, view, exposed) {
+function seatStatus(player, view, exposed, rank) {
   if (!player.isBot || player.left || view.status !== 'playing') return '';
   if (exposed) return 'watching you';
-  if (view.turnPlayerId === player.id) return 'thinking';
+  // Reads the same rank the weights do, rather than asking who is at the oven
+  // a second time.
+  if (rank === 0) return 'thinking';
   return '';
 }
 
-function updateSeat(node, player, view, exposed) {
+function updateSeat(node, player, view, exposed, rank) {
   const parts = node._parts;
   const avatarState = `${player.isBot}:${player.connected}`;
   if (node.dataset.avatarState !== avatarState) {
@@ -1394,8 +1426,13 @@ function updateSeat(node, player, view, exposed) {
     setTimeout(() => parts.boxLid.classList.remove('is-slam'), 460);
   }
 
-  const isTurn = view.turnPlayerId === player.id && view.status === 'playing';
+  // 2A/3 · the three weights, all three read off the one rank. NOW is
+  // enclosed, NEXT is one edge, everything else is idle — three shapes, not
+  // one shape at three brightnesses.
+  node.dataset.rank = String(rank);
+  const isTurn = rank === 0;
   node.classList.toggle('is-turn', isTurn);
+  node.classList.toggle('is-next', rank === 1);
   node.classList.toggle('is-away', !player.connected);
   // 2A/1 · three states of presence, and only three. Live is full colour;
   // idle is dimmed and desaturated; a chef who dropped is a ghost. NEXT is
@@ -1405,7 +1442,7 @@ function updateSeat(node, player, view, exposed) {
   // Their call-out window is open: the chef column dashes the panel in sauce.
   node.classList.toggle('is-vulnerable', Boolean(player.vulnerable) && player.cardCount === 1);
 
-  const word = seatStatus(player, view, exposed);
+  const word = seatStatus(player, view, exposed, rank);
   parts.status.textContent = word;
   parts.status.classList.toggle('is-shown', Boolean(word));
   parts.status.classList.toggle('is-watching', word === 'watching you');
