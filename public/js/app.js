@@ -277,20 +277,63 @@ const net = new Connection({
   onStatus: handleStatus,
 });
 
+/**
+ * Every outgoing message goes through here. `net.send` returns false when it
+ * dropped the message — the socket is down, or the seat is not synchronized
+ * yet — and a dropped click has to be visible or the player just presses
+ * harder. The board is inert in that state, so in practice this only fires for
+ * the home screen's own buttons and for a keyboard shortcut that slipped past.
+ */
 function send(payload) {
-  net.send(payload);
+  if (net.send(payload)) return true;
+  toast(
+    net.state === 'joining'
+      ? 'Still taking your seat back. One second.'
+      : 'No line to the kitchen yet. Hold on.'
+  );
+  return false;
 }
 
+const CONN_FIRST = 'Knocking on the kitchen door…';
+const CONN_BACK = 'Lost the kitchen. Getting you back to your seat…';
+
+/**
+ * The banner and the inert board are one signal, driven by the connection's
+ * own state machine. An open socket used to hide the banner on its own, while
+ * the rejoin was still in flight and the board below it was a memory of a
+ * round that may already be over. Now only `synchronized` clears it.
+ *
+ * The line splits on whether there is a seat to get back to, not on which
+ * state we are in: a drop walks disconnected → connecting → joining, and
+ * three different sentences over one reconnect would read as three faults.
+ */
 function handleStatus(status) {
-  if (status === 'open') {
+  if (status === 'closed') return; // the player left on purpose
+  if (status === 'synchronized') {
     hide(el.connBanner);
-    return;
+  } else {
+    el.connBannerText.textContent = net.credentials ? CONN_BACK : CONN_FIRST;
+    show(el.connBanner);
   }
-  el.connBannerText.textContent =
-    status === 'connecting'
-      ? 'Knocking on the kitchen door…'
-      : 'Lost the kitchen. Getting you back to your seat…';
-  show(el.connBanner);
+  syncDesynced();
+}
+
+/**
+ * Freezes the table while this client is not synchronized. One class does it:
+ * the CSS blanks pointer input across the play column, and the action buttons
+ * are disabled outright so the keyboard cannot reach them either. The banner
+ * is outside the screen, so it keeps saying why.
+ */
+function syncDesynced() {
+  const stale = !net.synchronized;
+  for (const screen of el.screens) {
+    if (screen.dataset.screen === 'home') continue;
+    screen.classList.toggle('is-desynced', stale);
+  }
+  if (!stale) return; // the `state` that unfroze us re-enables them on its own
+  for (const button of [el.btnPass, el.btnZa, el.btnCallout, el.drawPile]) {
+    if (button) button.disabled = true;
+  }
 }
 
 function handleMessage(message) {

@@ -2894,6 +2894,34 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   50% { opacity: .35; transform: scale(.7); }
 }
 
+/* -------------------------------------------- the board while out of step --
+   An open socket is not a seat. Until the rejoin has come back with a fresh
+   snapshot, everything on screen is a memory of a round that may already be
+   over, so nothing on it may be pressed. No overlay and no scrim: the banner
+   above is already saying why, and a second layer would only hide the table
+   the player is waiting to see come back.
+
+   Pointer input dies at the screen; the action buttons are disabled in JS as
+   well, so the keyboard cannot reach round them.
+
+   Deliberately NOT a `filter` or a `transform`. `.popover` and `.fly-layer`
+   are `position: fixed` and they live INSIDE `.screen` — either property here
+   would make this element their containing block and move them off the
+   viewport the moment the line dropped. `.screen.is-active` is `transform:
+   none` for the same reason. `opacity` is out too: `.screen` already animates
+   its own opacity for the screen change and the two would fight. So the frozen
+   state is carried by the banner and by the disabled controls, and the board
+   is left looking exactly like the thing the player is waiting to get back. */
+.screen.is-desynced {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* The screws stay legible, and the leave screw stays disarmed, but nothing on
+   the frozen screen answers. `:disabled` styling already carries the buttons. */
+.screen.is-desynced .screw,
+.screen.is-desynced .btn { cursor: default; }
+
 /* ==========================================================================
    EFFECTS — README section 4 (A-I) and 6C
    Everything below is client-side seasoning. Nothing here knows a game rule,
