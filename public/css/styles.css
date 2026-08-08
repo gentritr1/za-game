@@ -674,14 +674,40 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    holds exactly — `--panel-w * 2 + --play-cap == 100vw`, both sides zero-panel
    today — and it keeps holding the moment the cap becomes real.
 
-   `display: contents` is deliberate: the shell is a policy carrier, not a box.
-   It inherits the properties down and adds no geometry of its own, so nothing
-   about today's layout moves. The cabinet step is what gives it a box. */
-.shell {
-  display: contents;
+   `display: contents` WAS deliberate while the cap was `none`: the shell was a
+   policy carrier, not a box. The cabinet step is what gives it a box — 1A puts
+   side panels either side of the play column, and a policy carrier cannot hold
+   them. It takes the same rect `#app` gives the screens (`position: absolute;
+   inset: 0`), so the play column's containing block is the identical rectangle
+   it was before; `z-index` stays `auto` so the shell is not a stacking context
+   and `.screen.is-active { z-index: 1 }` still resolves against `#app` exactly
+   as it did.
 
-  --play-max: none;
-  --play-cap: 100vw;
+   --- the cap, as set by 1A -------------------------------------------------
+   `--play-max: 1900px` is the statement of intent and `--play-cap` is the same
+   cap as a usable length. Both are set: a `calc()` over `none` is invalid and a
+   present-but-unusable custom property never triggers `var()` fallback, so the
+   arithmetic reads the length and never `--play-max` itself. `min()` keeps the
+   identity exact on both sides of the cap — below it `--play-cap` IS `100vw`,
+   so `--panel-w` is `max(0px, 0px)` and `--play-w` is the full viewport, which
+   is why nothing at 1280 or 1700 moves by a pixel.
+
+   `--panel-w` is registered as a real `<length>` (below) so it evaluates at
+   computed-value time: `getComputedStyle` hands JS `250px` rather than the
+   unevaluated `max(...)` token stream an unregistered property would return,
+   and the panel-existence threshold can be read off live layout. */
+@property --panel-w {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.shell {
+  position: absolute;
+  inset: 0;
+
+  --play-max: 1900px;
+  --play-cap: min(100vw, var(--play-max));
   --panel-w: max(0px, (100vw - var(--play-cap)) / 2);
   --play-w: calc(100vw - 2 * var(--panel-w));
 }
@@ -695,10 +721,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .shell *::after { box-sizing: border-box; }
 
 /* ------------------------------------------------------------------- HUD -- */
+/* The play column. `.screen` puts every screen at `inset: 0`; the game screen
+   is the one that gives width back to the cabinet, so it keeps top and bottom
+   and hands `--panel-w` to each side. Below the cap that is `0px` on both, i.e.
+   `inset: 0` restated — the identical rect, not an approximation of it. */
 .screen--game {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+  left: var(--panel-w);
+  right: var(--panel-w);
 }
 
 .hud {
