@@ -374,3 +374,6 @@ Buon appetito. 🍕
 
 - [The Kitchen Log](docs/KITCHEN-LOG.md) — how this project's mistakes and
   blockers actually got countered, and the house rules they left behind.
+- [THE ZINE](public/blog/index.html) — six of those lessons rewritten as
+  standalone concepts, in plain language with a diagram each. Served by the
+  game itself at `/blog/index.html`.

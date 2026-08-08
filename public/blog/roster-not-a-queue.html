@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="Turn order was on screen, correct and in order, and players still could not read it. Why a row of equal panels reads as a roster rather than a queue, and why the fix was furniture instead of labels.">
+<title>A roster is not a queue — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 06 &middot; Design</p>
+  <h1 class="post__title">A roster is not a queue</h1>
+
+  <p class="post__lede">The turn order was already on screen, already sorted, and already correct. Players still could not read it.</p>
+
+  <p>Across the top of a ZA! table sat a row of opponent panels &mdash; name, avatar, card count. That row was sorted into true turn order, starting from the player after you. It even reversed itself when somebody played a Flip the Pie. The answer was on the screen, and it was right.</p>
+
+  <p>Players kept asking whose turn it was. And who was next.</p>
+
+  <p>We were one meeting away from labelling it harder: ordinal badges, a stronger highlight on the active panel, little arrows between panels. More paint on a surface that was not the problem.</p>
+
+  <h2>A row of equal panels reads as a roster</h2>
+
+  <p>Four identical boxes in a line say <em>here are the four people in this game</em>. Nothing in that shape says <em>and this is the order they go in</em>. So players did what the shape suggested: they read the active name off the marquee, then hunted along the row for the panel with the matching name. Every turn.</p>
+
+  <p>The order was in the data. It was in the DOM. It was not in the <strong>shape</strong> &mdash; and the shape is what people read.</p>
+
+  <p>A second loss rode along in the same row: card counts were numerals. &ldquo;Nonna Pina is down to two&rdquo; was something you had to read, not something you saw. A number is decoded. A small pile is noticed.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 236" role="img" aria-label="On the left, four identical panels in a row, which reads as who is here. On the right, four seats around a counter drawn as three dashed sides open at the near edge, which reads as who is next; a chevron token steps from seat to seat around it.">
+      <title>The same four players as a row, and as a seating plan</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#ff2e6b">A ROW</text>
+      <text x="176" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#3ddc7f">A COUNTER</text>
+
+      <text x="6" y="34" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">identical panels,</text>
+      <text x="6" y="50" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">in a line</text>
+      <text x="176" y="34" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">three dashed sides,</text>
+      <text x="176" y="50" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">open at your edge</text>
+
+      <!-- left: the flat row -->
+      <g stroke="#2a3355" stroke-width="2" fill="#080a12">
+        <rect x="8" y="120" width="32" height="44"/>
+        <rect x="48" y="120" width="32" height="44"/>
+        <rect x="88" y="120" width="32" height="44"/>
+        <rect x="128" y="120" width="32" height="44"/>
+      </g>
+      <g fill="#2a3355">
+        <rect x="17" y="129" width="14" height="14"/><rect x="57" y="129" width="14" height="14"/>
+        <rect x="97" y="129" width="14" height="14"/><rect x="137" y="129" width="14" height="14"/>
+      </g>
+      <g fill="#96a3c9">
+        <rect x="14" y="150" width="20" height="6"/><rect x="54" y="150" width="20" height="6"/>
+        <rect x="94" y="150" width="20" height="6"/><rect x="134" y="150" width="20" height="6"/>
+      </g>
+
+      <!-- right: seats around a counter, open at the near edge -->
+      <path d="M186 196 L186 120 L324 120 L324 196" fill="none" stroke="#2a3355" stroke-width="3" stroke-dasharray="7 5"/>
+      <g stroke="#2a3355" stroke-width="2" fill="#080a12">
+        <rect x="179" y="157" width="22" height="22"/>
+        <rect x="213" y="119" width="22" height="22"/>
+        <rect x="275" y="119" width="22" height="22"/>
+        <rect x="309" y="157" width="22" height="22"/>
+      </g>
+      <g fill="#2a3355">
+        <rect x="185" y="163" width="10" height="10"/><rect x="219" y="125" width="10" height="10"/>
+        <rect x="281" y="125" width="10" height="10"/><rect x="315" y="163" width="10" height="10"/>
+      </g>
+      <polygon class="anim anim-walk" points="186,182 198,188 186,194" fill="#ffe14d"/>
+
+      <text x="6" y="220" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">reads: WHO IS HERE</text>
+      <text x="176" y="220" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">reads: WHO IS NEXT</text>
+    </svg>
+    <figcaption>Same four players, same data. The token walks a seat per turn; the seating already said the order before it moved.</figcaption>
+  </figure>
+
+  <h2>Furniture instead of labels</h2>
+
+  <p>The chefs now sit around a counter &mdash; three dashed sides, open at the near edge, where your own hand already is. Turn order stopped being a property of a sorted list and became <em>where people are sitting</em>. Nobody reads a seating plan. You just see it.</p>
+
+  <p>Card counts became physical in the same pass. Up to seven cards is a literal fan of cards. Eight or more becomes a deck with the numeral on its tray, because past a point a fan stops being countable and a stack is the honest picture.</p>
+
+  <p>And a chevron token walks from the chef who just played to the chef who is next. A reverse is not a re-sort and not a new label: it is <strong>the token turning around and walking back the way it came</strong>.</p>
+
+  <h2>The tell: the fix deleted code</h2>
+
+  <p>The reversal handling in <code>orderedOpponents()</code> went. So did the entire hard-swap path. Once the seating carries the order, there is nothing left that needs re-ordering &mdash; the direction of travel is a property of the token, not of the list.</p>
+
+  <div class="snippet snippet--pair">
+    <div class="snippet__box snippet__box--wrong">
+      <p class="snippet__label">Order as a list operation</p>
+      <pre><code>const row = orderedOpponents();
+if (reversed) row.reverse();
+// + a hard-swap path</code></pre>
+    </div>
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">Order as furniture</p>
+      <pre><code>// seats never move.
+// the token walks the other way.</code></pre>
+    </div>
+  </div>
+
+  <p>We proved that nothing moved the way you have to prove these things: by asserting every seat&rsquo;s <code>offsetLeft</code> and <code>offsetTop</code>, and the pile&rsquo;s rect, byte-identical across a turn advance <em>and</em> a direction flip. Not by looking at it.</p>
+
+  <p>That deletion is the strongest signal in this whole zine. When a structural fix is right, it usually takes code away, because you have stopped simulating with logic something the layout can just be.</p>
+
+  <p>The general shape: <strong>if players cannot read something that is already on screen, adding labels treats the symptom.</strong> The visual language is throwing the information away before it reaches them. Change the shape.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">If people cannot read what is already on screen, change the shape, not the labels &mdash; and the right structural fix usually deletes code.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="measure-the-kitchen.html"><span class="pager__dir">&larr; PREV</span>Measure the kitchen, not the recipe</a></span>
+  <span class="pager__up"><a href="index.html">All six posts</a></span>
+  <span class="pager__empty">That is the last one. Thanks for reading.</span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes and the arguments we lost: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+    <p><a href="/">Back to the parlour</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

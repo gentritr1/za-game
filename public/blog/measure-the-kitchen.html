@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="A mechanism that manages a constraint has to measure that constraint at runtime. How a card-compression strip that ran at every width learned to engage only when the hand genuinely does not fit.">
+<title>Measure the kitchen, not the recipe — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 05 &middot; Design</p>
+  <h1 class="post__title">Measure the kitchen, not the recipe</h1>
+
+  <p class="post__lede">A mechanism built to manage a constraint has to measure that constraint &mdash; otherwise it is not managing anything, it is just always on.</p>
+
+  <p>ZA! has a thing we call the pit. When your hand is overstuffed, the cards you cannot play drop into a recessed strip of 20-pixel ribs, and the cards you <em>can</em> play stand at full size in a rail underneath. It is a good piece of design: it buys room by compressing exactly the cards you do not need this turn.</p>
+
+  <p>It shipped. It matched the handoff exactly. And it did that at every screen width.</p>
+
+  <p>Then somebody played the game on a large monitor and asked a short question: <em>how useful is it to stay there when we have space?</em></p>
+
+  <p>Not at all, was the answer. Compression is a trade &mdash; you give up legibility to buy room. On a wide screen with a seven-card hand there is no room that needs buying. The pit was not managing density. It was hiding cards for no reason and charging the player attention for the privilege.</p>
+
+  <h2>The mechanism never asked</h2>
+
+  <p>That is the real defect, and notice that nothing was drawn wrong. Every pixel was to spec. The pit had a complete rule for <em>how</em> to compress and no rule at all for <em>whether</em> to. The one condition it existed to handle &mdash; a hand that does not fit &mdash; was assumed rather than tested.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 232" role="img" aria-label="Two width comparisons. When the rail is wide, the bar for the hand at full size is shorter than the rail, so every card stands and the pit stays empty. When the rail is narrow, the hand bar runs past the end of the rail, crossing the threshold line, and the pit engages.">
+      <title>The hand at full size, measured against the rail that has to hold it</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#3ddc7f">ROOM TO SPARE</text>
+
+      <text x="6" y="34" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">rail width</text>
+      <rect x="6" y="38" width="328" height="14" fill="none" stroke="#2a3355" stroke-width="2"/>
+      <text x="6" y="70" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">hand at full size</text>
+      <rect x="6" y="74" width="250" height="14" fill="#3ddc7f"/>
+      <text x="6" y="106" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">Fits. Every card stands. Pit stays empty.</text>
+
+      <text x="6" y="140" font-family="'Press Start 2P', monospace" font-size="13" fill="#ff2e6b">NO ROOM</text>
+
+      <text x="6" y="160" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">rail width</text>
+      <rect x="6" y="164" width="170" height="14" fill="none" stroke="#2a3355" stroke-width="2"/>
+      <text x="6" y="196" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">hand at full size</text>
+      <rect x="6" y="200" width="250" height="14" fill="#ff2e6b"/>
+
+      <path d="M177 156 L177 220" stroke="#ffe14d" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="182" y="230" font-family="'VT323', monospace" font-size="16" fill="#ffe14d">the measured threshold</text>
+    </svg>
+    <figcaption>Same hand, same cards. The pit engages on one side of that dashed line and not the other &mdash; and the line is measured, not guessed.</figcaption>
+  </figure>
+
+  <h2>What &ldquo;measure it&rdquo; looks like</h2>
+
+  <p>The fix is one question, asked at runtime: does the whole hand fit the rail at full size, gaps and padding included? If it does, the pit stays empty and collapsed and every card stands, dead ones simply dimmed. If it does not, the pit engages.</p>
+
+  <div class="snippet">
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">Measured, not configured</p>
+      <pre><code>const cardW = probe.firstElementChild.offsetWidth || 84;
+return count * cardW + (count - 1) * 8 + 16
+       &lt;= el.hand.clientWidth;</code></pre>
+    </div>
+  </div>
+
+  <p>Three small things in there are the entire lesson.</p>
+
+  <ul>
+    <li><strong>The card width is measured, not written down.</strong> A hidden probe slot is put into the real rail, styled by the real stylesheet, and asked how wide it turned out. Nobody keeps a copy of the number, so a stylesheet change or a different screen moves the answer for free.</li>
+    <li><strong><code>offsetWidth</code>, not <code>getBoundingClientRect()</code>.</strong> Rects include transforms. Ask a card mid-entry-animation for its rect and you get its animated size &mdash; we once measured a 48px rib as 42, because it was sitting inside an entry scale of 0.88. Sizes come from <code>offsetWidth</code>; rects are for positions.</li>
+    <li><strong>The question is asked again on resize</strong>, because the answer has an expiry date.</li>
+  </ul>
+
+  <h2>Config drifts. Runtime truth does not.</h2>
+
+  <p>Any number you hard-code about the environment &mdash; a card width, a breakpoint, how many of a thing fit &mdash; is a snapshot of the afternoon you wrote it. It is correct until somebody changes a font, adds padding, or opens the game on a device you did not own.</p>
+
+  <p>The sharpest version of this rule is also the most uncomfortable one, because it applies to your verification too: if you want to know what the running page thinks a card is, ask the running page. Not the stylesheet, not the config object, not the handoff document. Those describe intent. Only the live value describes what the player is actually looking at.</p>
+
+  <p>And if a mechanism exists to respond to some condition, that condition is precisely the thing it is not allowed to assume.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">A mechanism that manages a constraint must measure that constraint at runtime &mdash; never assume the crowded case.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="two-pizzas-at-once.html"><span class="pager__dir">&larr; PREV</span>Two pizzas at once</a></span>
+  <span class="pager__up"><a href="index.html">All six posts</a></span>
+  <span class="pager__next"><a href="roster-not-a-queue.html"><span class="pager__dir">NEXT &rarr;</span>A roster is not a queue</a></span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

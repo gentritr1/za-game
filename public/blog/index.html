@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="THE ZINE - six traps we hit building ZA!, an arcade card game. One concept per page, plain words, one diagram each.">
+<title>THE ZINE — dev notes from the ZA! kitchen</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap wrap--wide masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="/">Play the game</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap wrap--wide">
+
+  <div class="cover">
+    <h1 class="cover__title">THE ZINE</h1>
+    <p class="cover__pitch">Six traps we walked into building an arcade card game, each one written out in plain words with the diagram we wish we&rsquo;d had.</p>
+    <p class="cover__meta">Taped to the parlour counter. Free. Take one.</p>
+  </div>
+
+  <ul class="cards">
+
+    <li>
+      <a class="card" href="frozen-arcade.html">
+        <span class="card__no">No. 01 &middot; Instruments</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="Two timelines: a dense row of ticks above a nearly empty one.">
+          <title>A full timeline above an almost empty one</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="#3ddc7f"><rect x="10" y="12" width="4" height="12"/><rect x="22" y="12" width="4" height="12"/><rect x="34" y="12" width="4" height="12"/><rect x="46" y="12" width="4" height="12"/><rect x="58" y="12" width="4" height="12"/><rect x="70" y="12" width="4" height="12"/><rect x="82" y="12" width="4" height="12"/><rect x="94" y="12" width="4" height="12"/><rect x="106" y="12" width="4" height="12"/><rect x="118" y="12" width="4" height="12"/><rect x="130" y="12" width="4" height="12"/><rect x="142" y="12" width="4" height="12"/><rect x="154" y="12" width="4" height="12"/><rect x="166" y="12" width="4" height="12"/><rect x="178" y="12" width="4" height="12"/></g>
+          <g fill="#ff2e6b"><rect x="10" y="34" width="4" height="12"/><rect x="94" y="34" width="4" height="12"/><rect x="178" y="34" width="4" height="12"/></g>
+        </svg>
+        <h2 class="card__title">The frozen arcade</h2>
+        <p class="card__hook">A hidden browser tab stops time, and your profiler happily reports a number anyway.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="fallback-never-fires.html">
+        <span class="card__no">No. 02 &middot; CSS</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A branch splitting two ways, the right-hand path marked with a cross.">
+          <title>A fork where one branch is dead</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <path d="M100 6 L100 26 M60 26 L140 26 M60 26 L60 42 M140 26 L140 42" stroke="#7de2ff" stroke-width="3" fill="none"/>
+          <rect x="48" y="42" width="24" height="8" fill="#3ddc7f"/>
+          <rect x="128" y="42" width="24" height="8" fill="#2a3355"/>
+          <path d="M132 38 L148 54 M148 38 L132 54" stroke="#ff2e6b" stroke-width="3"/>
+        </svg>
+        <h2 class="card__title">The fallback that never fires</h2>
+        <p class="card__hook">A <code>var()</code> fallback rescues a missing value, not a useless one.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="column-wont-shrink.html">
+        <span class="card__no">No. 03 &middot; CSS</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A row of uneven boxes above a row of equal boxes.">
+          <title>Uneven columns above even ones</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="none" stroke="#ff2e6b" stroke-width="3"><rect x="10" y="8" width="26" height="14"/><rect x="40" y="8" width="96" height="14"/><rect x="140" y="8" width="26" height="14"/></g>
+          <g fill="none" stroke="#3ddc7f" stroke-width="3"><rect x="10" y="34" width="50" height="14"/><rect x="64" y="34" width="50" height="14"/><rect x="118" y="34" width="50" height="14"/></g>
+        </svg>
+        <h2 class="card__title">The column that would not shrink</h2>
+        <p class="card__hook">One wide chip resizes an entire grid column, and <code>1fr</code> is why.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="two-pizzas-at-once.html">
+        <span class="card__no">No. 04 &middot; CSS</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="Two overlapping circles on the left, two separate circles on the right.">
+          <title>Overlapping discs beside separated discs</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <circle cx="46" cy="28" r="16" fill="none" stroke="#ff2e6b" stroke-width="3"/>
+          <circle cx="62" cy="28" r="16" fill="none" stroke="#ff2e6b" stroke-width="3"/>
+          <circle cx="134" cy="28" r="16" fill="none" stroke="#3ddc7f" stroke-width="3"/>
+          <circle cx="170" cy="28" r="16" fill="none" stroke="#2a3355" stroke-width="3" stroke-dasharray="4 4"/>
+        </svg>
+        <h2 class="card__title">Two pizzas at once</h2>
+        <p class="card__hook">Fade a transparent frame in over another and the player sees both.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="measure-the-kitchen.html">
+        <span class="card__no">No. 05 &middot; Design</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A ruler with a marked threshold partway along it.">
+          <title>A ruler with a threshold mark</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <rect x="10" y="26" width="180" height="4" fill="#2a3355"/>
+          <rect x="10" y="26" width="112" height="4" fill="#3ddc7f"/>
+          <rect x="118" y="14" width="4" height="28" fill="#ffe14d"/>
+          <g fill="#96a3c9"><rect x="30" y="34" width="2" height="6"/><rect x="60" y="34" width="2" height="6"/><rect x="90" y="34" width="2" height="6"/><rect x="150" y="34" width="2" height="6"/></g>
+        </svg>
+        <h2 class="card__title">Measure the kitchen, not the recipe</h2>
+        <p class="card__hook">A mechanism that manages a constraint has to measure that constraint.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="roster-not-a-queue.html">
+        <span class="card__no">No. 06 &middot; Design</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="Four identical panels in a row beside four seats around a counter.">
+          <title>A flat row of panels beside seats around a counter</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="#2a3355"><rect x="8" y="20" width="16" height="16"/><rect x="28" y="20" width="16" height="16"/><rect x="48" y="20" width="16" height="16"/><rect x="68" y="20" width="16" height="16"/></g>
+          <path d="M118 44 L118 14 L182 14 L182 44" stroke="#2a3355" stroke-width="3" fill="none" stroke-dasharray="6 5"/>
+          <g fill="#ffe14d"><rect x="112" y="30" width="12" height="12"/><rect x="126" y="6" width="12" height="12"/><rect x="162" y="6" width="12" height="12"/><rect x="176" y="30" width="12" height="12"/></g>
+        </svg>
+        <h2 class="card__title">A roster is not a queue</h2>
+        <p class="card__hook">If nobody can read what is already on screen, change the shape, not the labels.</p>
+      </a>
+    </li>
+
+  </ul>
+
+</main>
+
+<footer class="zine-foot">
+  <div class="wrap wrap--wide">
+    <p>The long version, with commit hashes and the arguments we lost: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+    <p><a href="/">Back to the parlour</a> &mdash; ZA! is a pizza-themed card game for 2 to 8 players.</p>
+  </div>
+</footer>
+
+</body>
+</html>
