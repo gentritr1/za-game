@@ -2062,10 +2062,37 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   top: 50%;
   bottom: auto;
   width: min(620px, calc(100vw - var(--s6)));
+  /* The panel is as tall as the parlour has regulars, and a landscape phone is
+     560px of window: uncapped it ran 646px, hanging 43px off the top and
+     taking Cancel 23px past the bottom edge. Cap it to the window and let it
+     take its own scrollbar — the tiles keep their full 110px rather than being
+     squeezed into whatever a capped grid row would leave them. */
+  max-height: calc(100dvh - var(--s6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: 22;
   transform: translate(-50%, -50%) scale(.96);
   transform-origin: 50% 50%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bezel) transparent;
 }
+
+/* Cancel is how you get out, so it does not scroll away from you. It sits on
+   the panel's bottom padding edge with the cabinet fill behind it — the button
+   itself is `--btn-bg: transparent`, and a transparent way out with chef
+   portraits sliding under it is not a way out. */
+.popover--roster > .btn--quiet {
+  position: sticky;
+  bottom: calc(-1 * var(--s4));
+  z-index: 1;
+  margin-bottom: calc(-1 * var(--s4));
+  padding-bottom: calc(var(--s2) + var(--s4));
+  background: var(--cabinet);
+}
+
+.popover--roster::-webkit-scrollbar { width: 6px; }
+.popover--roster::-webkit-scrollbar-track { background: var(--console); }
+.popover--roster::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 0; }
 
 .popover--roster.is-open { transform: translate(-50%, -50%) scale(1); }
 
@@ -2980,8 +3007,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   /* A popover is `position: absolute` inside the game screen, and the game
      screen is now a scroll container — so the picker would scroll away from
      the hand it belongs to. Pin it to the viewport instead, the way the hire
-     roster already is, and cap it so it can never be taller than the window. */
-  .popover {
+     roster already is, and cap it so it can never be taller than the window.
+     Scoped to the game screen on purpose: the roster is the lobby's, it is
+     already fixed and centred, and a `bottom` here would pin its foot 12px off
+     the window and squeeze it to whatever `top: 50%` left. */
+  .screen--game > .popover {
     position: fixed;
     bottom: var(--s3);
     max-height: calc(100dvh - var(--s6));
@@ -3952,6 +3982,35 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 @media (max-width: 720px) {
   .seat-list { grid-template-columns: repeat(2, 1fr); }
+
+  /* The seat tray grows with the table, and on a phone it pushed the two
+     things a host actually needs — "Hire a chef bot" and "Bake it!" — 930px
+     down a 560px window. A new host can scroll a lobby for a while without
+     learning either exists.
+
+     Sticky foot rather than a reorder. Reordering would put a "Bake it!" that
+     is disabled until two chefs are seated at the top of a screen that has not
+     yet shown you who IS seated, and it would split visual order from DOM
+     order — the exact class of bug this pass closes elsewhere. Sticky keeps
+     the reading order the lobby is built on (see the table, then act on it)
+     and puts the actions on screen anyway. Cabinet fill and a bezel rule along
+     the top edge, so it reads as the panel's own foot and not as a bar
+     floating over it; it releases at the end of the scroll and lets "Leave the
+     parlour" have the last word, the way it does today. */
+  .lobby-actions {
+    position: sticky;
+    /* The sticky rectangle is the lobby screen's padding box, and the screen
+       is padded by `--s4`; the row also carries `--s2` of margin under it for
+       "Leave the parlour". Both are paid back here, so the foot sits ON the
+       bottom edge of the window instead of floating a strip of half-scrolled
+       seat tray underneath itself. */
+    bottom: calc(-1 * (var(--s4) + var(--s2)));
+    z-index: 2;
+    margin: 0 calc(-1 * var(--s6)) var(--s2);
+    padding: var(--s2) var(--s6);
+    background: var(--cabinet);
+    border-top: var(--bd-thin) solid var(--bezel);
+  }
 }
 
 .seat-row {
