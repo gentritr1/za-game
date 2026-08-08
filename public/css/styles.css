@@ -735,9 +735,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    other named row and is stated for the same reason the rule exists, but on the
    ≥721px board the chefs are a fixed ~210px column, so it never binds there —
    it is a guard, not a change. */
+/* The log is NOT in this list any more: since the counter took the felt it
+   floats in the corner as a fixed-width ticker, and the cap rule out-ranking
+   the float was inflating it into a 1280px bar over the felt past 1900px. */
 .shell.is-capped .opponents,
-.shell.is-capped .table-center,
-.shell.is-capped .log {
+.shell.is-capped .table-center {
   width: 100%;
   max-width: 1280px;
   margin-inline: auto;
@@ -4306,13 +4308,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    the seats beside it. */
 .seat-list {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* minmax(0, 1fr), not bare 1fr: a 1fr track cannot shrink below its
+     content's min-content, so one chef with a CLEAN PLATE chip was taking a
+     133px column while everyone else got 82. Zero-basis tracks stay equal
+     and the CONTENT gives way instead (the chip ellipsises). */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   gap: var(--s2);
 }
 
 @media (max-width: 720px) {
-  .seat-list { grid-template-columns: repeat(2, 1fr); }
+  .seat-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .seat-row {
@@ -4853,7 +4859,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .marquee__dir { font-size: 22px; }
   .table { --chef-col: 210px; }
   .seat__name { font-size: 20px; }
-  .log { font-size: 19px; }
+  /* The ticker grows with the notch — wider and taller, never a bar. */
+  .log { font-size: 19px; width: 312px; max-height: min(40%, 224px); }
   .za-shout { font-size: 84px; }
 }
 
