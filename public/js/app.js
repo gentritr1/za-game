@@ -6,7 +6,15 @@
  */
 
 import { Connection } from './net.js';
-import { renderCard, isWild, describeCard, TOPPING_META, TOPPING_ORDER } from './cards.js';
+import {
+  renderCard,
+  isWild,
+  describeCard,
+  suitToken,
+  cardIndex,
+  TOPPING_META,
+  TOPPING_ORDER,
+} from './cards.js';
 import { icon, suitIcon } from './icons.js';
 import { sound } from './sounds.js';
 
@@ -49,6 +57,9 @@ const el = {
   // hand
   handZone: document.querySelector('.hand-zone'),
   hand: $('hand'),
+  handPit: $('hand-pit'),
+  handNear: $('hand-near'),
+  handPeek: $('hand-peek'),
   btnZa: $('btn-za'),
   btnCallout: $('btn-callout'),
   btnCalloutText: $('btn-callout-text'),
@@ -137,7 +148,12 @@ function regularByName(name) {
 const ui = {
   snapshot: null,
   screen: 'home',
-  handSlots: new Map(), // cardId -> slot element
+  handSlots: new Map(), // cardId -> slot element, moved between rails, never rebuilt
+  handCards: new Map(), // cardId -> card data, so the peek can draw one full size
+  handOrder: [], // the sorted hand as card ids, so a promotion lands in its place
+  nearRow: [], // the near rail as last laid out, for a resize to re-space it
+  peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
+  peekCardId: null, // which rib the peek is showing
   seatNodes: new Map(), // playerId -> seat element
   gameId: null,
   lastLogId: -1,
@@ -566,12 +582,20 @@ function resetGameView() {
   setHandBreathing(false);
   stopWarmLobby();
   ui.handSlots.clear();
+  ui.handCards.clear();
+  ui.handOrder = [];
+  ui.nearRow = [];
+  ui.peekPointer = -1;
+  clearPeek();
   ui.seatNodes.clear();
   ui.gameId = null;
   ui.lastLogId = -1;
   ui.dealing = true;
   el.flyLayer.replaceChildren();
-  el.hand.replaceChildren();
+  el.hand.dataset.mode = 'review';
+  el.handPit.replaceChildren();
+  el.handNear.replaceChildren();
+  labelPit(0, false);
   el.opponents.replaceChildren();
   el.logList.replaceChildren();
   el.discardSlot.replaceChildren();
@@ -1457,27 +1481,61 @@ function handSortKey(card) {
   return suit * 100 + value;
 }
 
+/**
+ * THE PIT.
+ *
+ * The hand is partitioned, not fanned. Everything you cannot play drops into
+ * the rib strip; the cards you can play stand up at full size in the near rail
+ * underneath it. The sort is unchanged and still runs first — it is what makes
+ * the partition read as one movement when your turn starts.
+ *
+ * A card owns one slot for its whole life, keyed by id. The slot moves between
+ * the rails; it is never rebuilt, so the entry transition, the flight from the
+ * dough pile and the focus a player is holding all survive a promotion.
+ */
 function renderHand(snapshot, view, yourTurn) {
   const playable = new Set(view.playableCardIds);
   const seen = new Set();
   const fresh = [];
-  const order = [];
+  const pit = [];
+  const near = [];
 
   const sortedHand = [...view.hand].sort((a, b) => handSortKey(a) - handSortKey(b) || (a.id < b.id ? -1 : 1));
+  ui.handOrder = sortedHand.map((c) => c.id);
   for (const card of sortedHand) {
     seen.add(card.id);
+    ui.handCards.set(card.id, card);
+    const isPlayable = yourTurn && playable.has(card.id);
     let slot = ui.handSlots.get(card.id);
-    if (!slot) {
+    const isFresh = !slot;
+
+    // A drawn card lands in the pit as a rib whatever it is; if it is playable
+    // it promotes a beat later, and that promotion is the news rather than the
+    // draw. A dealt hand is not a draw — it arrives already sorted, so it goes
+    // straight to the rail it belongs in instead of promoting seven cards at
+    // once over the deal stagger.
+    const landsInPit = isFresh && !ui.dealing;
+    const wantsNear = isPlayable && !landsInPit;
+
+    if (isFresh) {
       slot = document.createElement('div');
       slot.className = 'hand-slot';
-      const node = renderCard(card, { size: 'hand', interactive: true });
+      slot.dataset.cardId = card.id;
+      // Press Start 2P is fixed pitch, so a two-glyph index needs a wider rib.
+      slot.dataset.glyphs = String(cardIndex(card).length);
+      const node = renderCard(card, { size: wantsNear ? 'hand' : 'rib', interactive: true });
+      // Only a card that is genuinely arriving takes the entry style. A
+      // promotion moves this same node between rails, and a moved node
+      // re-resolves its style — without the marker it would fade in from
+      // nothing every time it was promoted instead of rising out of the pit.
+      node.classList.add('is-entering');
       node.addEventListener('click', () => onCardActivate(card, slot));
       // The entry delay has to be written before the card is ever laid out.
-      // `layoutHand` below reads offsetWidth, and that forced flush resolves
-      // `@starting-style` and starts every fresh card's entry transition on
-      // the spot — a transition-delay written after it is never seen, the
-      // stagger collapses to nothing, and the real card sits visible under
-      // its own flying clone for the whole flight.
+      // The layout pass below reads offsetWidth, and that forced flush
+      // resolves `@starting-style` and starts every fresh card's entry
+      // transition on the spot — a transition-delay written after it is never
+      // seen, the stagger collapses to nothing, and the real card sits visible
+      // under its own flying clone for the whole flight.
       const arrival = fresh.length;
       const delay = ui.dealing
         ? Math.min(arrival * 55, 275)
@@ -1485,39 +1543,56 @@ function renderHand(snapshot, view, yourTurn) {
       if (wantsMotion() && delay > 0) node.style.transitionDelay = `${delay}ms`;
       slot.append(node);
       ui.handSlots.set(card.id, slot);
-      fresh.push({ slot, delay });
+      fresh.push({ slot, delay, promotes: isPlayable && landsInPit });
     }
-    const node = slot.firstElementChild;
-    const isPlayable = yourTurn && playable.has(card.id);
-    node.classList.toggle('is-playable', isPlayable);
-    node.classList.toggle('is-dimmed', !isPlayable);
-    node.disabled = !isPlayable;
-    order.push(slot);
+
+    dressCard(slot.firstElementChild, card, isPlayable);
+    (wantsNear ? near : pit).push({ card, slot });
   }
 
   for (const [id, slot] of ui.handSlots) {
     if (!seen.has(id)) {
       slot.remove();
       ui.handSlots.delete(id);
+      ui.handCards.delete(id);
+      if (ui.peekCardId === id) clearPeek();
     }
   }
 
-  order.forEach((slot, index) => {
-    if (el.hand.children[index] !== slot) el.hand.insertBefore(slot, el.hand.children[index] || null);
-  });
+  // Not your turn: nothing is live, so nothing stands up. The near rail keeps
+  // no room at all and the whole hand sits in the pit at review width.
+  el.hand.dataset.mode = yourTurn ? 'turn' : 'review';
 
-  layoutHand(order);
+  // The pit is filled first: a card demoting out of the near rail has to be
+  // out of it before the near rail is spaced, or the gap would close twice.
+  fillRail(el.handPit, pit.map((e) => e.slot), 'rib');
+  const raised = fillRail(el.handNear, near.map((e) => e.slot), 'hand');
+  layoutNear(near);
+  labelPit(pit.length, yourTurn);
 
-  // Cards that just arrived. At the start of a round the whole fan is dealt in
-  // with a stagger. During play a card can only come off the dough pile, so it
-  // travels from the pile and the real card takes over where it lands.
-  // Interaction is never blocked either way. The delays themselves were set
-  // above, before the layout read; all that is left here is the flight and
-  // letting each delay go once its card has arrived.
+  // The promotion is the one thing in the hand that animates on its own. It
+  // can only happen on a snapshot where the top card changed or the turn did,
+  // because that is the only thing that can change what is playable — the near
+  // rail therefore holds still for the whole of your turn by construction.
+  if (raised.length && wantsMotion()) {
+    for (const slot of raised) restartAnimation(slot.firstElementChild, 'is-promoting', 'promote');
+    setTimeout(() => {
+      for (const slot of raised) slot.firstElementChild?.classList.remove('is-promoting');
+    }, 340);
+    // The one new cue in the whole redesign: the promotion snaps, the scrub is
+    // silent. Not on the deal, which already has its own wave of arrivals.
+    if (!ui.dealing) sound.play('card-snap');
+  }
+
+  // Cards that just arrived. At the start of a round the whole hand is dealt
+  // in with a stagger. During play a card can only come off the dough pile, so
+  // it travels from the pile and shrinks into its rib as it lands. The delays
+  // themselves were set above, before the layout read; all that is left here is
+  // the flight and letting each delay go once its card has arrived.
   let settle = 0;
   if (fresh.length) {
     const dealing = ui.dealing;
-    fresh.forEach(({ slot, delay }, index) => {
+    fresh.forEach(({ slot, delay, promotes }, index) => {
       releaseEntry(slot, delay);
       if (dealing) {
         settle = Math.max(settle, delay);
@@ -1526,6 +1601,8 @@ function renderHand(snapshot, view, yourTurn) {
       const start = index * 70;
       settle = Math.max(settle, start + D_FLY);
       flyFromDrawPile(slot, start);
+      flashRib(slot, start + D_FLY);
+      if (promotes) promoteLater(slot, start + D_FLY + 120);
     });
     settle += D_ENTER + 140;
     // An absolute deadline, not a per-render duration. The snapshot right
@@ -1535,13 +1612,120 @@ function renderHand(snapshot, view, yourTurn) {
     ui.entrySettleAt = Date.now() + settle;
   }
   // Only a hand that actually has cards in it counts as dealt.
-  if (order.length) ui.dealing = false;
+  if (pit.length || near.length) ui.dealing = false;
 
   // 01 · the hand breathes while it is not your turn, and stops dead the
   // instant it is — the stop itself is the signal. It is held off until the
   // deal-in stagger and any flight from the dough pile have landed, because a
-  // keyframe on the card would otherwise swallow the entry transition.
-  setHandBreathing(!yourTurn && view.status === 'playing' && order.length > 0);
+  // keyframe would otherwise swallow the entry transition.
+  setHandBreathing(!yourTurn && view.status === 'playing' && (pit.length + near.length) > 0);
+}
+
+/**
+ * The playable state of one card: the ring, the dim, and what it answers to.
+ *
+ * A dead card is not `disabled`. The scrub is pointer-only, so a keyboard has
+ * to be able to reach the half of the hand it cannot drag across; a rib stays
+ * in the tab order, says it is disabled, and takes no pointer (the stylesheet
+ * puts `pointer-events: none` on it, because the strip around it is the
+ * control). The click handler refuses anything that is not playable anyway.
+ */
+function dressCard(node, card, isPlayable) {
+  if (!node) return;
+  node.classList.toggle('is-playable', isPlayable);
+  node.classList.toggle('is-dimmed', !isPlayable);
+  node.disabled = false;
+  if (isPlayable) {
+    node.removeAttribute('aria-disabled');
+    node.setAttribute('aria-label', `Play ${describeCard(card)}`);
+  } else {
+    node.setAttribute('aria-disabled', 'true');
+    node.setAttribute('aria-label', describeCard(card));
+  }
+}
+
+/**
+ * Puts a rail's slots in order and swaps every card into the mode that rail
+ * draws in. Returns the slots that arrived from the other rail, so a promotion
+ * can be told apart from a card that was already standing there.
+ */
+function fillRail(host, slots, size) {
+  const arrived = [];
+  slots.forEach((slot, index) => {
+    const node = slot.firstElementChild;
+    if (slot.parentElement && slot.parentElement !== host) {
+      arrived.push(slot);
+      // A node that is about to move must not be carrying the entry marker, or
+      // the move would re-trigger the entry fade on top of its promotion.
+      if (node) node.classList.remove('is-entering');
+    }
+    if (node) setCardSize(node, size);
+    if (host.children[index] !== slot) host.insertBefore(slot, host.children[index] || null);
+  });
+  return arrived;
+}
+
+/** Swaps a card between the modes `renderCard` built it able to wear. */
+function setCardSize(node, size) {
+  const want = `card--${size}`;
+  if (node.classList.contains(want)) return;
+  node.classList.remove('card--hand', 'card--rib');
+  node.classList.add(want);
+}
+
+/**
+ * A drawn card lands in the pit with two frames of cheese on its keyline. It
+ * is the only thing that says "that one is new" once the flight has gone.
+ */
+function flashRib(slot, delay) {
+  if (!wantsMotion()) return;
+  setTimeout(() => {
+    const node = slot.firstElementChild;
+    if (!node || !node.isConnected) return;
+    restartAnimation(node, 'is-flashing', 'rib-flash');
+    setTimeout(() => node.classList.remove('is-flashing'), 240);
+  }, Math.max(delay, 0));
+}
+
+/**
+ * A playable card that just arrived promotes out of the pit once its flight
+ * has landed, rather than never having been in the pit at all: the rib is what
+ * you drew, the promotion is what it means.
+ */
+function promoteLater(slot, delay) {
+  setTimeout(() => {
+    if (!slot.isConnected || slot.parentElement !== el.handPit) return;
+    const node = slot.firstElementChild;
+    if (!node || !node.classList.contains('is-playable')) return;
+    node.classList.remove('is-entering');
+    setCardSize(node, 'hand');
+    // Into its sorted place, never onto the end: the sort is the point of the
+    // near rail, and a promotion between two snapshots must not break it.
+    const rank = ui.handOrder.indexOf(slot.dataset.cardId);
+    const after = [...el.handNear.children].find(
+      (s) => ui.handOrder.indexOf(s.dataset.cardId) > rank
+    );
+    el.handNear.insertBefore(slot, after || null);
+    layoutNear([...el.handNear.children].map((s) => ({ slot: s, card: ui.handCards.get(s.dataset.cardId) })));
+    labelPit(el.handPit.children.length, el.hand.dataset.mode === 'turn');
+    if (!wantsMotion()) return;
+    restartAnimation(node, 'is-promoting', 'promote');
+    setTimeout(() => node.classList.remove('is-promoting'), 340);
+    sound.play('card-snap');
+  }, Math.max(delay, 0));
+}
+
+/** The pit is one control, so it says what it holds and how to read it. */
+function labelPit(count, yourTurn) {
+  const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
+  el.handPit.setAttribute(
+    'aria-label',
+    count === 0
+      ? 'No cards in the pit'
+      : yourTurn
+        ? `${cards} you cannot play, drag across to review them`
+        : `${cards}, drag across to review them`
+  );
 }
 
 /**
@@ -1652,67 +1836,189 @@ function bumpNudge() {
 }
 
 /**
- * Drops the entry delay once the card has finished arriving. The delay itself
- * is written where the slot is built, because by the time anything has read
- * layout it is already too late to stagger.
+ * Drops the entry delay once the card has finished arriving, and with it the
+ * marker that says this card is arriving at all. The delay itself is written
+ * where the slot is built, because by the time anything has read layout it is
+ * already too late to stagger. The marker has to come off on every card, delay
+ * or no delay: from here on, moving this node between rails is a promotion and
+ * must never be mistaken for an entry.
  */
 function releaseEntry(slot, delay) {
-  if (delay <= 0) return;
   setTimeout(() => {
     const node = slot.firstElementChild;
-    if (node) node.style.transitionDelay = '';
-  }, delay + D_ENTER + 120);
+    if (!node) return;
+    node.style.transitionDelay = '';
+    node.classList.remove('is-entering');
+  }, Math.max(delay, 0) + D_ENTER + 120);
+}
+
+// ---------------------------------------------------------------- the pit ---
+/**
+ * The scrub. The pit is one continuous control, not a row of targets — a 20px
+ * rib is far under the touch minimum. Press anywhere in the strip and drag:
+ * the peek follows, so accuracy never matters and the worst a miss can do is
+ * show the neighbouring card. Nothing in here can play a card; play happens
+ * only in the near rail, which is exactly what the peek lands on top of.
+ */
+function ribUnder(clientX, clientY) {
+  let best = null;
+  let bestD = Infinity;
+  for (const slot of el.handPit.children) {
+    const r = slot.getBoundingClientRect();
+    const dx = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
+    // The pit wraps to two rows at review width, so the row counts too.
+    const dy = clientY < r.top ? r.top - clientY : clientY > r.bottom ? clientY - r.bottom : 0;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) {
+      bestD = d;
+      best = slot;
+    }
+  }
+  return best;
+}
+
+function showPeek(slot) {
+  const cardId = slot.dataset.cardId;
+  const card = ui.handCards.get(cardId);
+  if (!card) return;
+  if (ui.peekCardId !== cardId) {
+    ui.peekCardId = cardId;
+    // The peek duplicates a rib that is already in the accessibility tree with
+    // its own label, so it is scenery: hidden from the reader, never a button.
+    const face = renderCard(card, { size: 'hand' });
+    face.setAttribute('aria-hidden', 'true');
+    face.removeAttribute('role');
+    el.handPeek.replaceChildren(face);
+  }
+  const box = el.hand.getBoundingClientRect();
+  const rib = slot.getBoundingClientRect();
+  const x = rib.left - box.left + rib.width / 2 - 42;
+  // It lands over the near rail: at 375px there is only 15px of room above the
+  // pit, and covering the place you play from is one more way of saying a peek
+  // is not a play.
+  el.handPeek.style.setProperty('--peek-top', `${el.handPit.offsetTop + el.handPit.offsetHeight + 8}px`);
+  el.handPeek.style.setProperty('--peek-x', `${Math.round(Math.max(0, Math.min(x, box.width - 84)))}px`);
+  el.handPeek.hidden = false;
+  el.hand.classList.add('has-peek');
+}
+
+function clearPeek() {
+  ui.peekCardId = null;
+  el.handPeek.hidden = true;
+  el.handPeek.replaceChildren();
+  el.hand.classList.remove('has-peek');
+}
+
+function bindPit() {
+  el.handPit.addEventListener('pointerdown', (event) => {
+    const slot = ribUnder(event.clientX, event.clientY);
+    if (!slot) return;
+    ui.peekPointer = event.pointerId;
+    try {
+      el.handPit.setPointerCapture(event.pointerId);
+    } catch { /* no capture, the listeners below still fire */ }
+    showPeek(slot);
+    event.preventDefault();
+  });
+
+  el.handPit.addEventListener('pointermove', (event) => {
+    if (ui.peekPointer !== event.pointerId) return;
+    const slot = ribUnder(event.clientX, event.clientY);
+    if (slot) showPeek(slot);
+  });
+
+  const end = (event) => {
+    if (ui.peekPointer !== event.pointerId) return;
+    ui.peekPointer = -1;
+    clearPeek();
+  };
+  el.handPit.addEventListener('pointerup', end);
+  el.handPit.addEventListener('pointercancel', end);
+  el.handPit.addEventListener('lostpointercapture', end);
+
+  // The scrub is pointer-only, so focus is how a keyboard reads the pit:
+  // landing on a rib shows the same peek, leaving it clears it.
+  el.handPit.addEventListener('focusin', (event) => {
+    const slot = event.target.closest('.hand-slot');
+    if (slot) showPeek(slot);
+  });
+  el.handPit.addEventListener('focusout', (event) => {
+    if (ui.peekPointer >= 0) return;
+    if (event.relatedTarget && el.handPit.contains(event.relatedTarget)) return;
+    clearPeek();
+  });
 }
 
 /**
- * How far one card may hide behind the next. Past this the fan stops being a
- * hand and becomes a stack of slivers: two eaten Whole Pies used to squeeze
- * the cards down to a sixth of their width. The strip scrolls instead.
+ * How far one card may hide behind the next. It is the floor, not the resting
+ * value: the near rail overlaps 24% past four cards and only ever goes past
+ * that to keep a very live hand on the screen. Nothing shrinks either way.
  */
 const MAX_OVERLAP = 0.55;
 
-/** Spreads the hand into a fan, and scrolls it once the fan stops fitting. */
-function layoutHand(slots) {
-  const total = slots.length;
-  if (!total) {
-    el.hand.classList.remove('is-scrolling');
-    return;
-  }
-  // Density drives card size and chrome via CSS. Written before the width
-  // read below, so the measurement sees the size this count will render at.
-  const density = total >= 16 ? 'packed' : total >= 11 ? 'tight' : 'easy';
-  if (el.hand.dataset.density !== density) el.hand.dataset.density = density;
+/** VT323 at 13px runs 5.3px a character; 8px is the 6px inset and a pixel of air. */
+const BANNER_CH = 5.3;
+const BANNER_PAD = 8;
 
-  const cardWidth = slots[0].offsetWidth || 84;
-  // `.hand` carries 8px of side padding in both modes, so this is the room the
-  // cards actually get, and it does not change when the strip starts scrolling.
+/**
+ * Spaces the near rail and decides what each banner can finish saying.
+ *
+ * Full 84px cards with 8px gaps and no overlap at all up to four. Past four
+ * they overlap 24%. They never shrink, and there is no density step to fall
+ * back to — the pit is what makes the room.
+ */
+function layoutNear(entries) {
+  ui.nearRow = entries;
+  const total = entries.length;
+  if (!total) return;
+
+  // The live width, not the configured one: the rail forces 84px on every
+  // screen and this is the only place that can tell whether it got it.
+  const cardWidth = entries[0].slot.offsetWidth || 84;
+  // `.hand` carries 8px of side padding, so this is the room the cards get.
   const available = Math.max(el.hand.clientWidth - 16, cardWidth);
 
-  let overlap = -Math.round(cardWidth * 0.3);
-  const needed = total * cardWidth + (total - 1) * overlap;
+  let gap = total > 4 ? -Math.round(cardWidth * 0.24) : 8;
+  // Past about six live cards even a 24% overlap runs off a 375px screen, and
+  // a card under the bezel is worse than a card behind another card. This is
+  // not a density step: the cards stay 84px, they just hide further.
+  const needed = total * cardWidth + (total - 1) * gap;
   if (needed > available && total > 1) {
-    overlap = Math.floor((available - total * cardWidth) / (total - 1));
+    gap = Math.min(gap, Math.floor((available - total * cardWidth) / (total - 1)));
+    gap = Math.max(gap, -Math.round(cardWidth * MAX_OVERLAP));
   }
-  overlap = Math.max(overlap, -Math.round(cardWidth * MAX_OVERLAP));
 
-  const width = total * cardWidth + (total - 1) * overlap;
-  const scrolling = width > available;
-  el.hand.classList.toggle('is-scrolling', scrolling);
-
-  // A scrolling strip clips on both axes, so the fan flattens: no tilt, no
-  // rise. The lift and the cheese ring keep their room in the padding.
-  const spread = scrolling ? 0 : Math.min(4.2, 32 / Math.max(total - 1, 1));
-  slots.forEach((slot, index) => {
-    const norm = total === 1 ? 0 : (index - (total - 1) / 2) / ((total - 1) / 2);
-    slot.style.setProperty('--overlap', `${overlap}px`);
-    slot.style.setProperty('--tilt', `${(norm * spread * Math.max(total - 1, 1) / 2).toFixed(2)}deg`);
-    slot.style.setProperty('--rise', scrolling ? '0px' : `${(Math.abs(norm) ** 2 * 7).toFixed(1)}px`);
+  entries.forEach(({ slot }, index) => {
+    slot.style.setProperty('--overlap', `${gap}px`);
     slot.style.zIndex = String(index + 1);
-    // 01 · the breath rolls along the fan rather than pumping it as one block.
-    // The delay is set on the card itself, never on the slot: a variable read
-    // by a child forces a style recalc on every child of the parent.
+  });
+
+  labelNear(entries, cardWidth, gap);
+}
+
+/**
+ * 04 · a banner is centred across 84px, but a card the next card covers only
+ * exposes its leftmost strip, and a centred label in it is always cut
+ * mid-word. A covered card prints the three-letter suit token, left-aligned
+ * into the strip it actually has. The full label is kept for the card nothing
+ * covers — the last one in the rail. Nothing is placed in a strip it cannot
+ * finish in, so a strip too narrow even for the token prints nothing.
+ */
+function labelNear(entries, cardWidth, gap) {
+  entries.forEach(({ slot, card }, index) => {
     const node = slot.firstElementChild;
-    if (node) node.style.setProperty('--breathe-delay', `${index * 260}ms`);
+    if (!node) return;
+    const last = index === entries.length - 1;
+    const exposed = last ? cardWidth : Math.min(cardWidth, cardWidth + gap);
+    const fits = (text) => exposed >= text.length * BANNER_CH + BANNER_PAD;
+    const full = node.querySelector('.card__banner-full');
+    const covered = !last && gap < 0;
+    const token = suitToken(card);
+
+    const printsFull = !covered && fits(full ? full.textContent : '');
+    const printsToken = !printsFull && fits(token);
+    node.classList.toggle('is-tokened', printsToken);
+    node.classList.toggle('is-unlabelled', !printsFull && !printsToken);
   });
 }
 
@@ -2703,8 +3009,13 @@ function flyFlip(faceNode, from, to) {
   back.classList.add('flip-side', 'flip-side--back');
 
   const face = faceNode.cloneNode(true);
-  face.classList.remove('is-playable', 'is-dimmed', 'is-pressed', 'is-leaving');
+  face.classList.remove('is-playable', 'is-dimmed', 'is-pressed', 'is-leaving', 'is-entering');
   face.removeAttribute('disabled');
+  // A drawn card now lands in the pit as a 20px rib, but it must not travel as
+  // one: the reveal in mid-air is a whole card, and the flight scales it down
+  // to the rib it is landing on (`to.w` is the rib slot's real width below).
+  face.classList.remove('card--rib');
+  face.classList.add('card--hand');
   face.classList.add('flip-side', 'flip-side--face');
 
   wrap.append(back, face);
@@ -3040,7 +3351,14 @@ document.addEventListener('pointerdown', (event) => {
 let resizeFrame = 0;
 window.addEventListener('resize', () => {
   cancelAnimationFrame(resizeFrame);
-  resizeFrame = requestAnimationFrame(() => layoutHand([...el.hand.children]));
+  resizeFrame = requestAnimationFrame(() => {
+    layoutNear(ui.nearRow);
+    // The pit's height moves when it re-wraps, and the peek hangs off it.
+    if (ui.peekCardId) {
+      const slot = ui.handSlots.get(ui.peekCardId);
+      if (slot && slot.parentElement === el.handPit) showPeek(slot);
+    }
+  });
 });
 
 // ================================================================== BOOT ===
@@ -3071,6 +3389,7 @@ function boot() {
   document.querySelector('.screen--home').append(attract);
   buildSpecialBoard();
   buildMuteToggle();
+  bindPit();
 
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;

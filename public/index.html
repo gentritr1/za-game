@@ -149,7 +149,15 @@
         <span class="hand-bar__hint" id="hand-hint"></span>
       </div>
 
-      <div class="hand" id="hand" role="group" aria-label="Your hand"></div>
+      <!-- THE PIT. Dead cards drop into the rib strip; only the cards you can
+           actually play stand up full size in the near rail below it. The peek
+           is a sibling of both, not a child of the strip: it lands over the
+           near rail and must not be clipped by it. -->
+      <div class="hand" id="hand" data-mode="review">
+        <div class="hand__pit" id="hand-pit" role="group" aria-label="No dead cards"></div>
+        <div class="hand__near" id="hand-near" role="group" aria-label="Cards you can play"></div>
+        <div class="hand__peek" id="hand-peek" aria-hidden="true" hidden></div>
+      </div>
     </footer>
 
     <!-- popovers ------------------------------------------------- -->

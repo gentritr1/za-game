@@ -1346,71 +1346,134 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .btn--callout:hover:not(:disabled) { --btn-bg: var(--sauce-hi); }
 }
 
-/* the fan ---------------------------------------------------------------- */
+/* THE PIT ----------------------------------------------------------------- */
+/* A dead card is reference, not a card. The hand is two rails: a recessed rib
+   strip holding everything you cannot play, and a near rail below it where the
+   cards you can play stand up at full 84px. Nothing shrinks — there is no
+   density step and no scrolling strip; the partition is what makes room. */
 .hand {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 0 8px;
+  /* A grid item is `min-width: auto` by default, so a near rail wider than the
+     screen would push the hand — and the whole cabinet — out with it, and the
+     fit measurement in `layoutNear` would then read a width its own content had
+     just invented. The rails overflow visually instead; they never stretch. */
+  min-width: 0;
+}
+
+.hand__pit,
+.hand__near { min-width: 0; }
+
+/* The pit: one recessed console strip, not a row of targets. A 20px rib is far
+   under the touch minimum, so the strip itself takes the pointer (`touch-action:
+   none` keeps the page from scrolling under the scrub) and the ribs are inert
+   to it. Keyboard is the other way round — see `.hand__pit .card`. */
+.hand__pit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  min-height: 52px;
+  padding: 8px 6px;
+  background: var(--console);
+  box-shadow: inset 0 var(--bd-thin) 0 var(--bezel);
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+.hand__pit:empty { display: none; }
+
+/* The near rail. It reserves its 132px for the whole of your turn so the row
+   never jumps under your thumb; on their turn nothing is live, so it collapses
+   to nothing and gives the room to the pit — unless a peek needs somewhere to
+   land. */
+.hand__near {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  min-height: calc(var(--card-w) * var(--card-ratio) + 14px);
-  padding: 10px 8px 0;
+  min-height: 132px;
+  padding-top: 14px;
 }
 
-/* A hand that has eaten two Whole Pies does not get squeezed into slivers.
-   Past 55% overlap the strip scrolls instead (see `layoutHand`), and in that
-   mode the cards stand straight so nothing needs vertical room it hasn't got.
-
-   `overflow-x: auto` forces the block axis to `auto` too, so the lift, the
-   cheese ring and the hard shadow have to live inside the padding box — the
-   padding here is exactly that room, and the 8px sides also keep the glow on
-   the first and last card off the clip edge. */
-.hand.is-scrolling {
-  justify-content: flex-start;
-  overflow-x: auto;
-  overflow-y: auto;
-  padding: 22px 8px 10px;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--bezel) var(--console);
+.hand[data-mode="review"] .hand__near {
+  min-height: 0;
+  padding-top: 0;
 }
 
-/* Cabinet scrollbar: square, recessed track, no blur, no radius. */
-.hand.is-scrolling::-webkit-scrollbar { height: 8px; }
-.hand.is-scrolling::-webkit-scrollbar-track {
-  background: var(--console);
-  border-top: 2px solid var(--bezel);
-}
-.hand.is-scrolling::-webkit-scrollbar-thumb {
-  background: var(--bezel);
-  border-radius: 0;
+.hand[data-mode="review"].has-peek .hand__near {
+  min-height: 132px;
+  padding-top: 14px;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .hand.is-scrolling::-webkit-scrollbar-thumb:hover { background: var(--ui-cyan); }
+/* The peek is a sibling of both rails, never a child of the strip: it lands
+   over the near rail, which is one more way of saying a peek is not a play. */
+.hand__peek {
+  position: absolute;
+  left: 0;
+  top: var(--peek-top, 0px);
+  z-index: 9;
+  width: 84px;
+  transform: translateX(var(--peek-x, 0px));
+  pointer-events: none;
 }
 
-/* The overlap is a layout value, so it updates immediately when the hand
-   respaces. The cards themselves still settle through their transform. */
+.hand__peek[hidden] { display: none; }
+
+.hand__peek .card {
+  --card-w: 84px;
+  box-shadow: var(--sh-lift);
+}
+
+.hand__peek::after {
+  content: "PEEK ONLY";
+  display: block;
+  padding-top: 4px;
+  font-size: var(--fs-label);
+  line-height: 1.2;
+  letter-spacing: .1em;
+  text-align: center;
+  color: var(--ui-cyan);
+}
+
+/* One slot per card, keyed by card id and moved between the rails rather than
+   rebuilt. Its size comes from the rail it is sitting in. */
 .hand-slot {
   position: relative;
   flex: none;
   width: var(--card-w);
   height: calc(var(--card-w) * var(--card-ratio));
-  margin-left: var(--overlap, -26px);
-  transform: rotate(var(--tilt, 0deg)) translateY(var(--rise, 0px)) translateX(var(--part, 0px));
-  transform-origin: 50% 130%;
   transition: transform var(--d-slow) var(--ease-out);
 }
 
-.hand-slot:first-child { margin-left: 0; }
-.hand-slot:focus-within,
-.hand-slot:hover { z-index: 5; }
+.hand__near .hand-slot {
+  /* 84px at four cards and at fourteen. Past four they overlap; they never
+     shrink. */
+  --card-w: 84px;
+  margin-left: var(--overlap, 8px);
+}
 
-/* When a playable card lifts, its neighbours lean away 7px to give it room.
-   The fan overlaps cards by up to 84%, so the gap reads as a spotlight. */
-@media (hover: hover) and (pointer: fine) {
-  .hand-slot:has(+ .hand-slot:hover .card.is-playable) { --part: -7px; }
-  .hand-slot:hover:has(.card.is-playable) + .hand-slot { --part: 7px; }
+.hand__near .hand-slot:first-child { margin-left: 0; }
+.hand-slot:focus-within,
+.hand__near .hand-slot:hover { z-index: 5; }
+
+.hand__pit .hand-slot {
+  --card-w: 20px;
+  height: 46px;
+  margin: 2px 0 2px -4px;
+}
+
+/* Two glyphs need 22px inside the 3px keylines. The index never scales; the
+   rib is what changes. */
+.hand__pit .hand-slot[data-glyphs="2"] { --card-w: 28px; }
+
+.hand__pit .hand-slot:first-child { margin-left: 0; }
+
+/* Nothing is live, so nothing stands up: the whole hand sits in the pit at
+   review width, wrapping to two rows with real gaps between the ribs. */
+.hand[data-mode="review"] .hand__pit .hand-slot {
+  --card-w: 32px;
+  margin-left: 4px;
 }
 
 /* ----------------------------------------------------------------- cards -- */
@@ -1524,6 +1587,26 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: var(--void);
 }
 
+/* A banner is centred across 84px, but a card the next card covers exposes
+   only its leftmost strip, and a centred label in it is always cut mid-word.
+   A covered card left-aligns the three-letter token into the strip it actually
+   has; the full label is kept for the cards nothing covers. `renderCard` builds
+   both forms, so choosing between them is a class and never a rewrite. */
+.card__banner-full { font-weight: inherit; }
+.card__banner-tok { display: none; font-weight: inherit; }
+
+.card.is-tokened .card__banner {
+  text-align: left;
+  padding-left: 6px;
+}
+
+.card.is-tokened .card__banner-full { display: none; }
+.card.is-tokened .card__banner-tok { display: inline; }
+
+/* Nothing is placed in a strip it cannot finish in. */
+.card.is-unlabelled .card__banner-full,
+.card.is-unlabelled .card__banner-tok { display: none; }
+
 .card__index {
   position: absolute;
   display: grid;
@@ -1568,10 +1651,39 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .card--mini .card__banner,
 .card--mini .card__index { display: none; }
 
-/* A mini card is 20px wide. The full card's 16px entry rise would throw it
-   across its own stack, so it gets a rise in proportion. */
+/* A rib is the mini card with its corner index un-hidden and centred: keyline,
+   suit colour, index, nothing else. It takes its width from the slot it is in
+   (20px, 28px for a two-glyph index, 32px at review) rather than setting one,
+   so one CSS rule sizes the frame and the index never scales with it. */
+.card--rib {
+  height: 46px;
+  box-shadow: none;
+}
+
+.card--rib .card__window,
+.card--rib .card__banner,
+.card--rib .card__index--br,
+.card--rib .card__back-word { display: none; }
+
+.card--rib::before { box-shadow: inset 0 0 0 var(--bd-thin) var(--suit, var(--bezel)); }
+
+/* A wild's four-quarter tint is a wash behind a window. A rib has no window,
+   so the tint would fill the whole 20px frame and swallow the `+4` sitting on
+   it. At rib size a wild is a cabinet frame with a cheese keyline and a cheese
+   index, like every other rib — the index is what tells it apart. */
+.card--rib.card--is-wild { background: var(--cabinet); }
+
+.card--rib .card__index--tl {
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* A rib is 20px wide. The full card's 16px entry rise would throw it across
+   its own stack, so the small frames get a rise in proportion. */
 @starting-style {
-  .card--mini { transform: translateY(4px) scale(.88); }
+  .card--mini,
+  .card--rib { transform: translateY(4px) scale(.88); }
 }
 
 /* hand card states ------------------------------------------------------- */
@@ -1579,53 +1691,64 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand .card.is-playable { cursor: pointer; }
 
-/* How far a playable card stands out of the fan. The wobble reads the same
-   property, so a crowded hand's shorter lift cannot desync from its nudge. */
+/* How far a playable card stands out of the near rail. The wobble and the
+   promotion both read the same property, so the lift can never desync from
+   them. It is one value now: nothing shrinks, so nothing halves the lift. */
 .hand .card { --lift: 0px; }
 .hand .card.is-playable { --lift: -12px; transform: translateY(var(--lift)); }
 
-/* The playable ring, on a pseudo-element that only ever fades — the same
-   pattern as `.seat::after` and `.hud__turn::before`.
-
-   `.card` is `overflow: hidden`, so a ring 3px outside the card would be
-   clipped away entirely. It is drawn on the outermost 3px of the card instead:
-   the pseudo sits 3px in and spreads 3px back out, which lands the band
-   exactly on the card's own edge. The frame lights up rather than growing a
-   halo — the silhouette no longer changes size when a card becomes playable. */
-.hand .card::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  z-index: 2;
-  box-shadow: 0 0 0 3px var(--cheese);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--d-fast) var(--ease-out);
+/* The cheese ring, an `outline` on the card root. It has to be an outline and
+   not an inset shadow: `.card` is `overflow: hidden`, and an inset band is
+   drawn inside the padding box where the near rail's own frame keyline already
+   sits — 2px of the 3px band would be eaten. An outline is painted outside the
+   border box, so `overflow` cannot touch it. It only ever changes colour, so
+   nothing about the card's size or position moves when a card becomes
+   playable. */
+.hand .card {
+  outline: var(--bd-thin) solid transparent;
+  outline-offset: 1px;
+  transition:
+    transform var(--d-mid) var(--ease-out),
+    opacity var(--d-mid) var(--ease-out),
+    outline-color var(--d-fast) var(--ease-out);
 }
 
-.hand .card.is-playable::after { opacity: 1; }
+.hand .card.is-playable { outline-color: var(--cheese); }
 
-/* Unplayable cards step back but stay readable: the player still has to plan
-   around them. The gold ring on playable cards carries the distinction, so
-   the dim only has to whisper. Hovering one restores it fully for study. */
+/* The ring above is an outline, so it would otherwise swallow the focus ring
+   the whole cabinet uses. Keyboard focus takes the outline back in cyan — the
+   one colour the cheese ring never uses — and this is how a keyboard reaches
+   the pit at all: the scrub is pointer-only, so a focused rib shows the peek. */
+.hand .card:focus-visible {
+  outline: 2px solid var(--ui-cyan);
+  outline-offset: 3px;
+}
+
+/* A dead card in the pit is reference, not a card: it never takes the pointer,
+   because the strip around it is the control. It stays in the tab order all
+   the same — the scrub is pointer-only, and a keyboard has to be able to reach
+   the hand it cannot drag across. Focus shows the peek. */
 .hand .card.is-dimmed {
   opacity: .85;
   filter: saturate(.7) brightness(.92);
   pointer-events: none;
 }
 
-/* This rule and the `@starting-style .card` one at the top of the section have
-   the same specificity, so the later of the two wins the before-change style —
-   which was this one. An unplayable card therefore arrived already at its
-   final opacity and rose into the fan without ever fading, while the playable
-   cards beside it faded in. Restated here, after it, so both halves of a dealt
-   hand enter the same way. */
+/* Entry, and only entry. A promotion moves the same node from one rail to the
+   other, and a moved node re-resolves its style: without the marker the card
+   would take the entry fade instead of its promotion, every time the turn
+   changed. `.hand .card` restates the settled values so the plain `.card` rule
+   above cannot reach a hand card that is not actually arriving. */
 @starting-style {
-  .hand .card.is-dimmed { opacity: 0; }
+  .hand .card { opacity: 1; transform: none; }
+  .hand .card.is-entering { opacity: 0; transform: translateY(16px) scale(.96); }
+  .hand .card.is-entering.is-dimmed { opacity: 0; }
+  /* A rib is 20px wide: the full card's rise would throw it across the pit. */
+  .hand .card--rib.is-entering { transform: translateY(4px) scale(.88); }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .hand-slot:hover .card.is-dimmed {
+  .hand__near .hand-slot:hover .card.is-dimmed {
     opacity: 1;
     filter: none;
   }
@@ -1638,12 +1761,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     transform: translateY(var(--lift));
     transition-duration: var(--d-mid);
     transition-timing-function: var(--ease-pop);
-  }
-
-  /* The lifted card also straightens most of its fan tilt, like a card
-     pulled up out of the hand to look at. */
-  .hand-slot:hover:has(.card.is-playable) {
-    transform: rotate(calc(var(--tilt, 0deg) * .35)) translateY(var(--rise, 0px)) translateX(var(--part, 0px));
   }
 }
 
@@ -2556,7 +2673,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     padding: var(--s2);
   }
 
-  .hand-slot { margin-left: var(--overlap, -22px); }
+  /* The near rail keeps its 84px on a phone too — that is the whole point of
+     the pit. The root card size still steps down for the piles and the seats. */
   .hud__dir span:last-child { display: none; }
 
   .hand-zone { padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px)); }
@@ -2907,10 +3025,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* --- 01 · the hand breathes ---------------------------------------------- */
 /* It is on while it is NOT your turn and off the frame it is: the stop is the
    signal, so it is driven by a class on the hand rather than a per-card timer.
-   The slot owns the fan transform, so the breath is on the card inside it and
-   the two never contend for the same property. */
-.hand.is-breathing .card {
-  animation: breathe 3.2s var(--ease-in-out) var(--breathe-delay, 0ms) infinite;
+
+   When it is not your turn the whole hand is in the pit, so the pit breathes
+   as one block — one animation on the strip instead of eighteen staggered ones
+   on eighteen ribs. The roll along the fan went out with the fan: two rows of
+   ribs rolling card by card is a shiver, not a breath. */
+.hand.is-breathing .hand__pit {
+  animation: breathe 3.2s var(--ease-in-out) infinite;
 }
 
 @keyframes breathe {
@@ -2918,12 +3039,48 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   50% { transform: translateY(-4px); }
 }
 
-/* Three ways it stands down: a scrolling strip clips on both axes and a rise
-   would be cut off; a playable card is already lifted and about to be
-   hovered; a card handing over to its flying clone must not be re-raised. */
-.hand.is-scrolling.is-breathing .card,
-.hand.is-breathing .card.is-playable,
-.hand.is-breathing .card.is-leaving { animation: none; }
+/* --- promotion ------------------------------------------------------------ */
+/* The rib slides up out of the pit and grows to full size. It is the news, so
+   it is the one thing in the hand that animates on its own: transform and
+   opacity, stepped, and the lift is carried through every frame so a promoted
+   card lands exactly where a playable card already stands. */
+.hand .card.is-promoting {
+  animation: promote var(--d-slow) steps(3, end) 1;
+}
+
+@keyframes promote {
+  0% { transform: translateY(calc(var(--lift) + 34px)) scale(.3); opacity: .4; }
+  100% { transform: translateY(var(--lift)) scale(1); opacity: 1; }
+}
+
+/* A card handing over to its flying clone must not be re-raised, and a hand on
+   the card outranks anything ambient. */
+.hand.is-breathing .card.is-leaving,
+.hand .card.is-promoting:hover,
+.hand .card.is-promoting:active { animation: none; }
+
+/* --- the cheese flash ----------------------------------------------------- */
+/* A drawn card lands in the pit with two frames of cheese on its keyline. It
+   is a hard on/off, stepped: nothing in this cabinet fades a colour. */
+.hand .card.is-flashing::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  box-shadow: inset 0 0 0 var(--bd-thin) var(--cheese);
+  opacity: 0;
+  pointer-events: none;
+  animation: rib-flash 200ms steps(1, end) 1;
+}
+
+/* Two frames on, and it is gone: `steps(1, end)` holds each keyframe's value
+   for its whole interval, so this is on/off/on/off at 50ms apiece. */
+@keyframes rib-flash {
+  0% { opacity: 1; }
+  25% { opacity: 0; }
+  50% { opacity: 1; }
+  75%, 100% { opacity: 0; }
+}
 
 /* --- 02 · the bots blink -------------------------------------------------- */
 /* The portraits are baked busts, so there is nothing to close. The blink is an
@@ -3384,7 +3541,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    the warm-lobby bar still drains for its five seconds, exactly as the
    call-out drain above it is already exempted. */
 @media (prefers-reduced-motion: reduce) {
-  .hand.is-breathing .card,
+  .hand.is-breathing .hand__pit,
+  .hand .card.is-promoting,
   .hand .card.is-nudging,
   .seat__avatar.is-bot::after,
   .seat-row__avatar.is-bot::after,
@@ -3400,9 +3558,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     animation: none !important;
   }
 
-  /* Position is restored by hand where a keyframe had been holding it. */
-  .hand.is-breathing .card,
+  /* Position is restored by hand where a keyframe had been holding it. The
+     promotion becomes an instant re-layout at the same end state: the card is
+     already in the near rail at full size, it simply never travelled there. */
+  .hand.is-breathing .hand__pit,
   .hand .card.is-nudging,
+  .hand .card.is-promoting,
   .warm__title,
   .shutter,
   .shutter.is-rolling { transform: none !important; }
@@ -3538,28 +3699,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .seat-row__press, .attract-line { animation: none; }
 }
 
-/* ------------------------------------------------ hand density management -- */
-/* A fat hand shrinks before it scrolls, and sheds its banner noise: the
-   corner index and the sprite carry identity at small sizes. Thresholds:
-   11+ cards = tight (72px), 16+ = packed (62px). */
-.hand[data-density="tight"] .card { --card-w: 72px; }
-.hand[data-density="packed"] .card { --card-w: 62px; }
-
-.hand[data-density="tight"] .card__banner,
-.hand[data-density="packed"] .card__banner { display: none; }
-
-/* A crowd of playable cards at full lift is a jagged skyline; half-lift
-   keeps the signal without the chaos. */
-.hand[data-density="tight"] .card.is-playable { --lift: -8px; }
-.hand[data-density="packed"] .card.is-playable { --lift: -6px; }
-
-/* The scroll edges announce themselves: void fades on both sides. */
-.hand.is-scrolling {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
-}
-
-@media (max-width: 720px) {
-  .hand[data-density="tight"] .card { --card-w: 60px; }
-  .hand[data-density="packed"] .card { --card-w: 54px; }
-}
+/* The hand's density management used to live here: two shrink steps, a banner
+   hide, halved lifts, a scrolling strip and its edge-fade mask. All of it came
+   out with THE PIT. Nothing shrinks now — the pit is what makes the room, and
+   the partition is what makes the hand readable at eighteen cards. */
