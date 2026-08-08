@@ -110,6 +110,12 @@
       <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
         <span class="marquee__mark" aria-hidden="true">ZA!</span>
         <span class="turn-label" id="turn-text">Waiting…</span>
+        <!-- The last ten seconds of a turn. The digits are aria-hidden because
+             a polite live region that changes every second is a siren, not a
+             warning; the one sentence in #turn-warn is what gets announced,
+             once, when the window opens. -->
+        <span class="turn-count" id="turn-count" aria-hidden="true"></span>
+        <span class="sr-only" id="turn-warn"></span>
         <span class="marquee__dir" id="dir-chase" aria-hidden="true">
           <span class="za-chev">▸</span>
           <span class="za-chev">▸</span>

@@ -45,6 +45,8 @@ const el = {
   hudCodeText: $('hud-code-text'),
   turnBanner: $('turn-banner'),
   turnText: $('turn-text'),
+  turnCount: $('turn-count'),
+  turnWarn: $('turn-warn'),
   dirChase: $('dir-chase'),
   dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
@@ -164,6 +166,11 @@ const ui = {
   queueSlideTimer: 0,
   gameId: null,
   lastLogId: -1,
+  // The connected-idle turn clock, held locally so the digits keep moving
+  // between snapshots. A deadline in this tab's own time, never the server's.
+  idleDeadline: 0,
+  idleWarnMs: 0,
+  idleTimer: 0,
   pendingWild: null, // { cardId, sourceEl }
   toastTimer: 0,
   copyTimers: new WeakMap(),
@@ -334,6 +341,12 @@ function syncDesynced() {
   for (const button of [el.btnPass, el.btnZa, el.btnCallout, el.drawPile]) {
     if (button) button.disabled = true;
   }
+  // A turn clock counted off a snapshot we no longer trust is a lie. The next
+  // snapshot brings the real remaining time with it.
+  clearInterval(ui.idleTimer);
+  ui.idleTimer = 0;
+  ui.idleDeadline = 0;
+  paintIdleCountdown();
 }
 
 function handleMessage(message) {
@@ -650,6 +663,10 @@ function resetGameView() {
   ui.entrySettleAt = 0;
   setHandBreathing(false);
   stopWarmLobby();
+  clearInterval(ui.idleTimer);
+  ui.idleTimer = 0;
+  ui.idleDeadline = 0;
+  paintIdleCountdown();
   ui.handSlots.clear();
   ui.handCards.clear();
   ui.handOrder = [];
@@ -1064,6 +1081,65 @@ function renderTurnBanner(snapshot, view, yourTurn) {
   el.turnBanner.classList.toggle('is-callout', callout);
   el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
   setTurnText(turnLabel(view, yourTurn, callout));
+  armIdleCountdown(snapshot, view, yourTurn);
+}
+
+// --------------------------------------------------- the turn running out --
+/**
+ * The server gives a connected player 45 seconds on their turn and then plays
+ * the same draw-and-pass it plays for somebody who is away. The last stretch of
+ * that is on the marquee, next to the line that already says it is your turn.
+ *
+ * The wire carries a REMAINING DURATION, never a deadline stamp: the two ends
+ * do not agree on what time it is. The client turns it into a local deadline
+ * the moment the snapshot lands and counts down from there, so the digits keep
+ * moving between snapshots without asking the server every second.
+ *
+ * Only your own turn gets a clock. Watching somebody else's run out is not
+ * information you can act on, and four countdowns at one table is a casino.
+ */
+function paintIdleCountdown() {
+  const warn = ui.idleWarnMs || 0;
+  const left = ui.idleDeadline ? ui.idleDeadline - Date.now() : Infinity;
+  if (!ui.idleDeadline || left > warn) {
+    if (el.turnCount.textContent) el.turnCount.textContent = '';
+    if (el.turnWarn.textContent) el.turnWarn.textContent = '';
+    return;
+  }
+  const seconds = Math.max(0, Math.ceil(left / 1000));
+  const text = ` — 0:${String(seconds).padStart(2, '0')}`;
+  if (el.turnCount.textContent !== text) el.turnCount.textContent = text;
+  // One sentence, once, when the window opens. The digits themselves are
+  // aria-hidden: the marquee is a polite live region, and a live region that
+  // changes every second stops being read as a warning.
+  if (!el.turnWarn.textContent) {
+    el.turnWarn.textContent = `${Math.ceil(warn / 1000)} seconds left, chef.`;
+  }
+}
+
+function armIdleCountdown(snapshot, view, yourTurn) {
+  clearInterval(ui.idleTimer);
+  ui.idleTimer = 0;
+
+  const live = yourTurn && view.status === 'playing' && snapshot.turnIdleMsLeft != null;
+  if (!live) {
+    ui.idleDeadline = 0;
+    ui.idleWarnMs = 0;
+    paintIdleCountdown();
+    return;
+  }
+  ui.idleDeadline = Date.now() + snapshot.turnIdleMsLeft;
+  ui.idleWarnMs = snapshot.turnIdleWarnMs || 10000;
+  paintIdleCountdown();
+  // Four beats a second: fast enough that the digit never looks stuck on a
+  // throttled tab coming back, cheap enough to be nothing.
+  ui.idleTimer = setInterval(() => {
+    if (!ui.idleDeadline || ui.idleDeadline - Date.now() < -1000) {
+      clearInterval(ui.idleTimer);
+      ui.idleTimer = 0;
+    }
+    paintIdleCountdown();
+  }, 250);
 }
 
 function turnLabel(view, yourTurn, callout) {

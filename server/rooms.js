@@ -19,10 +19,29 @@ const TICK_MS = 250;
 const BOT_THINK_MS = 800; // pause before a bot with no regular takes its turn
 const BOT_QUICK_MS = 300; // follow-up pause for a shout or a call-out
 const AWAY_TURN_TIMEOUT_MS = 12000; // skip the turn of a player who is away
+const IDLE_TURN_TIMEOUT_MS = 45000; // skip the turn of a player who is here but still
+const IDLE_WARN_MS = 10000; // the last stretch of that, counted down on screen
 const RECONNECT_GRACE_MS = 120000; // time to come back before the seat is freed
-const EMPTY_ROOM_TTL_MS = 60000; // delete a room with no connected humans
+const EMPTY_ROOM_TTL_MS = 60000; // floor on how long a room with nobody in it lives
 const MAX_NAME_LENGTH = 16;
 const MAX_ROOMS = 2000; // stops one client from filling the memory with lobbies
+
+/**
+ * The same numbers, in one mutable place, because every timing above is read
+ * through here at run time.
+ *
+ * This exists so the tests can prove a policy without waiting two minutes for
+ * it: a case shrinks the field it cares about, runs, and puts it back. Nothing
+ * in the game reads these — they are all clock, no rule — and the constants
+ * above stay the single statement of what the real values are.
+ */
+const TIMINGS = {
+  awayTurn: AWAY_TURN_TIMEOUT_MS,
+  idleTurn: IDLE_TURN_TIMEOUT_MS,
+  idleWarn: IDLE_WARN_MS,
+  reconnectGrace: RECONNECT_GRACE_MS,
+  emptyRoomTtl: EMPTY_ROOM_TTL_MS,
+};
 
 let seatCounter = 0;
 
@@ -59,6 +78,7 @@ class Room {
     this.game = null;
     this.botDueAt = 0;
     this.awayDueAt = 0;
+    this.idleDueAt = 0;
     this.awayTurnSerial = -1;
     this.emptySince = Date.now();
   }
@@ -119,6 +139,50 @@ class Room {
     }
   }
 
+  /**
+   * Hands the oven to somebody who is actually standing at it.
+   *
+   * A host who dropped used to keep the title for the full two-minute grace,
+   * and every host-only control went with them: nobody could start the next
+   * round, nobody could start the game in the lobby. The table just sat there.
+   *
+   * The rule, stated once so it is not re-invented: **the host is the
+   * longest-seated connected human.** `this.seats` is push-ordered, so the
+   * first connected human in it is exactly that. The election runs the moment
+   * the current host stops being connected, and the original host does NOT get
+   * the title back when they return — they come back as a regular player and
+   * whoever picked it up keeps it. That way nothing depends on what the acting
+   * host did or did not do while they were gone.
+   *
+   * If nobody else is connected there is no election: the title stays where it
+   * is, so a solo player who drops and comes back is still the host of their
+   * own table. Returns true when the host actually changed.
+   */
+  electActingHost() {
+    const host = this.hostId ? this.findSeat(this.hostId) : null;
+    if (host && !host.isBot && host.connected) return false;
+    const next = this.humanSeats().find((s) => s.connected);
+    if (!next || next.id === this.hostId) return false;
+    this.hostId = next.id;
+    return true;
+  }
+
+  /**
+   * The last moment any seat here is still owed its place.
+   *
+   * An empty room may not be swept before this. The TTL was sixty seconds and
+   * the seat grace two minutes, so a solo player's seat outlived the room it
+   * was in: they came back inside their grace to "No table has that code."
+   */
+  graceEndsAt() {
+    let latest = 0;
+    for (const seat of this.seats) {
+      if (seat.isBot || seat.connected || !seat.disconnectedAt) continue;
+      latest = Math.max(latest, seat.disconnectedAt + TIMINGS.reconnectGrace);
+    }
+    return latest;
+  }
+
   /** Copies the connection flags into the game state so clients can show them. */
   syncConnectionFlags() {
     if (!this.game) return;
@@ -172,11 +236,12 @@ class Room {
     }
   }
 
-  /** Resets the bot delay and the away timer after any change of turn. */
+  /** Resets the bot delay and both turn timers after any change of turn. */
   scheduleTimers(force = false) {
     if (this.phase !== 'playing' || !this.game || this.game.status !== 'playing') {
       this.botDueAt = 0;
       this.awayDueAt = 0;
+      this.idleDueAt = 0;
       return;
     }
     const serial = this.game.turnSerial;
@@ -186,7 +251,31 @@ class Room {
     const current = game.currentPlayer(this.game);
     const seat = this.findSeat(current.id);
     this.botDueAt = seat && seat.isBot ? Date.now() + botPauseFor(seat) : 0;
-    this.awayDueAt = seat && !seat.isBot && !seat.connected ? Date.now() + AWAY_TURN_TIMEOUT_MS : 0;
+    this.awayDueAt = seat && !seat.isBot && !seat.connected ? Date.now() + TIMINGS.awayTurn : 0;
+    this.idleDueAt = seat && !seat.isBot && seat.connected ? Date.now() + TIMINGS.idleTurn : 0;
+  }
+
+  /**
+   * Gives the player on turn their full clock back.
+   *
+   * The away timer only ever covered players whose socket had gone; somebody
+   * sitting there connected and not moving held the table open for ever. This
+   * is the other half: a connected human gets 45 seconds, and any action at
+   * the table — theirs or anybody's — winds it up again, because a table where
+   * something just happened is not a table that is stuck.
+   *
+   * Separate from `scheduleTimers` on purpose: a shout or a call-out does not
+   * change the turn serial, so `scheduleTimers` correctly declines to re-arm,
+   * and this still has to.
+   */
+  touchIdleTimer() {
+    if (this.phase !== 'playing' || !this.game || this.game.status !== 'playing') {
+      this.idleDueAt = 0;
+      return;
+    }
+    const current = game.currentPlayer(this.game);
+    const seat = current ? this.findSeat(current.id) : null;
+    this.idleDueAt = seat && !seat.isBot && seat.connected ? Date.now() + TIMINGS.idleTurn : 0;
   }
 
   // -- per player view -----------------------------------------------------
@@ -203,6 +292,13 @@ class Room {
       isHost: this.hostId === seatId,
       minPlayers: game.MIN_PLAYERS,
       maxPlayers: game.MAX_PLAYERS,
+      // Additive, and both may be null. How long the player on turn still has
+      // before the table moves on without them, as a remaining duration rather
+      // than a wall-clock stamp: the two ends never agree on what time it is,
+      // and a client that reads a duration can tick it down on its own between
+      // snapshots. Null whenever nobody is on a connected-idle clock.
+      turnIdleMsLeft: this.idleDueAt ? Math.max(0, this.idleDueAt - Date.now()) : null,
+      turnIdleWarnMs: this.idleDueAt ? TIMINGS.idleWarn : null,
       seats: this.seats.map((s) => ({
         id: s.id,
         name: s.name,
@@ -290,6 +386,11 @@ class RoomManager {
       existing.disconnectedAt = null;
       room.emptySince = 0;
       if (!room.hostId) room.hostId = existing.id;
+      // If the table has been sitting there hostless because the host dropped
+      // while nobody else was connected, the first person back takes the oven.
+      // A returning original host finds themselves still connected-and-host, so
+      // this is a no-op for them.
+      room.electActingHost();
       room.syncConnectionFlags();
       room.scheduleTimers(true);
       return { ok: true, room, seat: existing, reconnected: true };
@@ -316,6 +417,8 @@ class RoomManager {
     if (room.phase === 'lobby') {
       room.removeSeat(seat.id);
     }
+    // The oven does not go with them. Whoever is still at the table takes it.
+    room.electActingHost();
     if (room.connectedHumanSeats().length === 0) {
       room.emptySince = Date.now();
     }
@@ -368,6 +471,8 @@ class RoomManager {
     if (result.ok) {
       room.finishRoundIfOver();
       room.scheduleTimers();
+      // Something happened, so the player on turn is not the one holding it up.
+      room.touchIdleTimer();
     }
     return result;
   }
@@ -393,7 +498,7 @@ class RoomManager {
     // Free seats of players who did not come back in time.
     for (const seat of [...room.seats]) {
       if (seat.isBot || seat.connected || !seat.disconnectedAt) continue;
-      if (now - seat.disconnectedAt > RECONNECT_GRACE_MS) {
+      if (now - seat.disconnectedAt > TIMINGS.reconnectGrace) {
         room.removeSeat(seat.id);
         if (room.game) room.finishRoundIfOver();
         changed = true;
@@ -405,7 +510,10 @@ class RoomManager {
       this.cleanupIfEmpty(room);
       return;
     }
-    if (room.emptySince && now - room.emptySince > EMPTY_ROOM_TTL_MS) {
+    // The TTL is a floor, not a deadline. A room with nobody connected in it
+    // still lives until the last seat it owes a place to has run out of grace,
+    // or a solo player would come back inside their two minutes to no table.
+    if (room.emptySince && now - room.emptySince > TIMINGS.emptyRoomTtl && now >= room.graceEndsAt()) {
       if (this.rooms.get(room.code) === room) this.rooms.delete(room.code);
       return;
     }
@@ -448,6 +556,24 @@ class RoomManager {
         room.finishRoundIfOver();
         changed = true;
       }
+
+      // The current player is here and has stopped. Same move as the away
+      // path — `forceSkip` draws them a card and passes the turn on — because
+      // it is the same problem seen from the other side, and a table that
+      // waits for ever on somebody who has walked off is not a game.
+      if (
+        room.phase === 'playing' &&
+        room.game.status === 'playing' &&
+        room.idleDueAt &&
+        now >= room.idleDueAt
+      ) {
+        room.idleDueAt = 0;
+        const current = game.currentPlayer(room.game);
+        game.forceSkip(room.game, current.id, `${current.name} took too long. Turn skipped.`);
+        room.scheduleTimers(true);
+        room.finishRoundIfOver();
+        changed = true;
+      }
     }
 
     // Bots also watch for a missed ZA while it is not their turn. Each
@@ -478,4 +604,4 @@ class RoomManager {
   }
 }
 
-module.exports = { RoomManager, Room, cleanName };
+module.exports = { RoomManager, Room, cleanName, TIMINGS };

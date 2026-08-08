@@ -944,6 +944,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   white-space: nowrap;
 }
 
+/* The last ten seconds of your own turn, on the marquee that already says it
+   is your turn. Empty the rest of the time, and empty means gone: no reserved
+   gap, so the line does not shift when the clock appears. Tabular figures
+   because a number that changes width once a second is a fidget, and the sauce
+   colour because this is the same alarm the call-out window uses. */
+.turn-count {
+  flex: none;
+  color: var(--sauce);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.turn-count:empty { display: none; }
+
 /* ----------------------------------------------------------------- table -- */
 .table {
   position: relative;
