@@ -1447,6 +1447,24 @@ function updateSeat(node, player, view, exposed, rank) {
   parts.status.classList.toggle('is-shown', Boolean(word));
   parts.status.classList.toggle('is-watching', word === 'watching you');
 
+  // 2A/4 · the seat IS the call-out button.
+  //
+  // Read off `calloutTargets`, the same field that governs the CALL OUT button
+  // in the hand zone — that button is untouched, so the action is reached two
+  // ways and keyboard and screen-reader users lose nothing. The seat is a
+  // second door on the same handler, never a second rule.
+  const target = (view.calloutTargets || []).includes(player.id);
+  node.classList.toggle('is-target', target);
+  if (target) {
+    node.setAttribute('role', 'button');
+    node.setAttribute('tabindex', '0');
+    node.setAttribute('aria-label', `Call out ${player.name}`);
+  } else {
+    node.removeAttribute('role');
+    node.removeAttribute('tabindex');
+    node.removeAttribute('aria-label');
+  }
+
   const badge = parts.badge;
   if (player.vulnerable && player.cardCount === 1) {
     badge.textContent = 'FORGOT!';
@@ -3797,6 +3815,37 @@ el.btnZa.addEventListener('click', () => {
   playShout();
 });
 el.btnCallout.addEventListener('click', openCalloutPopover);
+
+/**
+ * 2A/4 · pressing a chef calls them out.
+ *
+ * One delegated listener on the counter rather than one per seat: seats are
+ * cached in `ui.seatNodes` and re-used for the whole round, and a handler
+ * re-bound per render is the shape that silently dies. The seat only fires
+ * while the live snapshot still lists it, so a stale press cannot send a
+ * call-out the server would reject.
+ */
+function calloutFromSeat(node) {
+  const id = node && node.dataset.id;
+  const view = ui.snapshot && ui.snapshot.game;
+  if (!id || !view || !(view.calloutTargets || []).includes(id)) return;
+  closePopovers();
+  send({ type: 'callout', targetId: id });
+}
+
+el.opponents.addEventListener('click', (event) => {
+  const seat = event.target.closest('.seat');
+  if (seat) calloutFromSeat(seat);
+});
+
+el.opponents.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const seat = event.target.closest('.seat[role="button"]');
+  if (!seat) return;
+  event.preventDefault();
+  calloutFromSeat(seat);
+});
+
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
 // 09 · either button settles it, so the countdown has nothing left to decide.

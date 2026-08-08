@@ -1163,6 +1163,45 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat.is-turn .pizza-box__base,
 .seat.is-turn .pizza-box__lid { border-color: var(--cheese); }
 
+/* --- 2A/4 · the seat is the call-out button -------------------------------
+   A chef the server has named in `calloutTargets` becomes pressable: the ring
+   turns sauce and pulses, their single card stands up, and the whole seat is a
+   target. The CALL OUT button in the hand zone is untouched — same handler,
+   reached two ways. */
+.seat.is-target {
+  cursor: pointer;
+  /* On a phone the seat has to be a 44px target before the fan is counted. */
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.seat.is-target .seat__ring {
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--sauce);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(255, 46, 107, .2), transparent 72%);
+  animation: sliver-danger 640ms steps(2, end) infinite;
+}
+
+.seat.is-target .seat__avatar { border-color: var(--sauce); }
+.seat.is-target .seat__name {
+  background: var(--sauce);
+  color: var(--void);
+  border-color: var(--sauce);
+}
+
+/* The one card stands upright out of the tray, whoever else is at the oven. */
+.seat.is-target .seat__sliver { transform: translateX(-50%) rotate(0deg); }
+
+.seat.is-target:focus-visible {
+  outline: var(--bd-thin) solid var(--cheese);
+  outline-offset: calc(9px * var(--k, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seat.is-target:hover .seat__body { transform: translateY(-3px); }
+  .seat__body { transition: transform var(--d-fast) var(--ease-step); }
+}
+
 /* The spoken count. It never draws — the fan and the printed plate are what a
    sighted player reads — but it keeps the number in the accessibility tree. */
 .seat__count-long {
@@ -2741,7 +2780,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* --- C - the catch ------------------------------------------------------- */
 /* A seat inside a call-out window: dashed sauce keyline, buzzing name, and a
    chunky bar that drains in five countable steps. */
-.seat.is-callout {
+/* The three-second window the client dramatises. The seat itself is the
+   button (see `.seat.is-target` in the seating block); this class is what the
+   drain bar hangs on while the window is open. */
+.seat.is-callout .pizza-box__base,
+.seat.is-callout .pizza-box__lid {
   border-style: dashed;
   border-color: var(--sauce);
 }
