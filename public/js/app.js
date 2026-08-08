@@ -363,6 +363,10 @@ function paintScreen(name) {
     screen.classList.toggle('is-active', active);
     screen.inert = !active;
   }
+  // 1A · the cabinet only exists around the play column. Home and lobby float
+  // in the void on a transparent screen, so panels left standing would show
+  // straight through them.
+  syncCabinet();
 }
 
 /**
@@ -3247,15 +3251,92 @@ const PANEL_MIN = 200;
 
 /**
  * The single place that decides what the cabinet is showing. Called from the
- * render path (so the panels move with the snapshot) and from resize (so they
- * appear and vanish with the width).
+ * render path (so the panels move with the snapshot), from resize (so they
+ * appear and vanish with the width) and from the screen swap (so a cabinet-wide
+ * window does not leave the pizzeria standing behind the home screen).
  */
 function syncCabinet(snapshot) {
   if (!el.shell) return;
   if (snapshot) ui.cabSnapshot = snapshot;
+
   const width = panelWidth();
   el.shell.classList.toggle('is-capped', width > 0);
+
+  const wanted = width > PANEL_MIN && ui.screen === 'game';
+  el.shell.classList.toggle('has-panels', wanted);
+  if (!wanted) {
+    dropPanels();
+    return;
+  }
+  if (!ui.cabPanels) ui.cabPanels = buildPanels();
+  paintPanels(ui.cabSnapshot);
 }
+
+/** Absent, not hidden: below the threshold the room is not in the document. */
+function dropPanels() {
+  if (!ui.cabPanels) return;
+  ui.cabPanels.left.remove();
+  ui.cabPanels.right.remove();
+  ui.cabPanels = null;
+}
+
+/**
+ * Built here rather than in index.html for the same reason the sound screw is:
+ * the markup keeps exactly the ids it has, and nothing that only exists above a
+ * width belongs in the document that ships to a phone.
+ *
+ * The whole cabinet is `aria-hidden`. Every value on it is already announced by
+ * the board it decorates — the topping badge is a live region, the scores are
+ * read from the round dialog — so exposing it again would only double up.
+ */
+function buildPanels() {
+  const left = panelShell('left');
+  const wordmark = document.createElement('span');
+  wordmark.className = 'cab-wordmark';
+  wordmark.textContent = 'ZA! ARCADE';
+  const fame = document.createElement('div');
+  fame.className = 'cab-fame';
+  left.append(wordmark, fame, artWindow('cabinet-left.png'));
+
+  const right = panelShell('right');
+  const special = document.createElement('div');
+  special.className = 'cab-special';
+  right.append(special, artWindow('cabinet-right.png'));
+
+  el.shell.append(left, right);
+  return { left, right, fame, special };
+}
+
+function panelShell(side) {
+  const node = document.createElement('aside');
+  node.className = `cab-panel cab-panel--${side}`;
+  node.setAttribute('aria-hidden', 'true');
+  return node;
+}
+
+/**
+ * The mural in its frame. The dashed window IS the frame in both states, so a
+ * mural that fails to load leaves the handoff's placeholder rather than a
+ * broken-image box — the panels were designed to read correctly either way.
+ */
+function artWindow(file) {
+  const frame = document.createElement('div');
+  frame.className = 'cab-art';
+  const note = document.createElement('span');
+  note.className = 'cab-art__note';
+  note.textContent = 'SIDE ART';
+  const img = document.createElement('img');
+  img.className = 'cab-art__img';
+  img.alt = '';
+  img.decoding = 'async';
+  img.addEventListener('error', () => img.remove(), { once: true });
+  img.src = `assets/${file}`;
+  frame.append(note, img);
+  return frame;
+}
+
+/** Filled by the next step; the panels are furniture until then. */
+function paintPanels() {}
 
 // ---------------------------------------------------------- sound toggle ----
 /**

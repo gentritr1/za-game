@@ -3952,6 +3952,174 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .screw:hover .screw__head { border-color: var(--ui-cyan); }
 }
 
+/* ------------------------------------------------------ 1A · the cabinet -- */
+/* Past the cap the leftover width stops being void and becomes the room the
+   game is set in. The panels are absolutely positioned siblings of the play
+   column inside the shell, which is what lets the column keep the screen
+   machinery it already has — `.screen--game` is still an absolutely positioned
+   screen that fades with every other screen, it just starts `--panel-w` in.
+
+   They are built and destroyed by the client, never hidden: below the threshold
+   there is no room, so there is no furniture in the document either.
+
+   `--cab-pad-x` is named because the art window has to undo it — the mural
+   bleeds to the cabinet's edge, so the window is `--panel-w` wide, not
+   `--panel-w` minus the panel's own padding. */
+.cab-panel {
+  --cab-pad-x: 20px;
+
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--panel-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 26px var(--cab-pad-x);
+  overflow: hidden;
+  /* Panel fill under the same 22px checker the card backs use. */
+  background: var(--cabinet) var(--checker);
+}
+
+.cab-panel--left { left: 0; }
+.cab-panel--right { right: 0; }
+
+/* With a room either side, the play column reads as the monitor inside it. */
+.shell.has-panels .screen--game {
+  border-left: var(--bd-card) solid var(--bezel);
+  border-right: var(--bd-card) solid var(--bezel);
+}
+
+/* The cabinet's own name, running up the left panel. `vertical-rl` plus the
+   180° turn is what puts the baseline on the left edge reading bottom-to-top;
+   `nowrap` keeps it one column when the panel is narrow. */
+.cab-wordmark {
+  flex: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  margin: 0 auto;
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: .08em;
+  white-space: nowrap;
+  color: var(--cheese);
+  text-shadow: 3px 3px 0 var(--sauce);
+}
+
+.cab-panel__label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: var(--ui-cyan);
+}
+
+/* ---- the wall of fame ---- */
+.cab-fame,
+.cab-special {
+  flex: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cab-fame { gap: var(--s2); }
+
+.cab-fame__list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: var(--font);
+  font-size: var(--fs-ui);
+  letter-spacing: .08em;
+  color: var(--text);
+}
+
+.cab-fame__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.cab-fame__who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cab-fame__wins {
+  flex: none;
+  color: var(--cheese);
+}
+
+/* Fourth place is on the wall but not lit — the drop to --text-dim is what
+   makes the top three read as the top three. */
+.cab-fame__row:nth-child(4),
+.cab-fame__row:nth-child(4) .cab-fame__wins { color: var(--text-dim); }
+
+/* ---- today's special ---- */
+.cab-special {
+  gap: 9px;
+  padding: var(--s3);
+  background: var(--console);
+  border: var(--bd-thin) solid var(--bezel);
+}
+
+.cab-panel__label--special { color: var(--basil); }
+
+.cab-special__dish {
+  font-family: var(--font-script);
+  font-size: 31px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.cab-special__note {
+  font-family: var(--font);
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: .06em;
+  color: var(--text-dim);
+}
+
+/* ---- the art windows ---- */
+/* `--panel-w` wide and 4:3 tall, which is the `panel-w * 1.33` the art was cut
+   to. The negative inline margin is how it reaches the cabinet's edges through
+   the panel's own padding. */
+.cab-art {
+  position: relative;
+  flex: none;
+  width: var(--panel-w);
+  margin-inline: calc(-1 * var(--cab-pad-x));
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--cabinet);
+  border: var(--bd-thin) dashed var(--bezel);
+}
+
+.cab-art__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Uncovered only when a mural fails to load: the dashed window over cabinet is
+   the shipping placeholder from the handoff, not a broken-image box. */
+.cab-art__note {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: var(--ui-cyan);
+}
+
 /* ------------------------------------------------- big-screen notches ----- */
 /* A 27-inch monitor was showing the same 84px cards as a laptop, adrift in
    void. The cabinet steps up in whole notches instead of scaling smoothly:
