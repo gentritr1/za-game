@@ -1151,6 +1151,33 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   100% { border-color: var(--cheese); }
 }
 
+/* --- 2B/7 · the strip advances one slot ------------------------------------
+   The chef who just played wraps to the tail and everybody shuffles up one.
+   The chips renumber on the frame the slide lands, with no tween, because an
+   ordinal that counts down is a lie about what happened. `order` does the
+   re-sorting, so the seats are moved rather than rebuilt and each one carries
+   its own transform. */
+.opponents[data-mode="queue"] .seat__body {
+  transition: transform 240ms steps(3, end);
+}
+
+/* The reverse re-forms the tail behind the head: a hard swap, not a slide. A
+   queue re-forming is a thing a queue is allowed to do, where a row of seats
+   shuffling is not. */
+.opponents[data-mode="queue"].is-reforming .seat__body {
+  transition: transform 200ms steps(2, end);
+}
+
+/* --- 2A/8 · the marquee hands its chevrons back ---------------------------
+   With the counter built, direction is furniture: the token walks it. So the
+   five-chevron chase comes out at counter widths and the turn text takes the
+   whole strip. Below the breakpoint the queue has no token, so the chase — and
+   the static arrow that replaces it under reduced motion — comes back. The
+   visually-hidden direction words in .marquee__sr stay at every width. */
+@media (min-width: 520px) {
+  .marquee__dir { display: none; }
+}
+
 /* The conveyor belt under the strip, scrolling in the direction of play. It is
    an overflowing tread moved by a transform rather than a scrolled background
    position, because nothing in this cabinet animates a layout property. */
@@ -4177,6 +4204,47 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   /* The ping stops travelling but the rail keeps its warm keyline: the turn
      is still stated, it just no longer moves. */
   .hand-zone.is-your-turn .hand-bar::after { opacity: .9 !important; transform: none !important; }
+
+  /* --- 2A/8 · the seating under reduced motion ----------------------------
+     Every state stays readable, because the arrangement is carrying the
+     meaning and the motion was only ever confirming it.
+
+     The belt stops dead. The token jumps rather than walks — it is still in
+     the right place and still pointing the right way, it simply gets there on
+     one frame. The ring stops breathing but stays lit, because the ring is
+     what says whose turn it is. And the one-card pulse becomes a static sauce
+     ring: the most dangerous moment in the game must not depend on a blink. */
+  .counter-belt__tread {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .counter-token,
+  .counter-token.is-turning {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .seat.is-turn .seat__ring,
+  .seat.is-target .seat__ring {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .seat[data-hand="one"] .seat__sliver {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .seat[data-hand="one"] .seat__count { animation: none !important; }
+
+  /* The slide and the re-forming swap both stop being travel. */
+  .opponents[data-mode="queue"] .seat__body,
+  .opponents[data-mode="queue"].is-reforming .seat__body {
+    transition: none !important;
+    transform: none !important;
+  }
 
   /* The countdown is the only thing telling a player the round restarts by
      itself. It keeps its five seconds; the five steps flatten to a slide via

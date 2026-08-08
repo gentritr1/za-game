@@ -159,6 +159,8 @@ const ui = {
   belt: null, // 2B · the conveyor under the queue, built once
   token: null, // 2A · the chevron that walks the counter, built once
   tokenTurnTimer: 0,
+  queuePlaced: false, // 2B · true once the strip has laid out at least once
+  queueSlideTimer: 0,
   gameId: null,
   lastLogId: -1,
   pendingWild: null, // { cardId, sourceEl }
@@ -1120,11 +1122,20 @@ const COUNTER_MAP = {
 /* The one breakpoint. Below it the counter hands over to the queue — said
    once here and once in the stylesheet, and nowhere else. Both are read
    through the same media engine, so they cannot silently disagree. */
-const QUEUE_BELOW = '(max-width: 519.98px)';
+const QUEUE_BELOW = window.matchMedia('(max-width: 519.98px)');
 
 function seatingMode() {
-  return window.matchMedia(QUEUE_BELOW).matches ? 'queue' : 'counter';
+  return QUEUE_BELOW.matches ? 'queue' : 'counter';
 }
+
+/**
+ * Crossing the breakpoint is a discrete event, not a continuous one, so it
+ * gets its own listener rather than riding the resize handler's
+ * requestAnimationFrame — a backgrounded tab throttles rAF away entirely, and
+ * a phone that came back from the background showing a counter it cannot fit
+ * would be the arrangement lying about which mode it is in.
+ */
+QUEUE_BELOW.addEventListener('change', () => relayoutSeating());
 
 /**
  * 2A/6 · place the seats.
@@ -1269,6 +1280,13 @@ function placeSeats(order, ranks, view) {
     const sorted = order
       .map((node) => ({ node, rank: Number(node.dataset.rank) }))
       .sort((a, b) => (a.rank < 0 ? 99 : a.rank) - (b.rank < 0 ? 99 : b.rank));
+
+    // Where every chef stood before the sort. `offsetLeft` rather than a rect:
+    // a rect read mid-transition returns the transformed position, and the
+    // whole point of this measurement is where the seat BELONGS.
+    const slid = ui.queuePlaced;
+    const before = new Map(order.map((node) => [node, node.offsetLeft]));
+
     sorted.forEach(({ node, rank }, index) => {
       node.style.removeProperty('left');
       node.style.removeProperty('right');
@@ -1281,11 +1299,49 @@ function placeSeats(order, ranks, view) {
       node.dataset.box = port >= 40 ? '1' : '0';
       node.style.order = String(index);
     });
+    ui.queuePlaced = true;
+
+    // `order` re-sorts on the frame it is set — there is nothing to tween. So
+    // the slide is handed back: each seat is put where it just was and then
+    // walks to where it now belongs, one slot, in three visible steps. The
+    // chips have already renumbered, which is the point: an ordinal that
+    // counts down while the seat travels is a lie about what happened.
+    el.opponents.classList.toggle('is-reforming', Boolean(ui.dirJustFlipped));
+    if (!slid || !wantsMotion()) return;
+    let moved = false;
+    for (const node of order) {
+      const dx = before.get(node) - node.offsetLeft;   // forces the reflow
+      const body = node._parts.body;
+      if (Math.abs(dx) < 1) continue;
+      moved = true;
+      body.style.transition = 'none';
+      body.style.transform = `translateX(${dx.toFixed(1)}px)`;
+    }
+    if (!moved) return;
+    const release = () => {
+      for (const node of order) {
+        node._parts.body.style.removeProperty('transition');
+        node._parts.body.style.removeProperty('transform');
+      }
+    };
+    requestAnimationFrame(release);
+    // A backgrounded tab throttles rAF away entirely, and a strip left holding
+    // its inverse offsets would come back from the background with every chef
+    // one slot to the left of where they belong. The timer is the belt.
+    clearTimeout(ui.queueSlideTimer);
+    ui.queueSlideTimer = setTimeout(release, 300);
     return;
   }
 
+  // Leaving the queue: forget where the strip stood, and clear anything a
+  // slide left behind, or the first counter frame starts from a stale offset.
+  ui.queuePlaced = false;
+  el.opponents.classList.remove('is-reforming');
+
   const map = COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
   order.forEach((node, index) => {
+    node._parts.body.style.removeProperty('transition');
+    node._parts.body.style.removeProperty('transform');
     const spot = map[Math.min(index, map.length - 1)];
     // A chef along the top is centred on their percentage; one down a wall is
     // hung off that wall, so the outer seats stay on the felt instead of half
