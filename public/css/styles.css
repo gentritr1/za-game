@@ -1568,6 +1568,34 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding-top: 14px;
 }
 
+/* A rail that cannot fit even at MAX_OVERLAP scrolls rather than hanging its
+   far cards off a screen that clips (see `layoutNear`). Two things have to
+   change with the overflow, and both are the difference between a scrollbar
+   that works and one that lies:
+   - centring goes. A centred flex row in a scroll container puts its first
+     item at a negative offset no scrollbar can reach, so the rail packs from
+     the start line the moment it takes one.
+   - the block axis becomes a scrollport too, the instant the inline one does.
+     The 12px lift on a playable card, its 4deg nudge and its focus ring were
+     living in 14px of padding that the unscrolled rail could overflow for
+     free; scrolling would clip all three, so the room is made real. */
+.hand__near.is-scrolling {
+  justify-content: flex-start;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-top: 24px;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bezel) transparent;
+}
+
+/* WebKit draws nothing from `scrollbar-width`, so the kit's colours are stated
+   for it by hand. Square, hard, 6px: cabinet hardware, not a system widget. */
+.hand__near.is-scrolling::-webkit-scrollbar { height: 6px; }
+.hand__near.is-scrolling::-webkit-scrollbar-track { background: var(--console); }
+.hand__near.is-scrolling::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 0; }
+
 .hand[data-mode="review"] .hand__near {
   min-height: 0;
   padding-top: 0;

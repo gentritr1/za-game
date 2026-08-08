@@ -2019,6 +2019,17 @@ function bindPit() {
     if (event.relatedTarget && el.handPit.contains(event.relatedTarget)) return;
     clearPeek();
   });
+
+  // A rail wide enough to scroll (see `layoutNear`) can hold a card that is
+  // off the right edge when Tab reaches it. Pointer scrolling is the browser's
+  // job; bringing the focused card with the focus is ours. `inline: 'nearest'`
+  // moves it the least distance that makes it whole, so tabbing along a full
+  // rail walks the strip rather than jumping it card by card.
+  el.handNear.addEventListener('focusin', (event) => {
+    if (!el.handNear.classList.contains('is-scrolling')) return;
+    const slot = event.target.closest('.hand-slot');
+    if (slot) slot.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  });
 }
 
 /**
@@ -2042,7 +2053,10 @@ const BANNER_PAD = 8;
 function layoutNear(entries) {
   ui.nearRow = entries;
   const total = entries.length;
-  if (!total) return;
+  if (!total) {
+    el.handNear.classList.remove('is-scrolling');
+    return;
+  }
 
   // The live width, not the configured one: the rail forces 84px on every
   // screen and this is the only place that can tell whether it got it.
@@ -2060,6 +2074,14 @@ function layoutNear(entries) {
     gap = Math.floor((available - total * cardWidth) / (total - 1));
     gap = Math.max(gap, -Math.round(cardWidth * MAX_OVERLAP));
   }
+
+  // MAX_OVERLAP is a floor, and a floor can be too high. Twelve live cards want
+  // 502px of rail at full overlap and a 375px phone has 335 — the far cards
+  // used to sit off the edge of a screen that clips, unreachable by thumb and
+  // by Tab. Nothing shrinks and nothing hides further than the floor, so the
+  // rail scrolls instead: every card stays 84px, and every card stays gettable.
+  const rides = total * cardWidth + (total - 1) * gap;
+  el.handNear.classList.toggle('is-scrolling', total > 1 && rides > available);
 
   entries.forEach(({ slot }, index) => {
     slot.style.setProperty('--overlap', `${gap}px`);
