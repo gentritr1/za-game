@@ -43,8 +43,8 @@ const el = {
   hudCodeText: $('hud-code-text'),
   turnBanner: $('turn-banner'),
   turnText: $('turn-text'),
-  dirIndicator: $('dir-indicator'),
-  dirText: $('dir-text'),
+  dirChase: $('dir-chase'),
+  dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
   // table
   opponents: $('opponents'),
@@ -186,6 +186,7 @@ const ui = {
   shoutArmedAt: 0, // when the shout became legal, for the timing score
   dirJustFlipped: false,
   btnMute: null,
+  muteLabel: null,
   // ---- juice & retention (tiles 01-14). All client-side, none of it a rule.
   booted: false, // 14 · the first paint never gets a shutter
   shutter: null, // 14 · the corrugated screen-change cover
@@ -452,7 +453,7 @@ async function copyCode(chip) {
 // Pressable things answer on pointer-down, not on release.
 document.addEventListener('pointerdown', (event) => {
   const target = event.target.closest(
-    '.btn, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
+    '.btn, .screw, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
   );
   if (!target || target.disabled) return;
   target.classList.add('is-pressed');
@@ -979,13 +980,27 @@ function renderGame(snapshot) {
   armNudge(yourTurn, view.playableCardIds.length > 0);
 }
 
+/**
+ * The marquee has three moments and they are mutually exclusive.
+ *
+ * The third one — the call-out window — is read off `calloutTargets`, the same
+ * field that governs the CALL OUT button, so the strip goes to sauce exactly
+ * while calling out is legal and never on a state the server did not send. It
+ * outranks "your turn" on purpose: the window closes on its own, your turn
+ * does not, and the rail's ping still says whose turn it is underneath.
+ */
 function renderTurnBanner(snapshot, view, yourTurn) {
-  el.turnBanner.classList.toggle('is-you', yourTurn);
-  setTurnText(turnLabel(view, yourTurn));
+  const callout = view.status === 'playing' && (view.calloutTargets || []).length > 0;
+  el.turnBanner.classList.toggle('is-callout', callout);
+  el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
+  setTurnText(turnLabel(view, yourTurn, callout));
 }
 
-function turnLabel(view, yourTurn) {
+function turnLabel(view, yourTurn, callout) {
   if (view.status !== 'playing') return 'Round over';
+  // The alarm colour needs a line that earns it. Whose turn it is is still on
+  // screen either way — the rail is ringed and the hint under the hand says so.
+  if (callout) return 'Somebody forgot to shout!';
   if (yourTurn) return view.mustPlayDrawnCard ? 'Your turn — play it or pass' : 'Your turn, chef';
   const current = view.players.find((p) => p.id === view.turnPlayerId);
   return current ? `${current.name} is eyeing the pile…` : 'Waiting…';
@@ -1010,29 +1025,28 @@ function setTurnText(text) {
   );
 }
 
+/**
+ * Direction now lives inside the marquee. `.is-reversed` on the banner flips
+ * the chase's delay order — the glyphs never turn around, the wave does — and
+ * the same class mirrors the static arrow that replaces the chase under
+ * reduced motion. The words are kept in a visually-hidden node so a screen
+ * reader still hears the direction change on the banner's own live region.
+ */
 function renderDirection(view) {
-  el.dirIndicator.classList.toggle('is-reversed', view.direction === -1);
-  el.dirText.textContent = view.direction === 1 ? 'to the left' : 'to the right';
+  const reversed = view.direction === -1;
+  el.turnBanner.classList.toggle('is-reversed', reversed);
+  const words = reversed ? 'to the right' : 'to the left';
+  if (el.dirAnnounce.textContent !== words) el.dirAnnounce.textContent = words;
 
-  // F · Flip the Pie. The arrow does a show-off spin and then flashes cyan
-  // twice; renderOpponents picks the flag up and reorders the seats without a
-  // tween, so the panels swap rather than slide.
+  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip;
+  // renderOpponents picks the flag up and reorders the seats without a tween,
+  // so the panels swap rather than slide.
   const flipped = Boolean(ui.prevDir && ui.prevDir !== view.direction);
   ui.dirJustFlipped = flipped;
   if (flipped) {
-    const arrow = el.dirIndicator.querySelector('.dir-arrow');
-    if (arrow) {
-      restartAnimation(arrow, 'is-flipping', 'dir-flash');
-      setTimeout(() => arrow.classList.remove('is-flipping'), 520);
-    }
+    restartAnimation(el.dirChase, 'is-flipping', 'dir-flash');
+    setTimeout(() => el.dirChase.classList.remove('is-flipping'), 520);
     sound.play('tape-scrub');
-  }
-  if (flipped && wantsMotion() && typeof el.dirIndicator.animate === 'function') {
-    for (const running of el.dirIndicator.getAnimations()) running.cancel();
-    el.dirIndicator.animate(
-      [{ transform: 'rotate(0deg)' }, { transform: `rotate(${view.direction === -1 ? '' : '-'}360deg)` }],
-      { duration: 450, easing: EASE_OUT }
-    );
   }
   ui.prevDir = view.direction;
 }
@@ -3206,7 +3220,14 @@ function playShout() {
 function buildMuteToggle() {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'btn btn--quiet btn--sm hud__mute';
+  button.className = 'screw screw--sound';
+  const head = document.createElement('span');
+  head.className = 'screw__head';
+  head.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.className = 'screw__label';
+  button.append(head, label);
+  ui.muteLabel = label;
 
   button.addEventListener('click', () => {
     sound.muted = !sound.muted;
@@ -3224,7 +3245,10 @@ function paintMuteToggle() {
   const button = ui.btnMute;
   if (!button) return;
   const on = !sound.muted;
-  button.textContent = on ? 'SND ON' : 'SND OFF';
+  // The label is a child now (the head is the other one), so the text goes
+  // into it rather than onto the button — writing the button would wipe the
+  // screw head out of the DOM.
+  ui.muteLabel.textContent = on ? 'SND ON' : 'SND OFF';
   button.setAttribute('aria-pressed', String(on));
 }
 
