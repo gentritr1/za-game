@@ -4416,12 +4416,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .lobby-note::before { content: "> "; color: var(--ui-cyan); }
 
-/* The attract line at the foot of the home screen. */
+/* The attract line at the foot of the home screen. In flow, not absolute:
+   an absolutely-positioned line inside the SCROLLING screen scrolled with
+   the content and landed on the panel's hint at 375x812. As the grid's own
+   foot row it sits at the bottom when there is room and below the panel
+   when there is not — it can no longer sit ON anything. */
+.screen--home { grid-template-rows: minmax(min-content, 1fr) auto; }
+
 .attract-line {
-  position: absolute;
-  bottom: 14px;
-  left: 0;
-  right: 0;
+  margin: var(--s3) 0 2px;
   text-align: center;
   font-family: var(--font-display);
   font-size: 12px;
