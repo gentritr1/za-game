@@ -98,3 +98,45 @@ Rules for the whole job:
   along with the scrolling strip and its edge fades.
 - Ask before adding any dependency. The project has exactly one (`ws`) and
   should keep it.
+
+---
+
+## As shipped — resolutions for four ambiguities in the steps above
+
+The spec above is the handoff as received and is left unedited. These are the
+calls the implementation made where it was imprecise or self-contradictory, so
+the next reader does not have to re-derive them from the code.
+
+**Step 4, banner placement.** The rule shipped as one deterministic measurement
+for every card in the near rail, with no exemption for live cards: exposed width
+is the card's own width for the last card in the rail and `width + gap` (gap is
+negative) for any card the next one covers. A label prints only if it fits that
+width (VT323 at 13px runs 5.3px a character, plus 8px for the inset); a covered
+card takes the three-letter token; a strip too narrow even for the token prints
+nothing. The step's justification — "any live card, which the 7px neighbour part
+already gives 57px of face" — refers to the hover parting of the fan this
+redesign deletes, so it does not apply: a live card past four in the rail is
+covered like any other and takes its token. The crowded-hand banner hide is gone.
+
+**Step 5, the scrub across two rows.** The pit wraps to two rows in review mode,
+which the step does not address. The pointer maps to a rib by nearest squared
+distance on *both* axes, so a finger between rows resolves to the nearer one and
+the mapping stays continuous across the wrap. The 84px peek is clamped to the
+hand's own width and lands below the pit, over the near rail, in both modes.
+
+**Step 5, the peek and the keyboard.** The scrub is pointer-only, so focus is the
+keyboard's way in: ribs stay focusable (`aria-disabled`, never `disabled`),
+landing on one shows the same peek and leaving it clears it. The peek itself is
+`aria-hidden` — it duplicates a rib that is already in the accessibility tree
+with its own label, and naming it too would announce every card twice. The pit
+carries a live label with its own count ("18 cards, drag across to review them").
+
+**Step 6, promotion timing.** The step says a drawn card promotes and also that
+promotions "never" fire mid-turn; a draw does not change the top card, so those
+cannot both hold. As shipped there are exactly two triggers: a snapshot where the
+top card or the turn changed (the only things that can change what is playable),
+and your own draw, which promotes after its flight lands. Both are your own
+actions or a new turn, so the near rail still holds still for the whole of a turn
+you are thinking through. A dealt hand is not a draw — it arrives sorted and goes
+straight to the rail each card belongs in, rather than promoting seven cards
+across the deal stagger.
