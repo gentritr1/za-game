@@ -3775,6 +3775,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .card--rib { --card-w: 24px; }
   .hand[data-mode="review"] .card--rib { --card-w: 38px; }
   .hud__turn { font-size: 16px; }
+  .marquee__mark { font-size: 21px; }
+  .marquee__dir { font-size: 17px; }
   .table { --chef-col: 210px; }
   .seat__name { font-size: 20px; }
   .log { font-size: 19px; }
@@ -3785,6 +3787,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hand__near .hand-slot, .hand__peek .card { --card-w: 116px; }
   .table-center, .card--pile { --card-w: 128px; }
   .hud__turn { font-size: 18px; }
+  .marquee__mark { font-size: 23px; }
+  .marquee__dir { font-size: 19px; }
 }
 
 /* The direction text was a cramped afterthought in the HUD's right cluster.
