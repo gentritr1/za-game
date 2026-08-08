@@ -43,8 +43,8 @@ const el = {
   hudCodeText: $('hud-code-text'),
   turnBanner: $('turn-banner'),
   turnText: $('turn-text'),
-  dirIndicator: $('dir-indicator'),
-  dirText: $('dir-text'),
+  dirChase: $('dir-chase'),
+  dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
   // table
   opponents: $('opponents'),
@@ -1010,29 +1010,28 @@ function setTurnText(text) {
   );
 }
 
+/**
+ * Direction now lives inside the marquee. `.is-reversed` on the banner flips
+ * the chase's delay order — the glyphs never turn around, the wave does — and
+ * the same class mirrors the static arrow that replaces the chase under
+ * reduced motion. The words are kept in a visually-hidden node so a screen
+ * reader still hears the direction change on the banner's own live region.
+ */
 function renderDirection(view) {
-  el.dirIndicator.classList.toggle('is-reversed', view.direction === -1);
-  el.dirText.textContent = view.direction === 1 ? 'to the left' : 'to the right';
+  const reversed = view.direction === -1;
+  el.turnBanner.classList.toggle('is-reversed', reversed);
+  const words = reversed ? 'to the right' : 'to the left';
+  if (el.dirAnnounce.textContent !== words) el.dirAnnounce.textContent = words;
 
-  // F · Flip the Pie. The arrow does a show-off spin and then flashes cyan
-  // twice; renderOpponents picks the flag up and reorders the seats without a
-  // tween, so the panels swap rather than slide.
+  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip;
+  // renderOpponents picks the flag up and reorders the seats without a tween,
+  // so the panels swap rather than slide.
   const flipped = Boolean(ui.prevDir && ui.prevDir !== view.direction);
   ui.dirJustFlipped = flipped;
   if (flipped) {
-    const arrow = el.dirIndicator.querySelector('.dir-arrow');
-    if (arrow) {
-      restartAnimation(arrow, 'is-flipping', 'dir-flash');
-      setTimeout(() => arrow.classList.remove('is-flipping'), 520);
-    }
+    restartAnimation(el.dirChase, 'is-flipping', 'dir-flash');
+    setTimeout(() => el.dirChase.classList.remove('is-flipping'), 520);
     sound.play('tape-scrub');
-  }
-  if (flipped && wantsMotion() && typeof el.dirIndicator.animate === 'function') {
-    for (const running of el.dirIndicator.getAnimations()) running.cancel();
-    el.dirIndicator.animate(
-      [{ transform: 'rotate(0deg)' }, { transform: `rotate(${view.direction === -1 ? '' : '-'}360deg)` }],
-      { duration: 450, easing: EASE_OUT }
-    );
   }
   ui.prevDir = view.direction;
 }

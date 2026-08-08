@@ -98,14 +98,24 @@
         <span class="code-chip__done" aria-hidden="true">Copied</span>
       </button>
 
-      <p class="hud__turn" id="turn-banner" role="status" aria-live="polite">
-        <span class="turn-dot" aria-hidden="true"></span>
+      <!-- THE MARQUEE. One strip carries all three things the header used to
+           spread across the top edge: the cabinet's name, the turn state, and
+           the direction of play. The direction is the five-chevron chase on
+           the right — the chase runs the other way after a flip, so no word is
+           needed; the word still exists for screen readers in .marquee__sr,
+           and a static arrow takes over under prefers-reduced-motion. -->
+      <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
+        <span class="marquee__mark" aria-hidden="true">ZA!</span>
         <span class="turn-label" id="turn-text">Waiting…</span>
-      </p>
-
-      <p class="hud__dir" id="dir-indicator">
-        <span class="dir-arrow" id="dir-arrow" data-icon="cycle" aria-hidden="true">↻</span>
-        <span id="dir-text">to the left</span>
+        <span class="marquee__dir" id="dir-chase" aria-hidden="true">
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="marquee__arrow" data-icon="cycle">↻</span>
+        </span>
+        <span class="marquee__sr" id="dir-announce">to the left</span>
       </p>
 
       <button class="btn btn--quiet btn--sm" id="btn-leave-game" type="button">Leave</button>
