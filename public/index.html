@@ -55,7 +55,9 @@
       <p class="hint">2 to 8 players. Nobody around? Hire a chef bot in the lobby.</p>
       <!-- The zine is static, lives under public/blog/, and is linked by file:
            the static handler serves files only and has no directory index. -->
-      <p class="hint"><a class="hint" href="blog/index.html"
+      <p class="hint"><button class="quiet-link" id="btn-rules-home" type="button">HOUSE RULES</button>
+         <span aria-hidden="true"> · </span>
+         <a class="hint" href="blog/index.html"
          style="color: var(--ui-cyan); text-decoration: none; border-bottom: 2px solid var(--bezel);"
          >READ THE ZINE</a></p>
     </div>
@@ -72,6 +74,7 @@
           <span class="code-chip__done" aria-hidden="true">Copied</span>
         </button>
         <p class="hint">Tap the code to copy it, then send it round so your friends can sit down.</p>
+        <p class="hint"><button class="quiet-link" id="btn-rules-lobby" type="button">HOUSE RULES</button></p>
       </header>
 
       <ul class="seat-list" id="seat-list"></ul>
@@ -223,6 +226,24 @@
       <button class="btn btn--ghost" id="btn-to-lobby" type="button">Back to the parlour</button>
     </div>
     <p class="hint" id="round-wait"></p>
+  </div>
+</div>
+
+<!-- ============================ HOUSE RULES ============================ -->
+<!-- A sibling of the round-over dialog, and outside #app for the same reason:
+     an open modal makes #app inert, and a dialog inside an inert subtree can
+     be neither read nor reached. The body is filled once by app.js — the five
+     action-card frames have to come from renderCard(), which is the only place
+     in the client allowed to build card markup. -->
+<div class="overlay" id="overlay-rules" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+  <div class="dialog dialog--rules" id="rules-dialog" tabindex="-1">
+    <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
+    <!-- The scroll lives here, not on the dialog: the dialog stays clipped in
+         both axes, so nothing can ever scroll sideways. `tabindex` is what
+         lets a keyboard reach the scroll on an engine that does not focus
+         scrollers by itself. -->
+    <div class="rules" id="rules-body" tabindex="0"></div>
+    <button class="btn btn--primary btn--block" id="btn-rules-close" type="button">Close</button>
   </div>
 </div>
 
