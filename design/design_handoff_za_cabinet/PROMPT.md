@@ -119,3 +119,19 @@ Rules for the whole job:
   blurs, nothing rounds.
 - Ask before adding any dependency. The project has exactly one (`ws`) and
   should keep it.
+
+---
+
+## As shipped — the shell's cap is gated behind a length
+
+Step 4's arithmetic — `--play-max` parked at `none`,
+`--panel-w: max(0, (100vw - var(--play-max)) / 2)` — cannot ship literally:
+`max()` needs `0px` rather than a bare `0` beside a length, and a `calc()`
+over `none` is invalid, while a custom property that is present but unusable
+never triggers `var()` fallback, so consumers would silently compute `auto`.
+The shipped shell keeps `--play-max` as the statement of intent and gates the
+arithmetic behind `--play-cap`, the cap expressed as a length (`100vw` while
+uncapped): `--panel-w: max(0px, (100vw - var(--play-cap)) / 2)`. The identity
+`panel-w * 2 + play-cap = 100vw` holds exactly on both sides of the cabinet
+step; a direction that caps the playfield sets both properties. Full
+reasoning in `PROMPT-marquee.md`'s matching section.

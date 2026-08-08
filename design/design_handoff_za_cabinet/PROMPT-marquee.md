@@ -87,3 +87,24 @@ Rules for the whole job:
   blurs, nothing rounds.
 - The pit and its rib mode, shipped in the previous handoff, are untouched.
 - Ask before adding any dependency. The project has exactly one (`ws`).
+
+---
+
+## As shipped — the shell's cap is gated behind a length
+
+Step 6 as received parks `--play-max` at `none` and derives
+`--panel-w: max(0, (100vw - var(--play-max)) / 2)`. That arithmetic cannot
+ship literally, twice over: `max()` needs `0px`, not a bare `0`, when its
+other branch is a length; and a `calc()` whose input is `none` is invalid —
+worse, a custom property that is *present but unusable* never triggers
+`var()` fallback, so every consumer would silently compute `auto` rather
+than `0px`.
+
+The shipped shell therefore splits the cap in two: `--play-max: none` stays
+as the statement of intent the direction step flips, and the arithmetic is
+gated behind `--play-cap`, the same cap expressed as a length — `100vw`
+while uncapped, so `--panel-w: max(0px, (100vw - var(--play-cap)) / 2)`
+computes a clean `0px` and the identity `panel-w * 2 + play-cap = 100vw`
+holds exactly on both sides of the cabinet step. A direction that caps the
+playfield sets both properties. The notch media queries are untouched, as
+specified.
