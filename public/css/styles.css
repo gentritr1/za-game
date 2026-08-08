@@ -3665,7 +3665,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   /* Where the slivers stand: on the floor of the tray, or on the table when
      the box has been dropped. */
   --sit: calc(var(--box-base-h) - 4px * var(--k, 1));
-  --hatch: repeating-linear-gradient(45deg, var(--cabinet-hi) 0 3px, var(--cabinet) 3px 6px);
+  /* cabinet-hi over cabinet was a hatch in name only — #151b33 stripes on
+     #101426 read as a black rectangle on the void. Bezel over cabinet is the
+     same weave with contrast that survives 25px. */
+  --hatch: repeating-linear-gradient(45deg, var(--bezel) 0 3px, var(--cabinet) 3px 6px);
 }
 
 /* Under 40px of portrait there is no room for a box, and no room to count
@@ -3693,7 +3696,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: var(--cw);
   height: var(--ch);
   background: var(--hatch);
-  border: 2px solid var(--void);
+  /* The keyline is what makes a sliver read as a CARD and not a shadow: the
+     ZA! back is cheese-on-navy, so its sliver is too. The void border it
+     replaces vanished into the felt. */
+  border: 2px solid var(--cheese);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, .45);
   transform-origin: 50% 128%;
   transform: translateX(-50%) rotate(var(--a, 0deg));
@@ -3709,10 +3715,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: var(--cw);
   height: var(--ch);
   background: var(--hatch);
-  border: 2px solid var(--void);
+  border: 2px solid var(--cheese);
   box-shadow:
-    -3px -3px 0 var(--cabinet-hi),
-    -6px -6px 0 var(--void),
+    -3px -3px 0 var(--bezel),
+    -6px -6px 0 var(--cabinet-hi),
     3px 3px 0 rgba(0, 0, 0, .5);
   transform: translateX(-50%);
 }
