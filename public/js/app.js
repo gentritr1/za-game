@@ -186,6 +186,7 @@ const ui = {
   shoutArmedAt: 0, // when the shout became legal, for the timing score
   dirJustFlipped: false,
   btnMute: null,
+  muteLabel: null,
   // ---- juice & retention (tiles 01-14). All client-side, none of it a rule.
   booted: false, // 14 · the first paint never gets a shutter
   shutter: null, // 14 · the corrugated screen-change cover
@@ -452,7 +453,7 @@ async function copyCode(chip) {
 // Pressable things answer on pointer-down, not on release.
 document.addEventListener('pointerdown', (event) => {
   const target = event.target.closest(
-    '.btn, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
+    '.btn, .screw, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
   );
   if (!target || target.disabled) return;
   target.classList.add('is-pressed');
@@ -3216,7 +3217,14 @@ function playShout() {
 function buildMuteToggle() {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'btn btn--quiet btn--sm hud__mute';
+  button.className = 'screw screw--sound';
+  const head = document.createElement('span');
+  head.className = 'screw__head';
+  head.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.className = 'screw__label';
+  button.append(head, label);
+  ui.muteLabel = label;
 
   button.addEventListener('click', () => {
     sound.muted = !sound.muted;
@@ -3234,7 +3242,10 @@ function paintMuteToggle() {
   const button = ui.btnMute;
   if (!button) return;
   const on = !sound.muted;
-  button.textContent = on ? 'SND ON' : 'SND OFF';
+  // The label is a child now (the head is the other one), so the text goes
+  // into it rather than onto the button — writing the button would wipe the
+  // screw head out of the DOM.
+  ui.muteLabel.textContent = on ? 'SND ON' : 'SND OFF';
   button.setAttribute('aria-pressed', String(on));
 }
 

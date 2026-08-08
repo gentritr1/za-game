@@ -2359,17 +2359,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    ========================================================================== */
 
 /* --- the sound toggle ---------------------------------------------------- */
-/* VT323 label, sits next to Leave in the HUD. Built in app.js so index.html
-   keeps the ids it has. */
-.hud__mute {
-  flex: none;
-  min-width: 82px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.hud__mute[aria-pressed="true"] { --btn-fg: var(--ui-cyan); }
-.hud__mute[aria-pressed="false"] { --btn-fg: var(--text-mute); }
+/* A screw on the bottom bezel now (see THE BEZEL RAIL). Still built in app.js
+   so index.html keeps the ids it has. */
+.screw--sound[aria-pressed="true"] .screw__label { color: var(--ui-cyan); }
+.screw--sound[aria-pressed="true"] .screw__head::before { opacity: 1; }
+.screw--sound[aria-pressed="false"] .screw__head::before { opacity: .35; }
 
 /* --- the frame moves as one --------------------------------------------- */
 /* A's screen shake and 6C's shove are applied to the three grid rows of the
@@ -2709,7 +2703,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      narrates flips), and the code chip tightens. */
   .hud { flex-wrap: wrap; row-gap: var(--s1); }
   .hud__turn { font-size: 11px; padding: var(--s2) var(--s2); order: 3; flex-basis: 100%; }
-  .hud__code { font-size: 15px; min-height: 40px; padding: var(--s1) var(--s2); }
 
   /* The attract logotype steps down to the mobile plate. */
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
@@ -3762,6 +3755,79 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    hide, halved lifts, a scrolling strip and its edge-fade mask. All of it came
    out with THE PIT. Nothing shrinks now — the pit is what makes the room, and
    the partition is what makes the hand readable at eighteen cards. */
+
+/* -------------------------------------------------- the bezel screws ------ */
+/* The top edge is the marquee's alone. Room code, sound and leave live on the
+   bottom bezel instead, drawn as the cabinet's own hardware: a 19px head with
+   a 3px bezel rim, a cyan slot turned to a different angle per control so the
+   three read apart at a glance, and a VT323 label beside it. Nothing here is
+   new behaviour — same ids, same handlers, same accessible names. */
+.screws {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2) var(--s6);
+}
+
+.screw {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: var(--s1) var(--s2);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-mute);
+  font-family: var(--font);
+  font-size: var(--fs-label);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color var(--d-fast) var(--ease-out),
+    transform var(--d-press) var(--ease-out);
+}
+
+.screw:active,
+.screw.is-pressed { transform: scale(.97); }
+
+.screw__head {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+  transition: border-color var(--d-fast) var(--ease-out);
+}
+
+/* The slot. One 11x3 bar, turned per control: flat for the code, canted for
+   sound, upright for leave. */
+.screw__head::before {
+  content: "";
+  display: block;
+  width: 11px;
+  height: 3px;
+  background: var(--ui-cyan);
+}
+
+.screw--code .screw__head::before { transform: rotate(0deg); }
+.screw--sound .screw__head::before { transform: rotate(45deg); }
+.screw--leave .screw__head::before { transform: rotate(90deg); }
+
+.screw__label {
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .screw:hover { color: var(--text); }
+  .screw:hover .screw__head { border-color: var(--ui-cyan); }
+}
 
 /* ------------------------------------------------- big-screen notches ----- */
 /* A 27-inch monitor was showing the same 84px cards as a laptop, adrift in

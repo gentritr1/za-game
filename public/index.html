@@ -92,12 +92,6 @@
   <section class="screen screen--game" data-screen="game" aria-label="Game table" hidden>
 
     <header class="hud">
-      <button class="hud__code code-chip code-chip--sm" id="hud-code" type="button">
-        <span id="hud-code-text">PIZZA-0000</span>
-        <span class="code-chip__icon" data-icon="copy" aria-hidden="true">⧉</span>
-        <span class="code-chip__done" aria-hidden="true">Copied</span>
-      </button>
-
       <!-- THE MARQUEE. One strip carries all three things the header used to
            spread across the top edge: the cabinet's name, the turn state, and
            the direction of play. The direction is the five-chevron chase on
@@ -117,8 +111,6 @@
         </span>
         <span class="marquee__sr" id="dir-announce">to the left</span>
       </p>
-
-      <button class="btn btn--quiet btn--sm" id="btn-leave-game" type="button">Leave</button>
     </header>
 
     <div class="table">
@@ -167,6 +159,25 @@
         <div class="hand__pit" id="hand-pit" role="group" aria-label="No dead cards"></div>
         <div class="hand__near" id="hand-near" role="group" aria-label="Cards you can play"></div>
         <div class="hand__peek" id="hand-peek" aria-hidden="true" hidden></div>
+      </div>
+
+      <!-- THE BEZEL RAIL. Room code, sound and leave used to crowd the top
+           edge next to the marquee. They are cabinet hardware, not gameplay,
+           so they become screw heads on the bottom bezel: one 19px head each,
+           slot angled per control, VT323 label beside it. Same ids, same
+           handlers, same accessible names — only position and skin changed.
+           The sound screw is inserted here by app.js, between these two. -->
+      <div class="screws" id="screw-rail">
+        <button class="screw screw--code code-chip" id="hud-code" type="button">
+          <span class="screw__head" aria-hidden="true"></span>
+          <span class="screw__label" id="hud-code-text">PIZZA-0000</span>
+          <span class="code-chip__done" aria-hidden="true">Copied</span>
+        </button>
+
+        <button class="screw screw--leave" id="btn-leave-game" type="button">
+          <span class="screw__head" aria-hidden="true"></span>
+          <span class="screw__label">Leave</span>
+        </button>
       </div>
     </footer>
 
