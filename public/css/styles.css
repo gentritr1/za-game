@@ -533,6 +533,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: grid;
   place-items: center;
   background: var(--basil);
+  /* Inherited from `.code-chip` this was `--text` on basil at 1.52:1 — the
+     confirmation was the least readable word on the screen. 10.67:1 now. */
+  color: var(--void);
   border-radius: inherit;
   font-size: 14px;
   letter-spacing: 0;
@@ -607,9 +610,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   text-transform: uppercase;
 }
 
+/* Dark ink on a bright fill, the way HOST already does it on cheese. White on
+   basil measured 1.79:1 and white on anchovy 3.69:1; `--void` puts them at
+   10.67:1 and 5.17:1. The fills are the suit colours and do not move. */
 .tag--host { background: var(--cheese); color: var(--void); }
-.tag--bot { background: var(--anchovy); color: #fff; }
-.tag--you { background: var(--basil); color: #fff; }
+.tag--bot { background: var(--anchovy); color: var(--void); }
+.tag--you { background: var(--basil); color: var(--void); }
 .tag--away { background: var(--bezel); color: var(--text-dim); }
 
 .seat-row__kick {
@@ -1126,7 +1132,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* One card left: a slow, small breath. Caught out: faster and more insistent. */
 .seat__badge--za {
   background: var(--basil);
-  color: #fff;
+  /* White on basil is 1.79:1. Dark ink on the bright fill is 10.67:1. */
+  color: var(--void);
 }
 
 .seat__badge--za.is-shown { animation: badge-breathe 2.2s var(--ease-in-out) 240ms infinite; }
@@ -1136,7 +1143,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    animation out-cascades the entry transition — the badge simply appeared. */
 .seat__badge--caught {
   background: var(--tomato);
-  color: #fff;
+  /* White on sauce is 3.59:1. Dark ink on the same fill is 5.32:1. */
+  color: var(--void);
 }
 
 .seat__badge--caught.is-shown { animation: soft-pulse 1.1s var(--ease-in-out) 240ms infinite; }
@@ -1512,7 +1520,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .btn--callout {
   --btn-bg: var(--tomato);
-  --btn-fg: #fff;
+  /* White on sauce is 3.59:1 — under the bar, on the one button that fires a
+     penalty. Dark ink on the same alarm fill is 5.32:1, and it is what ZA! and
+     every topping button already do on their own bright fills. */
+  --btn-fg: var(--void);
 }
 
 @media (hover: hover) and (pointer: fine) {
