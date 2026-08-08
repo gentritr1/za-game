@@ -388,6 +388,12 @@ code {
   padding: var(--s4);
 }
 
+/* On a phone every pixel of frame is a pixel off the drawing, and the
+   diagrams' labels are sized against the width they actually get. */
+@media (max-width: 479px) {
+  .diagram { padding: var(--s2); }
+}
+
 .diagram svg {
   display: block;
   width: 100%;
@@ -500,9 +506,74 @@ code {
 
 .zine-foot p + p { margin-top: var(--s2); }
 
+/* ------------------------------------------------------- diagram motion -- */
+/* The game's motion language, borrowed exactly: transform and opacity only,
+   `steps()` easing because a bulb is lit or it is not, and cycles slow enough
+   (>= 1.8s) that a loop never competes with the paragraph beside it.
+   Only three diagrams move, and each one moves because the mechanism it
+   teaches IS a thing happening over time. Every one of them still reads with
+   motion off — see the reduced-motion block below, which parks each animation
+   on the single frame that carries the lesson rather than just stopping it.
+   Nothing here is decoration, and nothing here needs JavaScript. */
+
+/* SVG children transform in the viewBox's own coordinates, stated rather than
+   inherited so the numbers below are plain user units. */
+.anim { transform-box: view-box; transform-origin: 0 0; }
+
+/* No. 01 — two playheads cross the same window in the same time. One takes
+   twenty steps to do it, one takes five: that difference is the whole post. */
+@keyframes zine-sweep {
+  from { transform: translateX(0); }
+  to   { transform: translateX(304px); }
+}
+.anim-sweep--fast { animation: zine-sweep 3600ms steps(20, end) infinite; }
+.anim-sweep--slow { animation: zine-sweep 3600ms steps(5, end) infinite; }
+
+/* No. 04 — a real two-frame loop, on the game's own 1800ms grid. Frame A
+   hides exactly as frame B shows; the broken panel omits the hiding half. */
+@keyframes zine-frame-a {
+  0%   { opacity: 1; }
+  50%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes zine-frame-b {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+.anim-frame-a { animation: zine-frame-a 1800ms steps(1, end) infinite; }
+.anim-frame-b { opacity: 0; animation: zine-frame-b 1800ms steps(1, end) infinite; }
+
+/* No. 06 — the turn token walks a seat per beat, and jumps rather than glides,
+   because a turn advance is a state change and not a journey. */
+@keyframes zine-walk {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(46px, -26px); }
+  50%  { transform: translate(92px, 0); }
+  75%  { transform: translate(46px, 26px); }
+  100% { transform: translate(0, 0); }
+}
+.anim-walk { animation: zine-walk 5600ms steps(1, end) infinite; }
+
 /* --------------------------------------------------------------- a11y -- */
 :focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  * { transition: none !important; }
+
+  /* No. 01: the two tick rows already state the finding (twenty against
+     five), so the playheads simply leave rather than freeze somewhere
+     arbitrary. */
+  .anim-sweep--fast,
+  .anim-sweep--slow { animation: none !important; display: none; }
+
+  /* No. 04: park on the frame that shows the trap — the broken panel holding
+     BOTH frames at once, the correct panel holding exactly one. */
+  .anim-frame-a { animation: none !important; opacity: 1 !important; }
+  .anim-frame-b { animation: none !important; opacity: 0 !important; }
+  .anim-frame-b--stuck { opacity: 1 !important; }
+
+  /* No. 06: the token stays at the seat it starts on. The shape of the
+     seating is what carries the turn order; the token only confirms it. */
+  .anim-walk { animation: none !important; }
 }
