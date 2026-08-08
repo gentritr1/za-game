@@ -720,6 +720,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .shell *::before,
 .shell *::after { box-sizing: border-box; }
 
+/* --- capping the content, not just the frame -------------------------------
+   Locking the play column at 1900 and letting the felt spread inside it just
+   moves the problem: a dense game becomes a stretched one. So past the cap the
+   rows of the felt hold at 1280 and centre. The hand zone, the pit rail and the
+   screw rail are deliberately NOT in here — they run the full play width.
+
+   `.is-capped` is set by the client the moment `--panel-w` measures above zero,
+   which is the same instant the cap starts biting. A media query would have to
+   restate `1900px` as a second, silently divergent copy of the number; reading
+   the shell's own computed value cannot disagree with itself.
+
+   `.table-center` is the row this actually binds on. `.opponents` is the spec's
+   other named row and is stated for the same reason the rule exists, but on the
+   ≥721px board the chefs are a fixed ~210px column, so it never binds there —
+   it is a guard, not a change. */
+.shell.is-capped .opponents,
+.shell.is-capped .table-center,
+.shell.is-capped .log {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+}
+
 /* ------------------------------------------------------------------- HUD -- */
 /* The play column. `.screen` puts every screen at `inset: 0`; the game screen
    is the one that gives width back to the cabinet, so it keeps top and bottom

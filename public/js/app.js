@@ -23,6 +23,7 @@ const $ = (id) => document.getElementById(id);
 
 const el = {
   app: $('app'),
+  shell: document.querySelector('.shell'),
   screens: Array.from(document.querySelectorAll('.screen')),
   // home
   formCreate: $('form-create'),
@@ -202,6 +203,10 @@ const ui = {
   nicknames: new Map(), // 13 · name -> { title, tone }, session-scoped
   wall: null, // 12 · the polaroid wall, kept between lobby renders
   wallCards: new Map(), // seatId -> polaroid
+  // ---- 1A · the literal cabinet. Panels are built and dropped by width, so
+  // the last snapshot is kept to redraw them from on a resize.
+  cabSnapshot: null,
+  cabPanels: null, // { left, right, fame, special, art… } while they exist
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -971,6 +976,7 @@ function renderGame(snapshot) {
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
   renderLog(view);
+  syncCabinet(snapshot);
 
   // 08 · your turn, loudly. One class drives the ping ring on the rail and
   // both borders warming from bezel to cheese, so the whole signal starts and
@@ -3211,6 +3217,46 @@ function playShout() {
   setTimeout(() => score.remove(), 1020);
 }
 
+// =============================================================== CABINET ===
+/**
+ * 1A · the literal cabinet. Past the play column's cap the leftover width stops
+ * being void and becomes pizzeria. Everything here is additive: it reads the
+ * same snapshot the board already renders and never changes a rule, a state
+ * shape or the wire protocol.
+ *
+ * The one number that matters is `--panel-w`, and it is CSS's to own. It is
+ * registered as a `<length>`, so the shell's computed value is a real `250px`
+ * rather than the unevaluated `max(...)` an unregistered property hands back —
+ * which means the client reads the live cap instead of restating `1900` as a
+ * second copy that can silently drift.
+ */
+function panelWidth() {
+  if (!el.shell) return 0;
+  const raw = getComputedStyle(el.shell).getPropertyValue('--panel-w').trim();
+  const px = parseFloat(raw);
+  if (raw.endsWith('px') && Number.isFinite(px)) return px;
+  // Belt and braces for an engine without `@property`: same arithmetic, over
+  // the live viewport and the cap CSS still states as a plain length.
+  const cap = parseFloat(getComputedStyle(el.shell).getPropertyValue('--play-max'));
+  if (!Number.isFinite(cap)) return 0;
+  return Math.max(0, (window.innerWidth - Math.min(window.innerWidth, cap)) / 2);
+}
+
+/** Below this the leftovers are a margin, not a room; the panels stay unbuilt. */
+const PANEL_MIN = 200;
+
+/**
+ * The single place that decides what the cabinet is showing. Called from the
+ * render path (so the panels move with the snapshot) and from resize (so they
+ * appear and vanish with the width).
+ */
+function syncCabinet(snapshot) {
+  if (!el.shell) return;
+  if (snapshot) ui.cabSnapshot = snapshot;
+  const width = panelWidth();
+  el.shell.classList.toggle('is-capped', width > 0);
+}
+
 // ---------------------------------------------------------- sound toggle ----
 /**
  * The cabinet's volume knob. Built here rather than in index.html so the
@@ -3382,6 +3428,9 @@ window.addEventListener('resize', () => {
       const slot = ui.handSlots.get(ui.peekCardId);
       if (slot && slot.parentElement === el.handPit) showPeek(slot);
     }
+    // 1A · the cabinet is a width, so it is a resize concern before it is a
+    // snapshot one: dragging past the cap has to build the room right there.
+    syncCabinet();
   });
 });
 
