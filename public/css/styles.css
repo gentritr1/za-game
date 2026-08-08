@@ -1838,6 +1838,24 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .card__index-val { font-size: 11px; }
 
+/* Suit without colour — but only where colour is all there is. A full face has
+   a sprite in its window and its name along the banner, so the letter would be
+   the third telling of the same thing; it stays off there and is drawn at rib
+   size, where the window, the banner and the second corner are all hidden.
+   VT323 is exempt from the Press Start 2P 12px floor and holds a clean stroke
+   at 9px. It inherits `--suit` from the corner it sits in, so it is exactly the
+   colour of the keyline it is standing in for — one more glyph, no new colour. */
+.card__index-suit { display: none; }
+
+.card--rib .card__index-suit {
+  display: block;
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 /* card back: cabinet checker, cheese keyline, symmetrical both axes */
 .card--back {
   --suit: var(--cheese);
