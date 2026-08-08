@@ -1141,8 +1141,12 @@ function renderOpponents(snapshot, view) {
     node.style.setProperty('--arc', `${(Math.abs(norm) ** 2 * -10).toFixed(1)}px`);
   });
 
-  // "CHEFS · n" counts everyone still at the table, you included.
-  el.opponents.dataset.chefs = String(view.players.filter((p) => !p.left).length);
+  // "CHEFS · n" counts everyone still at the table, you included. Seven and
+  // eight seats is the crowded board: the portrait steps down so the counter
+  // still has room for a hand of cards in front of every chef.
+  const atTable = view.players.filter((p) => !p.left).length;
+  el.opponents.dataset.chefs = String(atTable);
+  el.opponents.dataset.crowd = atTable >= 7 ? '1' : '0';
   renderChefStats(snapshot);
 }
 
@@ -1190,48 +1194,83 @@ function buildChefStat(parent, kind, label) {
   return value;
 }
 
+/**
+ * 2A/1 · a seat is a chef, not a panel.
+ *
+ * The bordered card is gone. What is left is the three things a person at a
+ * table actually is from across the room: a face, a name plate, and their
+ * cards in front of them. Nothing draws a box around the group — the counter
+ * (step 6) is the only furniture, and it belongs to the table rather than to
+ * any one chef.
+ *
+ * `.seat__ring` and `.seat__edge` are the two overlays step 3 uses for the
+ * NOW/NEXT weights; they are built here so the cache and the builder stay in
+ * one place, and they draw nothing until a class turns them on.
+ */
 function buildSeat(player) {
   const node = document.createElement('div');
   node.className = 'seat';
   node.dataset.id = player.id;
 
+  const body = document.createElement('div');
+  body.className = 'seat__body';
+
+  // The chef: face over name plate, as one column whichever way the seat faces.
+  const idcol = document.createElement('div');
+  idcol.className = 'seat__id';
+
   const avatar = document.createElement('div');
   avatar.className = 'seat__avatar';
-  node.append(avatar);
 
   const name = document.createElement('span');
   name.className = 'seat__name';
-  node.append(name);
+  idcol.append(avatar, name);
 
-  // Two readings of the same number: "5 cards" for the chip row and for a
-  // screen reader, and the two-digit plate the desktop chef column prints.
+  // The cards in front of them. Filled in by step 2; the tray is built now so
+  // the node structure never changes after the seat is cached.
+  const cards = document.createElement('div');
+  cards.className = 'seat__cards';
+  cards.setAttribute('aria-hidden', 'true');
+
+  // 06 · the box lid. The count is also a pizza box: the lid stands wide open
+  // on a full hand and shuts as it empties, so the table reads closeness
+  // without anyone reading a number.
+  const box = document.createElement('span');
+  box.className = 'pizza-box';
+  const boxLid = document.createElement('span');
+  boxLid.className = 'pizza-box__lid';
+  const boxBase = document.createElement('span');
+  boxBase.className = 'pizza-box__base';
+  box.append(boxLid, boxBase);
+
+  const fan = document.createElement('span');
+  fan.className = 'seat__fan';
+  const deck = document.createElement('span');
+  deck.className = 'seat__deck';
+
+  const count = document.createElement('span');
+  count.className = 'seat__count';
+  const countNum = document.createElement('b');
+  countNum.className = 'seat__count-num';
+  countNum.setAttribute('aria-hidden', 'true');
+  count.append(countNum);
+  cards.append(box, fan, deck, count);
+
+  body.append(idcol, cards);
+  node.append(body);
+
+  // Two readings of the same number: the printed plate above, and "5 cards"
+  // for a screen reader, which stays out of the picture entirely.
+  const countLong = document.createElement('span');
+  countLong.className = 'seat__count-long';
+  node.append(countLong);
+
   // 13 · the title they carried out of the last round. Hidden until there is
   // one, so a seat that earned nothing looks exactly as it did.
   const nick = document.createElement('span');
   nick.className = 'seat__nick';
   nick.hidden = true;
   node.append(nick);
-
-  const count = document.createElement('span');
-  count.className = 'seat__count';
-  const countLong = document.createElement('span');
-  countLong.className = 'seat__count-long';
-  const countNum = document.createElement('b');
-  countNum.className = 'seat__count-num';
-  countNum.setAttribute('aria-hidden', 'true');
-  // 06 · the box lid. The count is also a pizza box: the lid stands wide open
-  // on a full hand and shuts as it empties, so the table reads closeness
-  // without anyone reading a number.
-  const box = document.createElement('span');
-  box.className = 'pizza-box';
-  box.setAttribute('aria-hidden', 'true');
-  const boxBase = document.createElement('span');
-  boxBase.className = 'pizza-box__base';
-  const boxLid = document.createElement('span');
-  boxLid.className = 'pizza-box__lid';
-  box.append(boxBase, boxLid);
-  count.append(countLong, countNum, box);
-  node.append(count);
 
   const status = document.createElement('span');
   status.className = 'seat__status';
@@ -1241,7 +1280,23 @@ function buildSeat(player) {
   badge.className = 'seat__badge';
   node.append(badge);
 
-  node._parts = { avatar, name, count, countLong, countNum, badge, status, nick, boxLid };
+  // The two weights, and the ordinal the queue prints. All three are inert
+  // until a class turns them on.
+  const edge = document.createElement('span');
+  edge.className = 'seat__edge';
+  edge.setAttribute('aria-hidden', 'true');
+  const ring = document.createElement('span');
+  ring.className = 'seat__ring';
+  ring.setAttribute('aria-hidden', 'true');
+  const rank = document.createElement('span');
+  rank.className = 'seat__rank';
+  rank.setAttribute('aria-hidden', 'true');
+  node.append(edge, ring, rank);
+
+  node._parts = {
+    avatar, name, body, idcol, cards, count, countLong, countNum,
+    badge, status, nick, box, boxLid, boxBase, fan, deck, edge, ring, rank,
+  };
   return node;
 }
 
@@ -1276,10 +1331,9 @@ function updateSeat(node, player, view, exposed) {
     renderAvatar(parts.avatar, player);
   }
   parts.name.textContent = player.name;
-  parts.countLong.replaceChildren(
-    icon('cardback'),
-    document.createTextNode(` ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`)
-  );
+  // Spoken only. The picture of the hand is the fan and the printed plate.
+  parts.countLong.textContent =
+    `${player.name}, ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`;
   parts.countNum.textContent = String(player.cardCount).padStart(2, '0');
 
   // 13 · the chip beside the name.
@@ -1298,8 +1352,14 @@ function updateSeat(node, player, view, exposed) {
     setTimeout(() => parts.boxLid.classList.remove('is-slam'), 460);
   }
 
-  node.classList.toggle('is-turn', view.turnPlayerId === player.id && view.status === 'playing');
+  const isTurn = view.turnPlayerId === player.id && view.status === 'playing';
+  node.classList.toggle('is-turn', isTurn);
   node.classList.toggle('is-away', !player.connected);
+  // 2A/1 · three states of presence, and only three. Live is full colour;
+  // idle is dimmed and desaturated; a chef who dropped is a ghost. NEXT is
+  // deliberately NOT a fourth brightness — its whole distinction is the edge
+  // bar step 3 draws, so a player never compares two dimnesses.
+  node.classList.toggle('is-live', isTurn);
   // Their call-out window is open: the chef column dashes the panel in sauce.
   node.classList.toggle('is-vulnerable', Boolean(player.vulnerable) && player.cardCount === 1);
 

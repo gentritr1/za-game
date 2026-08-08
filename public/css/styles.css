@@ -952,8 +952,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   min-height: 0;
 }
 
-/* opponents sit along the far edge of the table */
+/* opponents sit around the counter -----------------------------------------
+   `--port` is the portrait edge and `--k` the notch scale; every dimension in
+   a seat is written against one of the two, so the whole arrangement moves in
+   whole steps with the cabinet instead of drifting on a multiplier. The two
+   crowded values are stated outright rather than derived, because 46 * 1.16
+   is 53.4 and Press Start 2P blurs at a fractional size.
+
+   `data-crowd="1"` is set by the client at seven and eight seats. */
 .opponents {
+  --k: 1;
+  --port: 54px;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -962,107 +971,135 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding-bottom: var(--s2);
 }
 
+.opponents[data-crowd="1"] { --port: 46px; }
+
+@media (min-width: 1600px) {
+  .opponents { --k: 1.16; --port: 62px; }
+  .opponents[data-crowd="1"] { --port: 53px; }
+}
+
+@media (min-width: 2200px) {
+  .opponents { --k: 1.32; --port: 70px; }
+  .opponents[data-crowd="1"] { --port: 60px; }
+}
+
+/* --- 2A/1 · the seat is a chef -------------------------------------------
+   No bordered card, no fill, no shadow around the group: a seat is a face, a
+   name plate and a hand of cards, and the counter behind them is the only
+   furniture on the table. Every dimension steps off two variables the client
+   sets on `#opponents` — `--port`, the portrait edge, and `--k`, the notch
+   scale — so one number moves a whole seat and none of them is a multiplier
+   on a small constant. */
 .seat {
   position: relative;
-  width: 104px;
-  display: grid;
-  justify-items: center;
-  gap: var(--s1);
-  padding: var(--s2) var(--s2) var(--s3);
-  background: var(--cabinet);
-  border: var(--bd-thin) solid var(--bezel);
-  border-radius: var(--r-lg);
-  transform: translateY(var(--arc, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   opacity: 1;
-  transition:
-    transform var(--d-slow) var(--ease-out),
-    opacity var(--d-mid) var(--ease-out),
-    background-color var(--d-mid) var(--ease-out);
-}
-
-@starting-style {
-  .seat { opacity: 0; transform: translateY(-10px) scale(.96); }
-}
-
-/* The player whose turn it is breathes gently: alive, thinking, about to act.
-
-   The lift declared on `.seat.is-turn` below is folded in here rather than
-   left to the rule: an animation out-cascades a declaration, so while this is
-   running the -3px rise and the 1.035 step-up never rendered at all. The rule
-   stays as the still frame for when the animation is off; these keyframes are
-   what the player actually sees, and they now breathe from the lifted pose
-   instead of from the resting one.
-
-   2.4s, not 2.6s, so it phase-locks with the 1.2s marquee glow. */
-.seat.is-turn { animation: seat-breathe 2.4s var(--ease-in-out) infinite; }
-
-@keyframes seat-breathe {
-  0%, 100% { transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.035); }
-  50% { transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.055); }
-}
-
-/* The ring and the glow fade in on a pseudo-element: opacity only, no
-   box-shadow animation, and the seat itself lifts a little so the turn is
-   impossible to miss. */
-.seat::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 3px var(--cheese);
-  opacity: 0;
-  pointer-events: none;
   transition: opacity var(--d-mid) var(--ease-out);
 }
 
-.seat.is-turn {
-  background: rgba(255, 225, 77, .16);
-  transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.035);
+@starting-style {
+  .seat { opacity: 0; }
 }
 
-.seat.is-turn::after { opacity: 1; }
+/* The body is the chef and their cards side by side or stacked, depending on
+   which way the seat faces across the counter. */
+.seat__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(7px * var(--k, 1));
+}
 
-.seat.is-away { opacity: .45; }
+.seat[data-anchor="l"] .seat__body { flex-direction: row; align-items: center; }
+.seat[data-anchor="r"] .seat__body { flex-direction: row-reverse; align-items: center; }
 
+.seat__id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(5px * var(--k, 1));
+  min-width: 0;
+}
+
+/* The portrait. Pixel art upscaled with a pixel filter, never smoothed. */
 .seat__avatar {
   position: relative;
+  flex: none;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  background: rgba(0, 0, 0, .3);
-  border-radius: var(--r-pill);
-  font-size: 19px;
+  width: var(--port, 54px);
+  height: var(--port, 54px);
   overflow: hidden;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .5);
+  font-size: calc(var(--port, 54px) * .42);
+  transition: border-color var(--d-fast) var(--ease-step);
 }
 
-.seat.is-turn .seat__avatar { background: rgba(0, 0, 0, .45); }
+.seat__avatar .avatar__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: pixelated;
+}
 
+/* Three states of presence and only three: live, idle, gone. NEXT is not a
+   fourth brightness — it is a shape, and step 3 draws it. */
+.seat .avatar__image {
+  opacity: .62;
+  filter: saturate(.55);
+  transition: opacity var(--d-fast) var(--ease-step), filter var(--d-fast) var(--ease-step);
+}
+
+.seat.is-live .avatar__image { opacity: 1; filter: saturate(1); }
+.seat.is-away .avatar__image { opacity: .3; filter: saturate(.55); }
+
+/* The name plate. Press Start 2P, 11px floor — the one size the spec grants
+   below the 12px display floor, because a plate is a card index, not copy.
+   Filled when the seat is live, outlined when it is not. */
 .seat__name {
-  max-width: 100%;
-  font-size: 12.5px;
-  font-weight: 700;
+  max-width: calc(var(--port, 54px) * 2.4);
+  padding: calc(5px * var(--k, 1)) calc(7px * var(--k, 1));
+  font-family: var(--font-display);
+  font-size: max(11px, calc(11px * var(--k, 1)));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: .02em;
   text-align: center;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: var(--cabinet);
+  color: var(--text-mute);
+  border: 2px solid var(--bezel);
+  transition: background-color var(--d-fast) var(--ease-step), color var(--d-fast) var(--ease-step);
+}
+
+.seat.is-live .seat__name {
+  background: var(--cheese);
+  color: var(--void);
+  border-color: var(--cheese);
+}
+
+.seat.is-away { opacity: .82; }
+
+/* The spoken count. It never draws — the fan and the printed plate are what a
+   sighted player reads — but it keeps the number in the accessibility tree. */
+.seat__count-long {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
-
-.seat__count {
-  display: flex;
-  align-items: center;
-  gap: var(--s1);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.seat__count-long { display: flex; align-items: center; gap: var(--s1); }
-
-/* The chef column prints the count as a two-digit scoreboard number. It is
-   decoration for the spoken "5 cards" next to it, so it only exists there. */
-.seat__count-num { display: none; }
 
 /* SCORE / RND tiles: the foot of the desktop chef column, nowhere else. */
 .chef-stats { display: none; }
@@ -2821,16 +2858,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
   .logo__flourish { font-size: 22px; }
 
-  /* Seats compress to name-and-count chips in a strip. */
-  .seat {
-    width: auto;
-    min-width: 76px;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    column-gap: var(--s2);
-    padding: var(--s1) var(--s2);
-  }
-  .seat__avatar { width: 22px; height: 22px; }
   .seat__badge { font-size: 12px; }
 
   /* The log tightens to a two-line ticker above the hand. */
@@ -2909,126 +2936,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     scrollbar-color: var(--bezel) transparent;
   }
 
-  .opponents::before {
-    content: "CHEFS · " attr(data-chefs);
-    flex: none;
-    font-family: var(--font);
-    font-size: var(--fs-label);
-    letter-spacing: .16em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-
-  /* One panel per chef: name on the left, card count on the right. */
-  .opponents .seat {
-    width: auto;
-    min-width: 0;
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--s2);
-    padding: 6px 9px;
-    background: var(--cabinet);
-    border: var(--bd-thin) solid var(--bezel);
-    transform: none;
-    animation: none;
-  }
-
-  .opponents .seat__avatar { display: none; }
-
-  .opponents .seat__name {
-    flex: 1;
-    min-width: 0;
-    font-size: 20px;
-    font-weight: 400;
-    text-align: left;
-  }
-
-  .opponents .seat__count {
-    order: 2;
-    flex: none;
-    gap: 0;
-    font-family: var(--font-display);
-    font-size: 10px;
-    font-weight: 400;
-    color: var(--ui-cyan);
-  }
-
-  /* The spoken count stays in the accessibility tree; the eye gets the
-     two-digit plate the kit draws. */
-  .opponents .seat__count-long {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  /* `<b>` in Press Start 2P would synthesise a bold the font does not have. */
-  .opponents .seat__count-num { display: block; font-weight: 400; }
-
-  /* Whoever is at the oven: inverted, sauce fill and a cheese keyline. */
-  .opponents .seat.is-turn {
-    background: var(--sauce);
-    border-color: var(--cheese);
-    box-shadow: var(--sh-card);
-    transform: none;
-    animation: none;
-  }
-
-  .opponents .seat.is-turn::after { opacity: 0; }
-  .opponents .seat.is-turn .seat__name,
-  .opponents .seat.is-turn .seat__count { color: var(--void); }
-  /* The kit's turn marker is a solid triangle. Drawn with borders rather than
-     set as a glyph: neither VT323 nor Press Start 2P carries U+25B8, and a
-     tofu box on the active chef is worse than no marker at all. */
-  .opponents .seat.is-turn .seat__name::after {
-    content: "";
-    display: inline-block;
-    margin-left: 6px;
-    border: 5px solid transparent;
-    border-right-width: 0;
-    border-left-color: currentColor;
-  }
-
-  /* A chef inside a call-out window: dashed sauce, name in sauce-hi. */
-  .opponents .seat.is-vulnerable {
-    border-style: dashed;
-    border-color: var(--sauce);
-  }
-
-  .opponents .seat.is-vulnerable .seat__name { color: var(--sauce-hi); }
-
-  /* A Burnt Slice at a table of two hands the turn straight back, so the same
-     chef can be at the oven and inside a call-out window at once. The panel
-     keeps the inverted turn fill and dashes its cheese keyline instead. */
-  .opponents .seat.is-turn.is-vulnerable { border-color: var(--cheese); }
-  .opponents .seat.is-turn.is-vulnerable .seat__name { color: var(--void); }
-
-  /* The badge joins the row instead of floating over the panel's top edge,
-     which the column's own scroll would clip. */
-  .opponents .seat__badge {
-    position: static;
-    order: 1;
-    flex: none;
-    padding: 0;
-    background: none;
-    border-radius: 0;
-    font-family: var(--font);
-    font-size: var(--fs-label);
-    letter-spacing: .04em;
-    transform: none;
-    animation: none;
-  }
-
-  .opponents .seat__badge:not(.is-shown) { display: none; }
-  .opponents .seat__badge--za { color: var(--basil); }
-  .opponents .seat__badge--caught { color: var(--sauce-hi); }
-  .opponents .seat.is-turn .seat__badge { color: var(--void); }
 
   /* SCORE and RND sit side by side: they do not fit stacked in 186px. */
   .chef-stats {
@@ -3673,13 +3580,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .nickname--cheese { color: var(--cheese); }
 .nickname--cyan { color: var(--ui-cyan); }
 
-.seat__nick { max-width: 100%; }
-
-/* On the desktop chef column the panel is one flex row, so the chip takes its
-   own line under the name — and only when there is one to take. */
-@media (min-width: 721px) {
-  .opponents .seat { flex-wrap: wrap; }
-  .opponents .seat__nick { order: 5; flex-basis: 100%; text-align: left; }
+/* The title rides under the name plate, centred with it, and only exists when
+   the chef carried one out of the last round. */
+.seat__nick {
+  max-width: calc(var(--port, 54px) * 2.4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .receipt__nick {
