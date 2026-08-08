@@ -89,26 +89,32 @@
   </section>
 
   <!-- ============================ GAME ============================ -->
+  <!-- THE SHELL owns the width policy for everything under it (see "the shell"
+       in styles.css). Nothing inside it measures the viewport for itself any
+       more; it asks the shell for the play column instead. -->
+  <div class="shell">
   <section class="screen screen--game" data-screen="game" aria-label="Game table" hidden>
 
     <header class="hud">
-      <button class="hud__code code-chip code-chip--sm" id="hud-code" type="button">
-        <span id="hud-code-text">PIZZA-0000</span>
-        <span class="code-chip__icon" data-icon="copy" aria-hidden="true">⧉</span>
-        <span class="code-chip__done" aria-hidden="true">Copied</span>
-      </button>
-
-      <p class="hud__turn" id="turn-banner" role="status" aria-live="polite">
-        <span class="turn-dot" aria-hidden="true"></span>
+      <!-- THE MARQUEE. One strip carries all three things the header used to
+           spread across the top edge: the cabinet's name, the turn state, and
+           the direction of play. The direction is the five-chevron chase on
+           the right — the chase runs the other way after a flip, so no word is
+           needed; the word still exists for screen readers in .marquee__sr,
+           and a static arrow takes over under prefers-reduced-motion. -->
+      <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
+        <span class="marquee__mark" aria-hidden="true">ZA!</span>
         <span class="turn-label" id="turn-text">Waiting…</span>
+        <span class="marquee__dir" id="dir-chase" aria-hidden="true">
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="za-chev">▸</span>
+          <span class="marquee__arrow" data-icon="cycle">↻</span>
+        </span>
+        <span class="marquee__sr" id="dir-announce">to the left</span>
       </p>
-
-      <p class="hud__dir" id="dir-indicator">
-        <span class="dir-arrow" id="dir-arrow" data-icon="cycle" aria-hidden="true">↻</span>
-        <span id="dir-text">to the left</span>
-      </p>
-
-      <button class="btn btn--quiet btn--sm" id="btn-leave-game" type="button">Leave</button>
     </header>
 
     <div class="table">
@@ -149,7 +155,34 @@
         <span class="hand-bar__hint" id="hand-hint"></span>
       </div>
 
-      <div class="hand" id="hand" role="group" aria-label="Your hand"></div>
+      <!-- THE PIT. Dead cards drop into the rib strip; only the cards you can
+           actually play stand up full size in the near rail below it. The peek
+           is a sibling of both, not a child of the strip: it lands over the
+           near rail and must not be clipped by it. -->
+      <div class="hand" id="hand" data-mode="review">
+        <div class="hand__pit" id="hand-pit" role="group" aria-label="No dead cards"></div>
+        <div class="hand__near" id="hand-near" role="group" aria-label="Cards you can play"></div>
+        <div class="hand__peek" id="hand-peek" aria-hidden="true" hidden></div>
+      </div>
+
+      <!-- THE BEZEL RAIL. Room code, sound and leave used to crowd the top
+           edge next to the marquee. They are cabinet hardware, not gameplay,
+           so they become screw heads on the bottom bezel: one 19px head each,
+           slot angled per control, VT323 label beside it. Same ids, same
+           handlers, same accessible names — only position and skin changed.
+           The sound screw is inserted here by app.js, between these two. -->
+      <div class="screws" id="screw-rail">
+        <button class="screw screw--code code-chip" id="hud-code" type="button">
+          <span class="screw__head" aria-hidden="true"></span>
+          <span class="screw__label" id="hud-code-text">PIZZA-0000</span>
+          <span class="code-chip__done" aria-hidden="true">Copied</span>
+        </button>
+
+        <button class="screw screw--leave" id="btn-leave-game" type="button">
+          <span class="screw__head" aria-hidden="true"></span>
+          <span class="screw__label">Leave</span>
+        </button>
+      </div>
     </footer>
 
     <!-- popovers ------------------------------------------------- -->
@@ -167,6 +200,7 @@
 
     <div class="fly-layer" id="fly-layer" aria-hidden="true"></div>
   </section>
+  </div><!-- /.shell -->
 
 </main>
 

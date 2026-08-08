@@ -17,12 +17,17 @@ export const USE_IMAGES = false;
 export const ASSET_DIR = 'assets/cards';
 export const SPRITE_DIR = 'assets/sprites';
 
-/** Topping suits. `slug` is the part used in the asset file name. */
+/**
+ * Topping suits. `slug` is the part used in the asset file name; `token` is the
+ * three-letter form a banner falls back to when the strip it has to print in is
+ * too narrow to finish the full word. Cheese is CHZ, not CHE, so no two tokens
+ * share their first two letters with a different suit in a hurry.
+ */
 export const TOPPINGS = {
-  pepperoni: { slug: 'pepperoni', label: 'Pepperoni', emoji: '🍕' },
-  basil: { slug: 'basil', label: 'Basil', emoji: '🌿' },
-  cheese: { slug: 'cheese', label: 'Cheese', emoji: '🧀' },
-  anchovy: { slug: 'anchovy', label: 'Anchovy', emoji: '🐟' },
+  pepperoni: { slug: 'pepperoni', label: 'Pepperoni', emoji: '🍕', token: 'PEP' },
+  basil: { slug: 'basil', label: 'Basil', emoji: '🌿', token: 'BAS' },
+  cheese: { slug: 'cheese', label: 'Cheese', emoji: '🧀', token: 'CHZ' },
+  anchovy: { slug: 'anchovy', label: 'Anchovy', emoji: '🐟', token: 'ANC' },
 };
 
 export const TOPPING_ORDER = ['pepperoni', 'basil', 'cheese', 'anchovy'];
@@ -83,6 +88,21 @@ function footLabel(card) {
   return KINDS[card.kind].label;
 }
 
+/**
+ * The three-letter suit token, for a banner printed into a strip too narrow to
+ * finish the full label in. A wild has no suit, so it says so.
+ */
+export function suitToken(card) {
+  if (!card) return '';
+  if (isWild(card)) return 'WILD';
+  return TOPPINGS[card.suit].token;
+}
+
+/** The small corner symbol, for anyone sizing a frame around it. */
+export function cardIndex(card) {
+  return card ? cornerIndex(card) : '';
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -96,7 +116,7 @@ function el(tag, className, text) {
  * @param {object|null} card       card data from the server, or null for a back
  * @param {object} [options]
  * @param {boolean} [options.faceDown]  render the back of the card
- * @param {string}  [options.size]      'hand' | 'pile' | 'mini'
+ * @param {string}  [options.size]      'hand' | 'pile' | 'mini' | 'rib'
  * @param {boolean} [options.playable]  highlight it as playable
  * @param {boolean} [options.dimmed]    fade it as not playable
  * @param {boolean} [options.interactive] make it a real button
@@ -155,6 +175,11 @@ export function renderCard(card, options = {}) {
 
   // --- arcade face: DOM frame + sprite window ---
   const index = cornerIndex(card);
+  // Press Start 2P is fixed pitch at 11px a glyph, so a two-glyph index (+2,
+  // <>, +4) needs 22px of face where a one-glyph index needs 11. Only the rib
+  // is narrow enough to care, but the count belongs with the markup rather
+  // than with whoever happens to be sizing the frame.
+  root.dataset.glyphs = String(index.length);
 
   const makeCorner = (side) => {
     const corner = el('span', `card__index card__index--${side}`);
@@ -173,12 +198,19 @@ export function renderCard(card, options = {}) {
   sprite.draggable = false;
   windowEl.append(sprite, el('span', 'card__value', index));
 
-  root.append(
-    makeCorner('tl'),
-    windowEl,
-    el('span', 'card__banner', footLabel(card)),
-    makeCorner('br')
+  // The banner carries both forms of its own name and the stylesheet picks
+  // one: a card the next card covers can only finish the three-letter token in
+  // the strip it still exposes, and a label is never placed in a strip it
+  // cannot finish in. Both are built here so `renderCard` stays the only place
+  // card markup is made — the choice between them is a class, not a rewrite.
+  const banner = el('span', 'card__banner');
+  banner.setAttribute('aria-hidden', 'true');
+  banner.append(
+    el('b', 'card__banner-full', footLabel(card)),
+    el('b', 'card__banner-tok', suitToken(card))
   );
+
+  root.append(makeCorner('tl'), windowEl, banner, makeCorner('br'));
   return root;
 }
 

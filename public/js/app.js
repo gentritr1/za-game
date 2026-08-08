@@ -6,7 +6,15 @@
  */
 
 import { Connection } from './net.js';
-import { renderCard, isWild, describeCard, TOPPING_META, TOPPING_ORDER } from './cards.js';
+import {
+  renderCard,
+  isWild,
+  describeCard,
+  suitToken,
+  cardIndex,
+  TOPPING_META,
+  TOPPING_ORDER,
+} from './cards.js';
 import { icon, suitIcon } from './icons.js';
 import { sound } from './sounds.js';
 
@@ -15,6 +23,7 @@ const $ = (id) => document.getElementById(id);
 
 const el = {
   app: $('app'),
+  shell: document.querySelector('.shell'),
   screens: Array.from(document.querySelectorAll('.screen')),
   // home
   formCreate: $('form-create'),
@@ -35,8 +44,8 @@ const el = {
   hudCodeText: $('hud-code-text'),
   turnBanner: $('turn-banner'),
   turnText: $('turn-text'),
-  dirIndicator: $('dir-indicator'),
-  dirText: $('dir-text'),
+  dirChase: $('dir-chase'),
+  dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
   // table
   opponents: $('opponents'),
@@ -49,6 +58,9 @@ const el = {
   // hand
   handZone: document.querySelector('.hand-zone'),
   hand: $('hand'),
+  handPit: $('hand-pit'),
+  handNear: $('hand-near'),
+  handPeek: $('hand-peek'),
   btnZa: $('btn-za'),
   btnCallout: $('btn-callout'),
   btnCalloutText: $('btn-callout-text'),
@@ -137,7 +149,12 @@ function regularByName(name) {
 const ui = {
   snapshot: null,
   screen: 'home',
-  handSlots: new Map(), // cardId -> slot element
+  handSlots: new Map(), // cardId -> slot element, moved between rails, never rebuilt
+  handCards: new Map(), // cardId -> card data, so the peek can draw one full size
+  handOrder: [], // the sorted hand as card ids, so a promotion lands in its place
+  nearRow: [], // the near rail as last laid out, for a resize to re-space it
+  peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
+  peekCardId: null, // which rib the peek is showing
   seatNodes: new Map(), // playerId -> seat element
   gameId: null,
   lastLogId: -1,
@@ -170,6 +187,32 @@ const ui = {
   shoutArmedAt: 0, // when the shout became legal, for the timing score
   dirJustFlipped: false,
   btnMute: null,
+  muteLabel: null,
+  // ---- juice & retention (tiles 01-14). All client-side, none of it a rule.
+  booted: false, // 14 · the first paint never gets a shutter
+  shutter: null, // 14 · the corrugated screen-change cover
+  shutterSwap: null,
+  shutterRunning: false,
+  shutterSwapped: false,
+  breatheTimer: 0, // 01 · re-arms the idle hand once entries have landed
+  entrySettleAt: 0, // when the newest wave of cards finishes arriving
+  nudgeTimer: 0, // 04 · the 5s inactivity clock
+  nudgeOffTimer: 0,
+  nudgeArmed: false,
+  warm: null, // 09 · the warm lobby countdown
+  nicknames: new Map(), // 13 · name -> { title, tone }, session-scoped
+  wall: null, // 12 · the polaroid wall, kept between lobby renders
+  wallCards: new Map(), // seatId -> polaroid
+  // ---- 1A · the literal cabinet. Panels are built and dropped by width, so
+  // the last snapshot is kept to redraw them from on a resize.
+  cabSnapshot: null,
+  cabPanels: null, // { left, right, fame, special } while they exist
+  cabPlaque: null, // the win plaque, while a round is over
+  chainTotal: 0, // cards the current run has forced, for the running total
+  chainNode: null,
+  chainTotalNode: null,
+  prevDeclared: new Map(), // playerId -> declaredZa last snapshot
+  shoutNode: null,
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -190,6 +233,30 @@ const D_ENTER = cssTime('--d-mid', 220); // matches .card
 const EASE_OUT =
   getComputedStyle(document.documentElement).getPropertyValue('--ease-out').trim() ||
   'cubic-bezier(0.23, 1, 0.32, 1)';
+
+/**
+ * Restarts a class-driven keyframe animation.
+ *
+ * The old idiom for this was `classList.remove(x); void el.offsetWidth;
+ * classList.add(x)`, which restarts the animation by forcing a synchronous
+ * layout of the whole document. Nothing here needs layout: if the class is
+ * already on, rewinding the running animation to zero is the same restart for
+ * the price of a style flush, and if it is not on yet the class alone starts
+ * it and there is nothing to flush at all.
+ *
+ * `name` narrows the rewind to one animation, because `getAnimations()` also
+ * returns anything running on the element's pseudo-elements.
+ */
+function restartAnimation(node, className, name) {
+  if (!node.classList.contains(className)) {
+    node.classList.add(className);
+    return;
+  }
+  if (typeof node.getAnimations !== 'function') return;
+  for (const running of node.getAnimations()) {
+    if (!name || running.animationName === name) running.currentTime = 0;
+  }
+}
 
 /** Stable small hash, so one card always looks the same on the table. */
 function hashOf(text) {
@@ -270,6 +337,10 @@ function openRoundOverlay() {
 function closeRoundOverlay() {
   const wasOpen = el.overlay.classList.contains('is-open');
   hide(el.overlay);
+  // 09 · the countdown belongs to the open dialog. However the dialog goes
+  // away — a new round, back to the parlour, a dropped connection — the timer
+  // goes with it, so a closed overlay can never fire a newRound.
+  stopWarmLobby();
   el.app.inert = false;
   if (!wasOpen) return;
   const returnTarget = ui.roundFocusReturn;
@@ -291,13 +362,88 @@ function toast(text) {
   ui.toastTimer = setTimeout(() => hide(el.toast), 3200);
 }
 
-function showScreen(name) {
-  if (ui.screen === name) return;
+function paintScreen(name) {
   ui.screen = name;
   for (const screen of el.screens) {
     const active = screen.dataset.screen === name;
     screen.classList.toggle('is-active', active);
     screen.inert = !active;
+  }
+  // 1A · the cabinet only exists around the play column. Home and lobby float
+  // in the void on a transparent screen, so panels left standing would show
+  // straight through them.
+  syncCabinet();
+}
+
+/**
+ * 14 · the shutter wipe. A screen change is the parlour pulling its roller
+ * shutter down, swapping the room behind it, and rolling it back up. The swap
+ * happens while the shutter covers the frame, so the existing 170ms cross-fade
+ * is never seen half-done.
+ *
+ * `ui.screen` is claimed immediately, not when the swap lands: a second screen
+ * change arriving mid-roll retargets the covered swap rather than queueing a
+ * second shutter on top of the first.
+ */
+function showScreen(name) {
+  if (ui.screen === name) return;
+  // The first paint has no previous room to hide, and reduced motion keeps the
+  // plain cross-fade the stylesheet already draws.
+  if (!ui.booted || !wantsMotion()) {
+    paintScreen(name);
+    return;
+  }
+  ui.screen = name;
+  rollShutter(() => paintScreen(name));
+}
+
+const SHUTTER_MS = 420;
+
+/** Built here, not in index.html, so the markup keeps exactly the ids it has. */
+function shutterNode() {
+  if (ui.shutter) return ui.shutter;
+  const node = document.createElement('div');
+  node.className = 'shutter';
+  // Out of the accessibility tree, out of the tab order, out of the way: it
+  // holds no focusable child, so it can never trap focus behind itself.
+  node.setAttribute('aria-hidden', 'true');
+  const word = document.createElement('span');
+  word.className = 'shutter__word';
+  word.textContent = 'PROOFING THE DOUGH…';
+  node.append(word);
+  document.body.append(node);
+  ui.shutter = node;
+  return node;
+}
+
+function rollShutter(swap) {
+  const node = shutterNode();
+  // A roll that has not covered yet can still carry a newer swap. One that
+  // already swapped is on its way back up, so a new screen needs its own roll.
+  if (ui.shutterRunning && !ui.shutterSwapped) {
+    ui.shutterSwap = swap;
+    return;
+  }
+  ui.shutterSwap = swap;
+  ui.shutterSwapped = false;
+  ui.shutterRunning = true;
+  restartAnimation(node, 'is-rolling', 'shutter');
+  sound.play('tape-scrub'); // rides the shutter itself, nothing else
+  // 42% of the roll: the shutter is fully down and the room can change.
+  setTimeout(coveredSwap, Math.round(SHUTTER_MS * 0.42));
+  setTimeout(() => {
+    node.classList.remove('is-rolling');
+    ui.shutterRunning = false;
+    coveredSwap(); // belt to the braces: a throttled tab must still land it
+  }, SHUTTER_MS + 60);
+}
+
+function coveredSwap() {
+  const swap = ui.shutterSwap;
+  ui.shutterSwap = null;
+  if (swap) {
+    ui.shutterSwapped = true;
+    swap();
   }
 }
 
@@ -322,7 +468,7 @@ async function copyCode(chip) {
 // Pressable things answer on pointer-down, not on release.
 document.addEventListener('pointerdown', (event) => {
   const target = event.target.closest(
-    '.btn, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
+    '.btn, .screw, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
   );
   if (!target || target.disabled) return;
   target.classList.add('is-pressed');
@@ -393,11 +539,52 @@ function celebrate(snapshot) {
   el.overlay.classList.add('is-celebrating');
   setTimeout(() => el.overlay.classList.remove('is-celebrating'), 1250);
   sound.play('victory-jingle');
+  toppingConfetti();
+}
+
+/**
+ * 07 · topping confetti. Not generic confetti — the pizza coming apart over
+ * the dialog: four pepperoni discs, four cheese shreds, four basil flecks,
+ * one pass each and then the nodes are gone. Silent on purpose; the victory
+ * jingle is already playing under it.
+ */
+const FLECK_KINDS = ['is-pepperoni', 'is-cheese', 'is-basil'];
+
+function toppingConfetti() {
+  if (!wantsMotion()) return;
+  const rect = el.dialog.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  // The tile falls 148px in 1.2s. A receipts dialog can be 740px tall, and
+  // falling all of it in the same 1.2s would be 650px/s — five times the
+  // board's own speed, which strobes rather than reads. The travel is capped
+  // so the pieces stay legible as pepperoni, cheese and basil; they fade out
+  // where they stop, so a short dialog and a tall one both look deliberate.
+  const fall = Math.max(180, Math.min(Math.round(rect.height + 44), 460));
+  const pieces = new DocumentFragment();
+  for (let i = 0; i < 12; i++) {
+    const fleck = document.createElement('span');
+    fleck.className = `topping-fleck ${FLECK_KINDS[i % FLECK_KINDS.length]}`;
+    fleck.setAttribute('aria-hidden', 'true');
+    fleck.style.left = `${(rect.left + 14 + Math.random() * Math.max(1, rect.width - 28)).toFixed(1)}px`;
+    fleck.style.top = `${(rect.top - 18).toFixed(1)}px`;
+    fleck.style.setProperty('--fall', `${fall}px`);
+    fleck.style.animationDuration = `${Math.round(1080 + Math.random() * 260)}ms`;
+    fleck.style.animationDelay = `${Math.round(i * 24 + Math.random() * 70)}ms`;
+    pieces.append(fleck);
+  }
+  el.overlay.append(pieces);
+  setTimeout(() => {
+    for (const fleck of el.overlay.querySelectorAll('.topping-fleck')) fleck.remove();
+  }, 1900);
 }
 
 /** Drops every per-round effect counter and cancels anything still running. */
 function resetRoundEffects() {
   ui.chain = 0;
+  ui.chainTotal = 0;
+  // A new round re-deals, so nobody has shouted in it yet. Seeding rather than
+  // clearing would make the first snapshot of the round look like a shout.
+  ui.prevDeclared.clear();
   ui.prevTopKind = null;
   ui.anchovyCount = 0;
   ui.shoutArmedAt = 0;
@@ -410,13 +597,25 @@ function resetRoundEffects() {
 
 function resetGameView() {
   resetRoundEffects();
+  clearNudge();
+  ui.entrySettleAt = 0;
+  setHandBreathing(false);
+  stopWarmLobby();
   ui.handSlots.clear();
+  ui.handCards.clear();
+  ui.handOrder = [];
+  ui.nearRow = [];
+  ui.peekPointer = -1;
+  clearPeek();
   ui.seatNodes.clear();
   ui.gameId = null;
   ui.lastLogId = -1;
   ui.dealing = true;
   el.flyLayer.replaceChildren();
-  el.hand.replaceChildren();
+  el.hand.dataset.mode = 'review';
+  el.handPit.replaceChildren();
+  el.handNear.replaceChildren();
+  labelPit(0, false);
   el.opponents.replaceChildren();
   el.logList.replaceChildren();
   el.discardSlot.replaceChildren();
@@ -428,8 +627,40 @@ function regularPortrait(name) {
   return regular ? `assets/regulars/${regular.id}.png` : null;
 }
 
+/**
+ * 02 · the bots blink. Their portraits are baked PNG busts, so there are no
+ * eyes to close: the blink is an eyelid overlay that dips over the whole face
+ * for one frame. Each regular gets their own interval and their own offset, so
+ * a table of six never blinks in chorus. Carmela is on the longest one — she
+ * is watching. Humans never blink; a real player's tell is their own business.
+ */
+const BLINKS = {
+  vito: [5, 0.6],
+  carmela: [9, 2.2],
+  paulie: [7, 1.4],
+  pina: [5, 3.1],
+  dominic: [9, 0.4],
+  ray: [7, 2.7],
+};
+const PLAIN_BLINK = [7, 1.9];
+
+function armBlink(node, person) {
+  if (!person.isBot) {
+    node.classList.remove('is-bot');
+    return;
+  }
+  const regular = REGULARS.find((r) => r.name === person.name);
+  const [seconds, offset] = (regular && BLINKS[regular.id]) || PLAIN_BLINK;
+  node.classList.add('is-bot');
+  node.style.setProperty('--blink-dur', `${seconds}s`);
+  // A negative delay starts the loop mid-cycle, so seats desync on their first
+  // frame instead of drifting apart over the first minute.
+  node.style.setProperty('--blink-delay', `-${offset}s`);
+}
+
 function renderAvatar(node, person) {
   node.replaceChildren();
+  armBlink(node, person);
   if (person.isBot) {
     const image = document.createElement('img');
     image.className = 'avatar__image';
@@ -472,6 +703,10 @@ function renderLobby(snapshot) {
     name.textContent = seat.name;
     row.append(name);
 
+    // 13 · whatever they earned last round rides in with them.
+    const nick = nicknameChip(seat.name);
+    if (nick) row.append(nick);
+
     // One Press Start word per seat, like a player-select screen.
     const status = document.createElement('span');
     status.className = 'seat-row__word';
@@ -507,6 +742,7 @@ function renderLobby(snapshot) {
     rows.append(empty);
   }
   el.seatList.replaceChildren(rows);
+  renderWall(snapshot);
 
   const count = snapshot.seats.length;
   const enough = count >= snapshot.minPlayers;
@@ -523,6 +759,100 @@ function renderLobby(snapshot) {
   } else {
     el.lobbyNote.textContent = 'Napkin tucked in. Waiting for the host to bake it…';
   }
+}
+
+// ------------------------------------------------- 12 · the wall of fame ----
+/**
+ * Polaroids taped up under the seat grid, one per player who has won a round
+ * at this table. Social proof, not a leaderboard: no ranking, no order, no
+ * score — a face and the number of times they cleaned their plate.
+ *
+ * Nodes are kept between renders and reused, so a player joining the lobby
+ * does not restart every sway in the row. Nothing at all is drawn until
+ * somebody has actually won; an empty wall is clutter.
+ */
+function renderWall(snapshot) {
+  const winners = snapshot.seats.filter((s) => Number(s.wins) >= 1).slice(0, 8);
+  if (!winners.length) {
+    if (ui.wall) {
+      ui.wall.remove();
+      // The row is reused when the wall refills, so it cannot keep the
+      // polaroids whose handles are about to be dropped.
+      const row = ui.wall.querySelector('.wall__row');
+      if (row) row.replaceChildren();
+    }
+    ui.wallCards.clear();
+    return;
+  }
+
+  if (!ui.wall) {
+    const wall = document.createElement('div');
+    wall.className = 'wall';
+    const title = document.createElement('p');
+    title.className = 'wall__title';
+    title.textContent = 'Wall of fame';
+    const row = document.createElement('div');
+    row.className = 'wall__row';
+    wall.append(title, row);
+    ui.wall = wall;
+  }
+  if (!ui.wall.isConnected) el.seatList.after(ui.wall);
+
+  const row = ui.wall.querySelector('.wall__row');
+  const seen = new Set();
+  const order = [];
+  winners.forEach((seat, index) => {
+    seen.add(seat.id);
+    let card = ui.wallCards.get(seat.id);
+    if (!card) {
+      card = buildPolaroid(seat);
+      ui.wallCards.set(seat.id, card);
+      // Each polaroid hangs on its own nail: distinct period, and a negative
+      // delay so no two are ever at the same point of the swing.
+      card.style.setProperty('--sway-dur', `${(5.6 + (index % 5) * 0.45).toFixed(2)}s`);
+      card.style.setProperty('--sway-off', `-${(index * 0.9).toFixed(1)}s`);
+    }
+    card._parts.name.textContent = seat.name;
+    card._parts.wins.textContent = `×${seat.wins}`;
+    order.push(card);
+  });
+
+  for (const [id, card] of ui.wallCards) {
+    if (seen.has(id)) continue;
+    card.remove();
+    ui.wallCards.delete(id);
+  }
+  order.forEach((card, index) => {
+    if (row.children[index] !== card) row.insertBefore(card, row.children[index] || null);
+  });
+}
+
+function buildPolaroid(seat) {
+  const card = document.createElement('figure');
+  card.className = 'polaroid';
+
+  const photo = document.createElement('span');
+  photo.className = 'polaroid__photo';
+  const image = document.createElement('img');
+  image.className = 'polaroid__face';
+  image.src = regularPortrait(seat.name)
+    || (seat.isBot ? 'assets/avatar-chef-bot.png' : 'assets/avatar-patron.png');
+  image.alt = '';
+  image.decoding = 'async';
+  image.draggable = false;
+  photo.append(image);
+
+  const caption = document.createElement('figcaption');
+  caption.className = 'polaroid__cap';
+  const name = document.createElement('span');
+  name.className = 'polaroid__name';
+  const wins = document.createElement('b');
+  wins.className = 'polaroid__wins';
+  caption.append(name, wins);
+
+  card.append(photo, caption);
+  card._parts = { name, wins };
+  return card;
 }
 
 // ------------------------------------------------------- the hire roster ----
@@ -660,17 +990,38 @@ function renderGame(snapshot) {
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
   renderLog(view);
+  syncCabinet(snapshot);
+  syncShout(view);
 
+  // 08 · your turn, loudly. One class drives the ping ring on the rail and
+  // both borders warming from bezel to cheese, so the whole signal starts and
+  // stops on the same frame the turn does.
   el.handZone.classList.toggle('is-your-turn', yourTurn);
+  // 04 · the nudge only exists while you actually have a legal move.
+  armNudge(yourTurn, view.playableCardIds.length > 0);
 }
 
+/**
+ * The marquee has three moments and they are mutually exclusive.
+ *
+ * The third one — the call-out window — is read off `calloutTargets`, the same
+ * field that governs the CALL OUT button, so the strip goes to sauce exactly
+ * while calling out is legal and never on a state the server did not send. It
+ * outranks "your turn" on purpose: the window closes on its own, your turn
+ * does not, and the rail's ping still says whose turn it is underneath.
+ */
 function renderTurnBanner(snapshot, view, yourTurn) {
-  el.turnBanner.classList.toggle('is-you', yourTurn);
-  setTurnText(turnLabel(view, yourTurn));
+  const callout = view.status === 'playing' && (view.calloutTargets || []).length > 0;
+  el.turnBanner.classList.toggle('is-callout', callout);
+  el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
+  setTurnText(turnLabel(view, yourTurn, callout));
 }
 
-function turnLabel(view, yourTurn) {
+function turnLabel(view, yourTurn, callout) {
   if (view.status !== 'playing') return 'Round over';
+  // The alarm colour needs a line that earns it. Whose turn it is is still on
+  // screen either way — the rail is ringed and the hint under the hand says so.
+  if (callout) return 'Somebody forgot to shout!';
   if (yourTurn) return view.mustPlayDrawnCard ? 'Your turn — play it or pass' : 'Your turn, chef';
   const current = view.players.find((p) => p.id === view.turnPlayerId);
   return current ? `${current.name} is eyeing the pile…` : 'Waiting…';
@@ -695,31 +1046,28 @@ function setTurnText(text) {
   );
 }
 
+/**
+ * Direction now lives inside the marquee. `.is-reversed` on the banner flips
+ * the chase's delay order — the glyphs never turn around, the wave does — and
+ * the same class mirrors the static arrow that replaces the chase under
+ * reduced motion. The words are kept in a visually-hidden node so a screen
+ * reader still hears the direction change on the banner's own live region.
+ */
 function renderDirection(view) {
-  el.dirIndicator.classList.toggle('is-reversed', view.direction === -1);
-  el.dirText.textContent = view.direction === 1 ? 'to the left' : 'to the right';
+  const reversed = view.direction === -1;
+  el.turnBanner.classList.toggle('is-reversed', reversed);
+  const words = reversed ? 'to the right' : 'to the left';
+  if (el.dirAnnounce.textContent !== words) el.dirAnnounce.textContent = words;
 
-  // F · Flip the Pie. The arrow does a show-off spin and then flashes cyan
-  // twice; renderOpponents picks the flag up and reorders the seats without a
-  // tween, so the panels swap rather than slide.
+  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip;
+  // renderOpponents picks the flag up and reorders the seats without a tween,
+  // so the panels swap rather than slide.
   const flipped = Boolean(ui.prevDir && ui.prevDir !== view.direction);
   ui.dirJustFlipped = flipped;
   if (flipped) {
-    const arrow = el.dirIndicator.querySelector('.dir-arrow');
-    if (arrow) {
-      arrow.classList.remove('is-flipping');
-      void arrow.offsetWidth; // restart the flash if two flips land together
-      arrow.classList.add('is-flipping');
-      setTimeout(() => arrow.classList.remove('is-flipping'), 520);
-    }
+    restartAnimation(el.dirChase, 'is-flipping', 'dir-flash');
+    setTimeout(() => el.dirChase.classList.remove('is-flipping'), 520);
     sound.play('tape-scrub');
-  }
-  if (flipped && wantsMotion() && typeof el.dirIndicator.animate === 'function') {
-    for (const running of el.dirIndicator.getAnimations()) running.cancel();
-    el.dirIndicator.animate(
-      [{ transform: 'rotate(0deg)' }, { transform: `rotate(${view.direction === -1 ? '' : '-'}360deg)` }],
-      { duration: 450, easing: EASE_OUT }
-    );
   }
   ui.prevDir = view.direction;
 }
@@ -857,6 +1205,13 @@ function buildSeat(player) {
 
   // Two readings of the same number: "5 cards" for the chip row and for a
   // screen reader, and the two-digit plate the desktop chef column prints.
+  // 13 · the title they carried out of the last round. Hidden until there is
+  // one, so a seat that earned nothing looks exactly as it did.
+  const nick = document.createElement('span');
+  nick.className = 'seat__nick';
+  nick.hidden = true;
+  node.append(nick);
+
   const count = document.createElement('span');
   count.className = 'seat__count';
   const countLong = document.createElement('span');
@@ -864,12 +1219,19 @@ function buildSeat(player) {
   const countNum = document.createElement('b');
   countNum.className = 'seat__count-num';
   countNum.setAttribute('aria-hidden', 'true');
-  count.append(countLong, countNum);
+  // 06 · the box lid. The count is also a pizza box: the lid stands wide open
+  // on a full hand and shuts as it empties, so the table reads closeness
+  // without anyone reading a number.
+  const box = document.createElement('span');
+  box.className = 'pizza-box';
+  box.setAttribute('aria-hidden', 'true');
+  const boxBase = document.createElement('span');
+  boxBase.className = 'pizza-box__base';
+  const boxLid = document.createElement('span');
+  boxLid.className = 'pizza-box__lid';
+  box.append(boxBase, boxLid);
+  count.append(countLong, countNum, box);
   node.append(count);
-
-  const mini = document.createElement('div');
-  mini.className = 'seat__mini';
-  node.append(mini);
 
   const status = document.createElement('span');
   status.className = 'seat__status';
@@ -879,8 +1241,20 @@ function buildSeat(player) {
   badge.className = 'seat__badge';
   node.append(badge);
 
-  node._parts = { avatar, name, count, countLong, countNum, mini, badge, status };
+  node._parts = { avatar, name, count, countLong, countNum, badge, status, nick, boxLid };
   return node;
+}
+
+/**
+ * 06 · how far the lid stands open, from the hand behind it. Seven cards or
+ * more is wide open at -62deg; one card is all but shut at -6deg; an empty
+ * box is closed. The map is absolute, not a multiplier, so the same count
+ * always draws the same angle.
+ */
+function lidAngle(cardCount) {
+  if (cardCount <= 0) return 0;
+  const capped = Math.min(cardCount, 7);
+  return -(6 + ((capped - 1) / 6) * 56);
 }
 
 /**
@@ -908,6 +1282,22 @@ function updateSeat(node, player, view, exposed) {
   );
   parts.countNum.textContent = String(player.cardCount).padStart(2, '0');
 
+  // 13 · the chip beside the name.
+  const nick = ui.nicknames.get(player.name) || null;
+  parts.nick.textContent = nick ? nick.title : '';
+  parts.nick.className = nick ? `seat__nick nickname nickname--${nick.tone}` : 'seat__nick';
+  parts.nick.hidden = !nick;
+
+  // 06 · the lid follows the count, and takes two or more cards at once as a
+  // reason to fly open before settling back.
+  const previous = node.dataset.count === undefined ? null : Number(node.dataset.count);
+  node.dataset.count = String(player.cardCount);
+  parts.boxLid.style.setProperty('--lid', `${lidAngle(player.cardCount).toFixed(1)}deg`);
+  if (previous !== null && player.cardCount - previous >= 2 && wantsMotion()) {
+    restartAnimation(parts.boxLid, 'is-slam', 'lid-slam');
+    setTimeout(() => parts.boxLid.classList.remove('is-slam'), 460);
+  }
+
   node.classList.toggle('is-turn', view.turnPlayerId === player.id && view.status === 'playing');
   node.classList.toggle('is-away', !player.connected);
   // Their call-out window is open: the chef column dashes the panel in sauce.
@@ -917,15 +1307,6 @@ function updateSeat(node, player, view, exposed) {
   parts.status.textContent = word;
   parts.status.classList.toggle('is-shown', Boolean(word));
   parts.status.classList.toggle('is-watching', word === 'watching you');
-
-  // The mini stack only gets rebuilt when the count changes.
-  const shown = Math.min(player.cardCount, 6);
-  if (Number(node.dataset.shown) !== shown) {
-    node.dataset.shown = String(shown);
-    const stack = new DocumentFragment();
-    for (let i = 0; i < shown; i++) stack.append(renderCard(null, { faceDown: true, size: 'mini' }));
-    parts.mini.replaceChildren(stack);
-  }
 
   const badge = parts.badge;
   if (player.vulnerable && player.cardCount === 1) {
@@ -1088,6 +1469,10 @@ function renderPiles(view, yourTurn) {
       const isDraw = top.kind === 'draw2' || top.kind === 'wild4';
       const wasDraw = ui.prevTopKind === 'draw2' || ui.prevTopKind === 'wild4';
       ui.chain = isDraw ? (wasDraw ? ui.chain + 1 : 1) : 0;
+      // 1A · what the run has actually cost, for the cabinet's running total.
+      // Derived from the same landing, so it can never disagree with the ladder.
+      const forced = top.kind === 'wild4' ? 4 : top.kind === 'draw2' ? 2 : 0;
+      ui.chainTotal = ui.chain === 0 ? 0 : ui.chain === 1 ? forced : ui.chainTotal + forced;
     }
     if (isNew) {
       el.discardSlot.dataset.topId = top.id;
@@ -1124,112 +1509,555 @@ function renderPiles(view, yourTurn) {
   }
 }
 
+const SUIT_SORT = { pepperoni: 0, basil: 1, cheese: 2, anchovy: 3 };
+const KIND_SORT = { number: 0, skip: 1, reverse: 2, draw2: 3, wild: 4, wild4: 5 };
+
+/** Suits together, numbers ascending, actions behind them, wilds last. */
+function handSortKey(card) {
+  const suit = isWild(card) ? 9 : SUIT_SORT[card.suit] ?? 8;
+  const kind = KIND_SORT[card.kind] ?? 7;
+  const value = card.kind === 'number' ? card.value : 10 + kind;
+  return suit * 100 + value;
+}
+
+/**
+ * THE PIT.
+ *
+ * The hand is partitioned, not fanned. Everything you cannot play drops into
+ * the rib strip; the cards you can play stand up at full size in the near rail
+ * underneath it. The sort is unchanged and still runs first — it is what makes
+ * the partition read as one movement when your turn starts.
+ *
+ * A card owns one slot for its whole life, keyed by id. The slot moves between
+ * the rails; it is never rebuilt, so the entry transition, the flight from the
+ * dough pile and the focus a player is holding all survive a promotion.
+ */
 function renderHand(snapshot, view, yourTurn) {
   const playable = new Set(view.playableCardIds);
   const seen = new Set();
   const fresh = [];
-  const order = [];
+  const pit = [];
+  const near = [];
 
-  for (const card of view.hand) {
+  const sortedHand = [...view.hand].sort((a, b) => handSortKey(a) - handSortKey(b) || (a.id < b.id ? -1 : 1));
+  ui.handOrder = sortedHand.map((c) => c.id);
+  for (const card of sortedHand) {
     seen.add(card.id);
+    ui.handCards.set(card.id, card);
+    const isPlayable = yourTurn && playable.has(card.id);
     let slot = ui.handSlots.get(card.id);
-    if (!slot) {
+    const isFresh = !slot;
+
+    // A drawn card lands in the pit as a rib whatever it is; if it is playable
+    // it promotes a beat later, and that promotion is the news rather than the
+    // draw. A dealt hand is not a draw — it arrives already sorted, so it goes
+    // straight to the rail it belongs in instead of promoting seven cards at
+    // once over the deal stagger.
+    const landsInPit = isFresh && !ui.dealing;
+    const wantsNear = isPlayable && !landsInPit;
+
+    if (isFresh) {
       slot = document.createElement('div');
       slot.className = 'hand-slot';
-      const node = renderCard(card, { size: 'hand', interactive: true });
+      slot.dataset.cardId = card.id;
+      // Press Start 2P is fixed pitch, so a two-glyph index needs a wider rib.
+      slot.dataset.glyphs = String(cardIndex(card).length);
+      const node = renderCard(card, { size: wantsNear ? 'hand' : 'rib', interactive: true });
+      // Only a card that is genuinely arriving takes the entry style. A
+      // promotion moves this same node between rails, and a moved node
+      // re-resolves its style — without the marker it would fade in from
+      // nothing every time it was promoted instead of rising out of the pit.
+      node.classList.add('is-entering');
       node.addEventListener('click', () => onCardActivate(card, slot));
+      // The entry delay has to be written before the card is ever laid out.
+      // The layout pass below reads offsetWidth, and that forced flush
+      // resolves `@starting-style` and starts every fresh card's entry
+      // transition on the spot — a transition-delay written after it is never
+      // seen, the stagger collapses to nothing, and the real card sits visible
+      // under its own flying clone for the whole flight.
+      const arrival = fresh.length;
+      const delay = ui.dealing
+        ? Math.min(arrival * 55, 275)
+        : arrival * 70 + D_FLY - 80;
+      if (wantsMotion() && delay > 0) node.style.transitionDelay = `${delay}ms`;
       slot.append(node);
       ui.handSlots.set(card.id, slot);
-      fresh.push(slot);
+      fresh.push({ slot, delay, promotes: isPlayable && landsInPit });
     }
-    const node = slot.firstElementChild;
-    const isPlayable = yourTurn && playable.has(card.id);
-    node.classList.toggle('is-playable', isPlayable);
-    node.classList.toggle('is-dimmed', !isPlayable);
-    node.disabled = !isPlayable;
-    order.push(slot);
+
+    dressCard(slot.firstElementChild, card, isPlayable);
+    (wantsNear ? near : pit).push({ card, slot });
   }
 
   for (const [id, slot] of ui.handSlots) {
     if (!seen.has(id)) {
       slot.remove();
       ui.handSlots.delete(id);
+      ui.handCards.delete(id);
+      if (ui.peekCardId === id) clearPeek();
     }
   }
 
-  order.forEach((slot, index) => {
-    if (el.hand.children[index] !== slot) el.hand.insertBefore(slot, el.hand.children[index] || null);
-  });
+  // Not your turn: nothing is live, so nothing stands up. The near rail keeps
+  // no room at all and the whole hand sits in the pit at review width.
+  el.hand.dataset.mode = yourTurn ? 'turn' : 'review';
 
-  layoutHand(order);
+  // The pit is filled first: a card demoting out of the near rail has to be
+  // out of it before the near rail is spaced, or the gap would close twice.
+  fillRail(el.handPit, pit.map((e) => e.slot), 'rib');
+  const raised = fillRail(el.handNear, near.map((e) => e.slot), 'hand');
+  layoutNear(near);
+  labelPit(pit.length, yourTurn);
 
-  // Cards that just arrived. At the start of a round the whole fan is dealt in
-  // with a stagger. During play a card can only come off the dough pile, so it
-  // travels from the pile and the real card takes over where it lands.
-  // Interaction is never blocked either way.
+  // The promotion is the one thing in the hand that animates on its own. It
+  // can only happen on a snapshot where the top card changed or the turn did,
+  // because that is the only thing that can change what is playable — the near
+  // rail therefore holds still for the whole of your turn by construction.
+  if (raised.length && wantsMotion()) {
+    for (const slot of raised) restartAnimation(slot.firstElementChild, 'is-promoting', 'promote');
+    setTimeout(() => {
+      for (const slot of raised) slot.firstElementChild?.classList.remove('is-promoting');
+    }, 340);
+    // The one new cue in the whole redesign: the promotion snaps, the scrub is
+    // silent. Not on the deal, which already has its own wave of arrivals.
+    if (!ui.dealing) sound.play('card-snap');
+  }
+
+  // Cards that just arrived. At the start of a round the whole hand is dealt
+  // in with a stagger. During play a card can only come off the dough pile, so
+  // it travels from the pile and shrinks into its rib as it lands. The delays
+  // themselves were set above, before the layout read; all that is left here is
+  // the flight and letting each delay go once its card has arrived.
+  let settle = 0;
   if (fresh.length) {
     const dealing = ui.dealing;
-    fresh.forEach((slot, index) => {
+    fresh.forEach(({ slot, delay, promotes }, index) => {
+      releaseEntry(slot, delay);
       if (dealing) {
-        delayEntry(slot, Math.min(index * 55, 275));
+        settle = Math.max(settle, delay);
         return;
       }
       const start = index * 70;
-      delayEntry(slot, start + D_FLY - 80);
+      settle = Math.max(settle, start + D_FLY);
       flyFromDrawPile(slot, start);
+      flashRib(slot, start + D_FLY);
+      if (promotes) promoteLater(slot, start + D_FLY + 120);
     });
+    settle += D_ENTER + 140;
+    // An absolute deadline, not a per-render duration. The snapshot right
+    // after a deal usually brings no fresh cards of its own, and a duration
+    // computed from that render would be zero — arming the breath on top of a
+    // wave that is still arriving and snapping the late cards into place.
+    ui.entrySettleAt = Date.now() + settle;
   }
   // Only a hand that actually has cards in it counts as dealt.
-  if (order.length) ui.dealing = false;
-}
+  if (pit.length || near.length) ui.dealing = false;
 
-/** Holds a fresh card back until its turn in the stagger, or until it lands. */
-function delayEntry(slot, delay) {
-  if (!wantsMotion() || delay <= 0) return;
-  const node = slot.firstElementChild;
-  node.style.transitionDelay = `${delay}ms`;
-  setTimeout(() => { node.style.transitionDelay = ''; }, delay + D_ENTER + 120);
+  // 01 · the hand breathes while it is not your turn, and stops dead the
+  // instant it is — the stop itself is the signal. It is held off until the
+  // deal-in stagger and any flight from the dough pile have landed, because a
+  // keyframe would otherwise swallow the entry transition.
+  setHandBreathing(!yourTurn && view.status === 'playing' && (pit.length + near.length) > 0);
 }
 
 /**
- * How far one card may hide behind the next. Past this the fan stops being a
- * hand and becomes a stack of slivers: two eaten Whole Pies used to squeeze
- * the cards down to a sixth of their width. The strip scrolls instead.
+ * The playable state of one card: the ring, the dim, and what it answers to.
+ *
+ * A dead card is not `disabled`. The scrub is pointer-only, so a keyboard has
+ * to be able to reach the half of the hand it cannot drag across; a rib stays
+ * in the tab order, says it is disabled, and takes no pointer (the stylesheet
+ * puts `pointer-events: none` on it, because the strip around it is the
+ * control). The click handler refuses anything that is not playable anyway.
+ */
+function dressCard(node, card, isPlayable) {
+  if (!node) return;
+  node.classList.toggle('is-playable', isPlayable);
+  node.classList.toggle('is-dimmed', !isPlayable);
+  node.disabled = false;
+  if (isPlayable) {
+    node.removeAttribute('aria-disabled');
+    node.setAttribute('aria-label', `Play ${describeCard(card)}`);
+  } else {
+    node.setAttribute('aria-disabled', 'true');
+    node.setAttribute('aria-label', describeCard(card));
+  }
+}
+
+/**
+ * Puts a rail's slots in order and swaps every card into the mode that rail
+ * draws in. Returns the slots that arrived from the other rail, so a promotion
+ * can be told apart from a card that was already standing there.
+ */
+function fillRail(host, slots, size) {
+  const arrived = [];
+  slots.forEach((slot, index) => {
+    const node = slot.firstElementChild;
+    if (slot.parentElement && slot.parentElement !== host) {
+      arrived.push(slot);
+      // A node that is about to move must not be carrying the entry marker, or
+      // the move would re-trigger the entry fade on top of its promotion.
+      if (node) node.classList.remove('is-entering');
+    }
+    if (node) setCardSize(node, size);
+    if (host.children[index] !== slot) host.insertBefore(slot, host.children[index] || null);
+  });
+  return arrived;
+}
+
+/** Swaps a card between the modes `renderCard` built it able to wear. */
+function setCardSize(node, size) {
+  const want = `card--${size}`;
+  if (node.classList.contains(want)) return;
+  node.classList.remove('card--hand', 'card--rib');
+  node.classList.add(want);
+}
+
+/**
+ * A drawn card lands in the pit with two frames of cheese on its keyline. It
+ * is the only thing that says "that one is new" once the flight has gone.
+ */
+function flashRib(slot, delay) {
+  if (!wantsMotion()) return;
+  setTimeout(() => {
+    const node = slot.firstElementChild;
+    if (!node || !node.isConnected) return;
+    restartAnimation(node, 'is-flashing', 'rib-flash');
+    setTimeout(() => node.classList.remove('is-flashing'), 240);
+  }, Math.max(delay, 0));
+}
+
+/**
+ * A playable card that just arrived promotes out of the pit once its flight
+ * has landed, rather than never having been in the pit at all: the rib is what
+ * you drew, the promotion is what it means.
+ */
+function promoteLater(slot, delay) {
+  setTimeout(() => {
+    if (!slot.isConnected || slot.parentElement !== el.handPit) return;
+    const node = slot.firstElementChild;
+    if (!node || !node.classList.contains('is-playable')) return;
+    node.classList.remove('is-entering');
+    setCardSize(node, 'hand');
+    // Into its sorted place, never onto the end: the sort is the point of the
+    // near rail, and a promotion between two snapshots must not break it.
+    const rank = ui.handOrder.indexOf(slot.dataset.cardId);
+    const after = [...el.handNear.children].find(
+      (s) => ui.handOrder.indexOf(s.dataset.cardId) > rank
+    );
+    el.handNear.insertBefore(slot, after || null);
+    layoutNear([...el.handNear.children].map((s) => ({ slot: s, card: ui.handCards.get(s.dataset.cardId) })));
+    labelPit(el.handPit.children.length, el.hand.dataset.mode === 'turn');
+    if (!wantsMotion()) return;
+    restartAnimation(node, 'is-promoting', 'promote');
+    setTimeout(() => node.classList.remove('is-promoting'), 340);
+    sound.play('card-snap');
+  }, Math.max(delay, 0));
+}
+
+/** The pit is one control, so it says what it holds and how to read it. */
+function labelPit(count, yourTurn) {
+  const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
+  el.handPit.setAttribute(
+    'aria-label',
+    count === 0
+      ? 'No cards in the pit'
+      : yourTurn
+        ? `${cards} you cannot play, drag across to review them`
+        : `${cards}, drag across to review them`
+  );
+}
+
+/**
+ * 01 · arms or disarms the idle breath.
+ *
+ * The class lives on the hand, not on each card, so stopping it is one class
+ * removal on the frame the turn arrives — no timer to outrun, nothing to
+ * cancel per card.
+ */
+function setHandBreathing(on) {
+  clearTimeout(ui.breatheTimer);
+  ui.breatheTimer = 0;
+  if (!on || !wantsMotion()) {
+    el.hand.classList.remove('is-breathing');
+    return;
+  }
+  // Whatever is still arriving finishes arriving first, whichever render
+  // started it. The class comes off for the duration rather than merely
+  // failing to go on: a penalty landing mid-breath would otherwise enter
+  // against a keyframe that already owns the card's transform, and the new
+  // card would fade in without ever rising into the fan.
+  const wait = ui.entrySettleAt - Date.now();
+  if (wait > 0) {
+    el.hand.classList.remove('is-breathing');
+    ui.breatheTimer = setTimeout(() => el.hand.classList.add('is-breathing'), wait);
+    return;
+  }
+  el.hand.classList.add('is-breathing');
+}
+
+// ------------------------------------------------------------ 04 · nudge ----
+/**
+ * After five seconds of nothing at all on your own turn, the cards you could
+ * legally play wobble once. It never points at a card, never counts anything
+ * down, and never makes a sound — it is the table clearing its throat.
+ *
+ * The clock is a single chained timeout, re-armed after each wobble; a hidden
+ * tab skips the wobble and simply re-arms, so nothing piles up behind a
+ * backgrounded window.
+ */
+const NUDGE_IDLE_MS = 5000;
+const NUDGE_LIFE_MS = 480;
+
+function clearNudge() {
+  clearTimeout(ui.nudgeTimer);
+  clearTimeout(ui.nudgeOffTimer);
+  ui.nudgeTimer = 0;
+  ui.nudgeOffTimer = 0;
+  ui.nudgeArmed = false;
+  stopWobble();
+}
+
+function stopWobble() {
+  for (const slot of ui.handSlots.values()) {
+    const node = slot.firstElementChild;
+    if (node) node.classList.remove('is-nudging');
+  }
+}
+
+function armNudge(yourTurn, hasLegal) {
+  if (!yourTurn || !hasLegal || !wantsMotion()) {
+    clearNudge();
+    return;
+  }
+  if (ui.nudgeArmed) return; // already counting; only activity restarts it
+  ui.nudgeArmed = true;
+  scheduleNudge();
+}
+
+function scheduleNudge() {
+  clearTimeout(ui.nudgeTimer);
+  ui.nudgeTimer = setTimeout(fireNudge, NUDGE_IDLE_MS);
+}
+
+function fireNudge() {
+  ui.nudgeTimer = 0;
+  if (!ui.nudgeArmed) return;
+  // A hidden tab or an open popover is not somebody who needs prompting.
+  if (document.hidden || popoverOpen()) {
+    scheduleNudge();
+    return;
+  }
+  let any = false;
+  for (const slot of ui.handSlots.values()) {
+    const node = slot.firstElementChild;
+    if (!node || !node.classList.contains('is-playable')) continue;
+    restartAnimation(node, 'is-nudging', 'wobble');
+    any = true;
+  }
+  if (!any) {
+    clearNudge();
+    return;
+  }
+  ui.nudgeOffTimer = setTimeout(stopWobble, NUDGE_LIFE_MS);
+  scheduleNudge();
+}
+
+let lastActivityBump = 0;
+/** Any sign of life restarts the five seconds. Throttled: pointermove is cheap
+ *  but it is not free, and a 400ms floor cannot lose more than 400ms. */
+function bumpNudge() {
+  if (!ui.nudgeArmed) return;
+  const now = Date.now();
+  if (now - lastActivityBump < 400) return;
+  lastActivityBump = now;
+  stopWobble();
+  scheduleNudge();
+}
+
+/**
+ * Drops the entry delay once the card has finished arriving, and with it the
+ * marker that says this card is arriving at all. The delay itself is written
+ * where the slot is built, because by the time anything has read layout it is
+ * already too late to stagger. The marker has to come off on every card, delay
+ * or no delay: from here on, moving this node between rails is a promotion and
+ * must never be mistaken for an entry.
+ */
+function releaseEntry(slot, delay) {
+  setTimeout(() => {
+    const node = slot.firstElementChild;
+    if (!node) return;
+    node.style.transitionDelay = '';
+    node.classList.remove('is-entering');
+  }, Math.max(delay, 0) + D_ENTER + 120);
+}
+
+// ---------------------------------------------------------------- the pit ---
+/**
+ * The scrub. The pit is one continuous control, not a row of targets — a 20px
+ * rib is far under the touch minimum. Press anywhere in the strip and drag:
+ * the peek follows, so accuracy never matters and the worst a miss can do is
+ * show the neighbouring card. Nothing in here can play a card; play happens
+ * only in the near rail, which is exactly what the peek lands on top of.
+ */
+function ribUnder(clientX, clientY) {
+  let best = null;
+  let bestD = Infinity;
+  for (const slot of el.handPit.children) {
+    const r = slot.getBoundingClientRect();
+    const dx = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
+    // The pit wraps to two rows at review width, so the row counts too.
+    const dy = clientY < r.top ? r.top - clientY : clientY > r.bottom ? clientY - r.bottom : 0;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) {
+      bestD = d;
+      best = slot;
+    }
+  }
+  return best;
+}
+
+function showPeek(slot) {
+  const cardId = slot.dataset.cardId;
+  const card = ui.handCards.get(cardId);
+  if (!card) return;
+  if (ui.peekCardId !== cardId) {
+    ui.peekCardId = cardId;
+    // The peek duplicates a rib that is already in the accessibility tree with
+    // its own label, so it is scenery: hidden from the reader, never a button.
+    const face = renderCard(card, { size: 'hand' });
+    face.setAttribute('aria-hidden', 'true');
+    face.removeAttribute('role');
+    el.handPeek.replaceChildren(face);
+  }
+  const box = el.hand.getBoundingClientRect();
+  const rib = slot.getBoundingClientRect();
+  const x = rib.left - box.left + rib.width / 2 - 42;
+  // It lands over the near rail: at 375px there is only 15px of room above the
+  // pit, and covering the place you play from is one more way of saying a peek
+  // is not a play.
+  el.handPeek.style.setProperty('--peek-top', `${el.handPit.offsetTop + el.handPit.offsetHeight + 8}px`);
+  el.handPeek.style.setProperty('--peek-x', `${Math.round(Math.max(0, Math.min(x, box.width - 84)))}px`);
+  el.handPeek.hidden = false;
+  el.hand.classList.add('has-peek');
+}
+
+function clearPeek() {
+  ui.peekCardId = null;
+  el.handPeek.hidden = true;
+  el.handPeek.replaceChildren();
+  el.hand.classList.remove('has-peek');
+}
+
+function bindPit() {
+  el.handPit.addEventListener('pointerdown', (event) => {
+    const slot = ribUnder(event.clientX, event.clientY);
+    if (!slot) return;
+    ui.peekPointer = event.pointerId;
+    try {
+      el.handPit.setPointerCapture(event.pointerId);
+    } catch { /* no capture, the listeners below still fire */ }
+    showPeek(slot);
+    event.preventDefault();
+  });
+
+  el.handPit.addEventListener('pointermove', (event) => {
+    if (ui.peekPointer !== event.pointerId) return;
+    const slot = ribUnder(event.clientX, event.clientY);
+    if (slot) showPeek(slot);
+  });
+
+  const end = (event) => {
+    if (ui.peekPointer !== event.pointerId) return;
+    ui.peekPointer = -1;
+    clearPeek();
+  };
+  el.handPit.addEventListener('pointerup', end);
+  el.handPit.addEventListener('pointercancel', end);
+  el.handPit.addEventListener('lostpointercapture', end);
+
+  // The scrub is pointer-only, so focus is how a keyboard reads the pit:
+  // landing on a rib shows the same peek, leaving it clears it.
+  el.handPit.addEventListener('focusin', (event) => {
+    const slot = event.target.closest('.hand-slot');
+    if (slot) showPeek(slot);
+  });
+  el.handPit.addEventListener('focusout', (event) => {
+    if (ui.peekPointer >= 0) return;
+    if (event.relatedTarget && el.handPit.contains(event.relatedTarget)) return;
+    clearPeek();
+  });
+}
+
+/**
+ * How far one card may hide behind the next. It is the floor, not the resting
+ * value: the near rail overlaps 24% past four cards and only ever goes past
+ * that to keep a very live hand on the screen. Nothing shrinks either way.
  */
 const MAX_OVERLAP = 0.55;
 
-/** Spreads the hand into a fan, and scrolls it once the fan stops fitting. */
-function layoutHand(slots) {
-  const total = slots.length;
-  if (!total) {
-    el.hand.classList.remove('is-scrolling');
-    return;
-  }
-  const cardWidth = slots[0].offsetWidth || 84;
-  // `.hand` carries 8px of side padding in both modes, so this is the room the
-  // cards actually get, and it does not change when the strip starts scrolling.
+/** VT323 at 13px runs 5.3px a character; 8px is the 6px inset and a pixel of air. */
+const BANNER_CH = 5.3;
+const BANNER_PAD = 8;
+
+/**
+ * Spaces the near rail and decides what each banner can finish saying.
+ *
+ * Full 84px cards with 8px gaps and no overlap at all up to four. Past four
+ * they overlap 24%. They never shrink, and there is no density step to fall
+ * back to — the pit is what makes the room.
+ */
+function layoutNear(entries) {
+  ui.nearRow = entries;
+  const total = entries.length;
+  if (!total) return;
+
+  // The live width, not the configured one: the rail forces 84px on every
+  // screen and this is the only place that can tell whether it got it.
+  const cardWidth = entries[0].slot.offsetWidth || 84;
+  // `.hand` carries 8px of side padding, so this is the room the cards get.
   const available = Math.max(el.hand.clientWidth - 16, cardWidth);
 
-  let overlap = -Math.round(cardWidth * 0.3);
-  const needed = total * cardWidth + (total - 1) * overlap;
+  let gap = total > 4 ? -Math.round(cardWidth * 0.24) : 8;
+  // Past about six live cards even a 24% overlap runs off a 375px screen, and
+  // a card under the bezel is worse than a card behind another card. This is
+  // not a density step: the cards stay 84px, they just hide further.
+  const needed = total * cardWidth + (total - 1) * gap;
   if (needed > available && total > 1) {
-    overlap = Math.floor((available - total * cardWidth) / (total - 1));
+    gap = Math.min(gap, Math.floor((available - total * cardWidth) / (total - 1)));
+    gap = Math.max(gap, -Math.round(cardWidth * MAX_OVERLAP));
   }
-  overlap = Math.max(overlap, -Math.round(cardWidth * MAX_OVERLAP));
 
-  const width = total * cardWidth + (total - 1) * overlap;
-  const scrolling = width > available;
-  el.hand.classList.toggle('is-scrolling', scrolling);
-
-  // A scrolling strip clips on both axes, so the fan flattens: no tilt, no
-  // rise. The lift and the cheese ring keep their room in the padding.
-  const spread = scrolling ? 0 : Math.min(4.2, 32 / Math.max(total - 1, 1));
-  slots.forEach((slot, index) => {
-    const norm = total === 1 ? 0 : (index - (total - 1) / 2) / ((total - 1) / 2);
-    slot.style.setProperty('--overlap', `${overlap}px`);
-    slot.style.setProperty('--tilt', `${(norm * spread * Math.max(total - 1, 1) / 2).toFixed(2)}deg`);
-    slot.style.setProperty('--rise', scrolling ? '0px' : `${(Math.abs(norm) ** 2 * 7).toFixed(1)}px`);
+  entries.forEach(({ slot }, index) => {
+    slot.style.setProperty('--overlap', `${gap}px`);
     slot.style.zIndex = String(index + 1);
+  });
+
+  labelNear(entries, cardWidth, gap);
+}
+
+/**
+ * 04 · a banner is centred across 84px, but a card the next card covers only
+ * exposes its leftmost strip, and a centred label in it is always cut
+ * mid-word. A covered card prints the three-letter suit token, left-aligned
+ * into the strip it actually has. The full label is kept for the card nothing
+ * covers — the last one in the rail. Nothing is placed in a strip it cannot
+ * finish in, so a strip too narrow even for the token prints nothing.
+ */
+function labelNear(entries, cardWidth, gap) {
+  entries.forEach(({ slot, card }, index) => {
+    const node = slot.firstElementChild;
+    if (!node) return;
+    const last = index === entries.length - 1;
+    const exposed = last ? cardWidth : Math.min(cardWidth, cardWidth + gap);
+    const fits = (text) => exposed >= text.length * BANNER_CH + BANNER_PAD;
+    const full = node.querySelector('.card__banner-full');
+    const covered = !last && gap < 0;
+    const token = suitToken(card);
+
+    const printsFull = !covered && fits(full ? full.textContent : '');
+    const printsToken = !printsFull && fits(token);
+    node.classList.toggle('is-tokened', printsToken);
+    node.classList.toggle('is-unlabelled', !printsFull && !printsToken);
   });
 }
 
@@ -1449,11 +2277,201 @@ function renderRoundOver(snapshot, staged) {
 
   if (el.dialog) el.dialog.classList.toggle('is-win', Boolean(youWon));
 
+  // 13 · the titles are settled before the bills print, so the one you just
+  // earned is on your own receipt and not only on next round's seat panel.
+  if (staged) computeNicknames(snapshot);
+
   renderReceipts(snapshot, staged);
 
   el.btnNextRound.hidden = !snapshot.isHost;
   el.btnToLobby.hidden = !snapshot.isHost;
-  el.roundWait.textContent = snapshot.isHost ? '' : 'Waiting for the host to roll out more dough…';
+
+  // 09 · nobody has to be the person who suggests one more game.
+  if (hostPresent(snapshot)) {
+    el.roundWait.textContent = '';
+    armWarmLobby(snapshot, staged);
+  } else {
+    stopWarmLobby();
+    el.roundWait.textContent = 'The host stepped out. Nothing starts by itself now.';
+  }
+}
+
+// --------------------------------------------------- 13 · earned nicknames --
+/**
+ * One title per player, computed from the receipt tracker at the end of every
+ * round and carried into the next one. Nothing here is on the wire and nothing
+ * here is a rule: it is the same per-player counts the bills are printed from,
+ * read once more for a nickname.
+ *
+ * A category is only awarded on a unique maximum above zero. Three players
+ * tied on two anchovies each says nothing about any of them, which is exactly
+ * how the ANCHOVY LOVER badge on the receipts already reasons.
+ */
+const NICK_CATEGORIES = [
+  { key: 'anchovy', title: 'THE ANCHOVY GUY', tone: 'anchovy' },
+  { key: 'caught', title: 'FORGOT SOMETHING', tone: 'sauce' },
+  { key: 'penalty', title: 'BUTTERFINGERS', tone: 'cheese' },
+  { key: 'dead', title: 'SLOW HANDS', tone: 'cyan' },
+];
+
+function nickStat(seatId, key) {
+  const bill = (ui.tab && ui.tab.bills.get(seatId)) || freshBill();
+  if (key === 'anchovy') return bill.anchovy;
+  if (key === 'caught') return bill.caught;
+  if (key === 'penalty') return bill.extraCost + bill.wholeCost;
+  return bill.dead;
+}
+
+function computeNicknames(snapshot) {
+  const view = snapshot.game;
+  if (!view) return;
+  const seats = snapshot.seats.filter((s) => view.players.some((p) => p.id === s.id));
+
+  const holders = new Map(); // category key -> seat id, or nothing on a tie
+  for (const category of NICK_CATEGORIES) {
+    let best = 0;
+    let who = null;
+    let tied = false;
+    for (const seat of seats) {
+      const value = nickStat(seat.id, category.key);
+      if (value > best) {
+        best = value;
+        who = seat.id;
+        tied = false;
+      } else if (value === best && value > 0) {
+        tied = true;
+      }
+    }
+    if (best > 0 && who && !tied) holders.set(category.key, who);
+  }
+
+  for (const seat of seats) {
+    let earned = null;
+    if (view.winnerId === seat.id) {
+      earned = { title: 'CLEAN PLATE', tone: 'basil' };
+    } else {
+      for (const category of NICK_CATEGORIES) {
+        if (holders.get(category.key) !== seat.id) continue;
+        earned = { title: category.title, tone: category.tone };
+        break;
+      }
+    }
+    if (earned) ui.nicknames.set(seat.name, earned);
+    else ui.nicknames.delete(seat.name);
+  }
+}
+
+function nicknameChip(name) {
+  const nick = ui.nicknames.get(name);
+  if (!nick) return null;
+  const chip = document.createElement('span');
+  chip.className = `nickname nickname--${nick.tone}`;
+  chip.textContent = nick.title;
+  return chip;
+}
+
+// ------------------------------------------------------ 09 · the warm lobby --
+/**
+ * The round-over screen never dumps anyone back to an idle lobby: ANOTHER PIE?
+ * hops over a bar that drains in five countable steps, and when it runs out
+ * the next round starts on its own.
+ *
+ * There is no wire change here at all. Only the host's own client sends the
+ * `newRound` the host would have clicked anyway; every other client runs the
+ * same countdown purely as a picture of what is about to happen, armed from
+ * the moment its own round-over snapshot arrived. If nobody is holding the
+ * oven — the host left, or is disconnected — nothing is armed, because a
+ * countdown that cannot fire is a lie.
+ */
+const WARM_MS = 5000;
+
+function hostPresent(snapshot) {
+  const host = snapshot.seats.find((s) => s.id === snapshot.hostId);
+  return Boolean(host && host.connected !== false);
+}
+
+function buildWarmLobby() {
+  const box = document.createElement('div');
+  box.className = 'warm';
+
+  const title = document.createElement('p');
+  title.className = 'warm__title';
+  title.textContent = 'ANOTHER PIE?';
+
+  const bar = document.createElement('span');
+  bar.className = 'warm__bar';
+  bar.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  fill.className = 'warm__fill';
+  bar.append(fill);
+
+  const count = document.createElement('p');
+  count.className = 'warm__count';
+  count.setAttribute('role', 'status');
+
+  box.append(title, bar, count);
+  ui.warm = { box, fill, count, timer: 0, deadline: 0, left: -1, host: false, fired: false };
+  return ui.warm;
+}
+
+function armWarmLobby(snapshot, staged) {
+  const warm = ui.warm || buildWarmLobby();
+  // Above the actions, so the bar reads as the thing the buttons interrupt.
+  if (!warm.box.isConnected) el.dialog.insertBefore(warm.box, el.btnNextRound.parentElement);
+
+  warm.host = Boolean(snapshot.isHost);
+  warm.box.hidden = false;
+
+  if (!staged && warm.deadline) return; // a later snapshot never resets the clock
+
+  warm.deadline = Date.now() + WARM_MS;
+  warm.fired = false;
+  warm.left = -1;
+  restartAnimation(warm.fill, 'is-draining', 'drain');
+  tickWarmLobby();
+}
+
+/**
+ * The tick reads the wall clock rather than counting its own beats, so a
+ * throttled background tab lands on the right second when it comes back
+ * instead of finishing five seconds late.
+ */
+function tickWarmLobby() {
+  const warm = ui.warm;
+  if (!warm || !warm.deadline) return;
+  clearTimeout(warm.timer);
+  warm.timer = 0;
+
+  const remaining = warm.deadline - Date.now();
+  const left = Math.max(0, Math.ceil(remaining / 1000));
+  if (left !== warm.left) {
+    warm.left = left;
+    warm.count.textContent = left > 0 ? `STARTS BY ITSELF IN ${left}` : 'FIRING UP THE OVEN…';
+    // The last three seconds tick, once each, on the same rising beep the
+    // call-out window uses. Everything before that is silent.
+    if (left > 0 && left <= 3) sound.play('timer-beep', 6 - left);
+  }
+
+  if (remaining > 0) {
+    warm.timer = setTimeout(tickWarmLobby, 180);
+    return;
+  }
+  if (warm.fired) return;
+  warm.fired = true;
+  // Only the host actually rolls the dough. Everyone else was watching.
+  if (warm.host) send({ type: 'newRound' });
+}
+
+function stopWarmLobby() {
+  const warm = ui.warm;
+  if (!warm) return;
+  clearTimeout(warm.timer);
+  warm.timer = 0;
+  warm.deadline = 0;
+  warm.fired = false;
+  warm.left = -1;
+  warm.fill.classList.remove('is-draining');
+  warm.box.hidden = true;
 }
 
 // =============================================================== RECEIPTS ==
@@ -1504,6 +2522,15 @@ function buildReceipt(snapshot, view, seat, index, anchovyLover, staged) {
   who.textContent = `${seat.name}${seat.id === snapshot.youId ? ' (you)' : ''} · ${desk}`;
 
   paper.append(brand, who);
+
+  // 13 · the title is printed on the bill, under the name, like a job.
+  const nick = ui.nicknames.get(seat.name);
+  if (nick) {
+    const stamp = document.createElement('span');
+    stamp.className = 'receipt__nick';
+    stamp.textContent = nick.title;
+    paper.append(stamp);
+  }
 
   const items = document.createElement('div');
   items.className = 'receipt__items';
@@ -1609,7 +2636,7 @@ function commitPlay(card, topping, slot) {
  * transform and opacity, and it hands over to the real card as it lands.
  */
 function flyBetween(template, from, to, spin) {
-  if (!wantsMotion()) return;
+  if (!wantsMotion() || document.hidden) return;
   if (!from || !to || !from.w || !to.w) return;
 
   const clone = template.cloneNode(true);
@@ -1801,6 +2828,9 @@ function onCardLanded(view, top) {
 function setOvenStep(step) {
   const centre = document.querySelector('.table-center');
   if (centre) centre.style.setProperty('--oven-step', String(step));
+  // 1A · the cabinet's own glow lift and the running total ride the same
+  // funnel, so they can never be left standing on a chain that has ended.
+  syncChain();
 }
 
 /**
@@ -1811,9 +2841,19 @@ function setOvenStep(step) {
 function shakeFrame() {
   const host = document.querySelector('.screen--game');
   if (!host) return;
-  host.classList.remove('is-shaking');
-  void host.offsetWidth; // restart the shake if two links land back to back
+  // The class sits on the screen but the animation runs on its three rows,
+  // so the rewind has to reach them by name — a subtree sweep here would also
+  // rewind every breathing card in the hand.
+  const shaking = host.classList.contains('is-shaking');
   host.classList.add('is-shaking');
+  if (shaking) {
+    for (const row of host.querySelectorAll(':scope > .hud, :scope > .table, :scope > .hand-zone')) {
+      if (typeof row.getAnimations !== 'function') continue;
+      for (const running of row.getAnimations()) {
+        if (running.animationName === 'frame-shake') running.currentTime = 0;
+      }
+    }
+  }
   setTimeout(() => host.classList.remove('is-shaking'), 160);
 }
 
@@ -1940,9 +2980,42 @@ function flyToDiscard(sourceNode) {
   // one per visible jump, not one per frame. Only your own card gets them: a
   // four-card penalty flying in would otherwise be twenty blips.
   if (!wantsMotion()) return;
+  pullCheese(sourceNode);
   for (let i = 0; i < 5; i++) {
     setTimeout(() => sound.play('flight-blip', i), (i * D_FLY) / 5);
   }
+}
+
+/**
+ * 05 · the cheese pull. One 4px strand, anchored at the card you just let go
+ * of and pointing at the oven, stretching along with the flight and snapping
+ * a little before it lands.
+ *
+ * One div, rotated once at birth and never touched again: the whole thing is
+ * a scaleX on a fixed-width element, so nothing is measured mid-flight. Only
+ * ever your own play — a bot's card flying in already carries its own weight,
+ * and eight strands crossing the table at once would be spaghetti.
+ */
+function pullCheese(sourceNode) {
+  if (document.hidden) return;
+  const from = cardMetrics(sourceNode);
+  const to = cardMetrics(el.discardSlot);
+  if (!from.w || !to.w) return;
+  const dx = to.cx - from.cx;
+  const dy = to.cy - from.cy;
+  const span = Math.hypot(dx, dy);
+  if (span < 24) return; // the card was already in the oven's lap
+
+  const strand = document.createElement('span');
+  strand.className = 'cheese-pull';
+  strand.setAttribute('aria-hidden', 'true');
+  strand.style.left = `${from.cx.toFixed(1)}px`;
+  strand.style.top = `${(from.cy - 2).toFixed(1)}px`;
+  strand.style.width = `${span.toFixed(1)}px`;
+  strand.style.setProperty('--pull-angle', `${((Math.atan2(dy, dx) * 180) / Math.PI).toFixed(2)}deg`);
+  strand.style.animationDuration = `${D_FLY}ms`;
+  el.flyLayer.append(strand);
+  setTimeout(() => strand.remove(), D_FLY + 120);
 }
 
 /**
@@ -1967,6 +3040,7 @@ function flyFromDrawPile(slot, startDelay) {
  * of the real card that will take over at the destination.
  */
 function flyFlip(faceNode, from, to) {
+  if (document.hidden) return;
   if (!from || !to || !from.w || !to.w) return;
 
   const wrap = document.createElement('div');
@@ -1977,8 +3051,13 @@ function flyFlip(faceNode, from, to) {
   back.classList.add('flip-side', 'flip-side--back');
 
   const face = faceNode.cloneNode(true);
-  face.classList.remove('is-playable', 'is-dimmed', 'is-pressed', 'is-leaving');
+  face.classList.remove('is-playable', 'is-dimmed', 'is-pressed', 'is-leaving', 'is-entering');
   face.removeAttribute('disabled');
+  // A drawn card now lands in the pit as a 20px rib, but it must not travel as
+  // one: the reveal in mid-air is a whole card, and the flight scales it down
+  // to the rib it is landing on (`to.w` is the rib slot's real width below).
+  face.classList.remove('card--rib');
+  face.classList.add('card--hand');
   face.classList.add('flip-side', 'flip-side--face');
 
   wrap.append(back, face);
@@ -2025,6 +3104,26 @@ function popoverOpen() {
   );
 }
 
+/**
+ * Where the popover should grow from, in the popover's own coordinates.
+ *
+ * The obvious way to get this is `getBoundingClientRect()` after `.is-open`,
+ * and it is wrong: the popover is mid-transition at that moment, still sitting
+ * at `scale(.97)`, so the rect is about 3% narrow and the origin lands off the
+ * trigger by a few pixels. `offsetWidth` and `offsetLeft` are layout geometry
+ * and ignore transforms entirely. The popover is `left: 50%` with a
+ * `translateX(-50%)`, so its untransformed left edge is half its own width
+ * back from that point.
+ */
+function popoverOriginX(popover, triggerRect) {
+  const width = popover.offsetWidth;
+  const host = popover.offsetParent || popover.parentElement;
+  if (!width || !host) return null;
+  const left = host.getBoundingClientRect().left + popover.offsetLeft - width / 2;
+  const centre = triggerRect.left + triggerRect.width / 2;
+  return Math.max(8, Math.min(width - 8, centre - left));
+}
+
 function openPicker(card, slot) {
   ui.pendingWild = { card, slot };
   el.pickerTitle.textContent = card.kind === 'wild4'
@@ -2052,13 +3151,13 @@ function openPicker(card, slot) {
   }
   el.pickerGrid.replaceChildren(buttons);
 
-  // The popover grows out of the card that opened it.
-  const cardRect = slot.getBoundingClientRect();
+  // The popover grows out of the card that opened it. The origin is set
+  // before `.is-open`, so the transform-origin is already right on the first
+  // frame of the entry rather than one frame late.
+  const originX = popoverOriginX(el.picker, slot.getBoundingClientRect());
+  if (originX !== null) el.picker.style.setProperty('--origin-x', `${originX.toFixed(0)}px`);
   show(el.picker);
   sound.play('menu-blip'); // H · rides the 2x2 grid entering at 0.97
-  const popRect = el.picker.getBoundingClientRect();
-  const originX = cardRect.left + cardRect.width / 2 - popRect.left;
-  el.picker.style.setProperty('--origin-x', `${Math.max(8, Math.min(popRect.width - 8, originX)).toFixed(0)}px`);
   const first = el.pickerGrid.querySelector('button');
   if (first) first.focus({ preventScroll: true });
 }
@@ -2086,14 +3185,9 @@ function openCalloutPopover() {
     rows.append(button);
   }
   el.calloutRows.replaceChildren(rows);
+  const originX = popoverOriginX(el.calloutPop, el.btnCallout.getBoundingClientRect());
+  if (originX !== null) el.calloutPop.style.setProperty('--origin-x', `${originX.toFixed(0)}px`);
   show(el.calloutPop);
-  const trigger = el.btnCallout.getBoundingClientRect();
-  const popRect = el.calloutPop.getBoundingClientRect();
-  const originX = trigger.left + trigger.width / 2 - popRect.left;
-  el.calloutPop.style.setProperty(
-    '--origin-x',
-    `${Math.max(8, Math.min(popRect.width - 8, originX)).toFixed(0)}px`
-  );
 }
 
 // -------------------------------------------------------- B · the shout ----
@@ -2120,9 +3214,7 @@ function playShout() {
   bar.style.setProperty('--bx', `${(btnRect.left + btnRect.width / 2 - barRect.left).toFixed(0)}px`);
   bar.style.setProperty('--by', `${(btnRect.top + btnRect.height / 2 - barRect.top).toFixed(0)}px`);
 
-  el.btnZa.classList.remove('is-shouting');
-  void el.btnZa.offsetWidth; // restart the slam on a second shout
-  el.btnZa.classList.add('is-shouting');
+  restartAnimation(el.btnZa, 'is-shouting', 'za-slam');
   setTimeout(() => el.btnZa.classList.remove('is-shouting'), 220);
 
   if (wantsMotion()) {
@@ -2147,6 +3239,324 @@ function playShout() {
   setTimeout(() => score.remove(), 1020);
 }
 
+// =============================================================== CABINET ===
+/**
+ * 1A · the literal cabinet. Past the play column's cap the leftover width stops
+ * being void and becomes pizzeria. Everything here is additive: it reads the
+ * same snapshot the board already renders and never changes a rule, a state
+ * shape or the wire protocol.
+ *
+ * The one number that matters is `--panel-w`, and it is CSS's to own. It is
+ * registered as a `<length>`, so the shell's computed value is a real `250px`
+ * rather than the unevaluated `max(...)` an unregistered property hands back —
+ * which means the client reads the live cap instead of restating `1900` as a
+ * second copy that can silently drift.
+ */
+function panelWidth() {
+  if (!el.shell) return 0;
+  const raw = getComputedStyle(el.shell).getPropertyValue('--panel-w').trim();
+  const px = parseFloat(raw);
+  if (raw.endsWith('px') && Number.isFinite(px)) return px;
+  // Belt and braces for an engine without `@property`: same arithmetic, over
+  // the live viewport and the cap CSS still states as a plain length.
+  const cap = parseFloat(getComputedStyle(el.shell).getPropertyValue('--play-max'));
+  if (!Number.isFinite(cap)) return 0;
+  return Math.max(0, (window.innerWidth - Math.min(window.innerWidth, cap)) / 2);
+}
+
+/** Below this the leftovers are a margin, not a room; the panels stay unbuilt. */
+const PANEL_MIN = 200;
+
+/**
+ * The single place that decides what the cabinet is showing. Called from the
+ * render path (so the panels move with the snapshot), from resize (so they
+ * appear and vanish with the width) and from the screen swap (so a cabinet-wide
+ * window does not leave the pizzeria standing behind the home screen).
+ */
+function syncCabinet(snapshot) {
+  if (!el.shell) return;
+  if (snapshot) ui.cabSnapshot = snapshot;
+
+  const width = panelWidth();
+  el.shell.classList.toggle('is-capped', width > 0);
+
+  // The chain's glow and total are a width concern too: dragging past the cap
+  // mid-run has to light the room, and dragging back under it has to stop.
+  syncChain();
+
+  const wanted = width > PANEL_MIN && ui.screen === 'game';
+  el.shell.classList.toggle('has-panels', wanted);
+  if (!wanted) {
+    dropPanels();
+    return;
+  }
+  if (!ui.cabPanels) ui.cabPanels = buildPanels();
+  paintPanels(ui.cabSnapshot);
+}
+
+/** Absent, not hidden: below the threshold the room is not in the document. */
+function dropPanels() {
+  if (!ui.cabPanels) return;
+  ui.cabPanels.left.remove();
+  ui.cabPanels.right.remove();
+  ui.cabPanels = null;
+  // The plaque lived on the right panel and went with it.
+  ui.cabPlaque = null;
+}
+
+/**
+ * Built here rather than in index.html for the same reason the sound screw is:
+ * the markup keeps exactly the ids it has, and nothing that only exists above a
+ * width belongs in the document that ships to a phone.
+ *
+ * The whole cabinet is `aria-hidden`. Every value on it is already announced by
+ * the board it decorates — the topping badge is a live region, the scores are
+ * read from the round dialog — so exposing it again would only double up.
+ */
+function buildPanels() {
+  const left = panelShell('left');
+  const wordmark = document.createElement('span');
+  wordmark.className = 'cab-wordmark';
+  wordmark.textContent = 'ZA! ARCADE';
+  const fame = document.createElement('div');
+  fame.className = 'cab-fame';
+  left.append(wordmark, fame, artWindow('cabinet-left'));
+
+  const right = panelShell('right');
+  const special = document.createElement('div');
+  special.className = 'cab-special';
+  right.append(special, artWindow('cabinet-right'));
+
+  el.shell.append(left, right);
+  return { left, right, fame, special };
+}
+
+function panelShell(side) {
+  const node = document.createElement('aside');
+  node.className = `cab-panel cab-panel--${side}`;
+  node.setAttribute('aria-hidden', 'true');
+  return node;
+}
+
+/**
+ * The mural in its frame, as a two-frame arcade loop: frame A under, frame B
+ * over, B flipping on and off in whole frames. The vinyl is transparent, so the
+ * panel's checker reads through both.
+ *
+ * The dashed window IS the frame in every state, so a mural that fails to load
+ * leaves the handoff's placeholder rather than a broken-image box — the panels
+ * were designed to read correctly either way, and a missing frame B just leaves
+ * frame A holding still.
+ */
+function artWindow(stem) {
+  const frame = document.createElement('div');
+  frame.className = 'cab-art';
+  const note = document.createElement('span');
+  note.className = 'cab-art__note';
+  note.textContent = 'SIDE ART';
+  frame.append(note, muralFrame(frame, `${stem}.png`, 'a'), muralFrame(frame, `${stem}-b.png`, 'b'));
+  return frame;
+}
+
+function muralFrame(frame, file, which) {
+  const img = document.createElement('img');
+  img.className = `cab-art__img cab-art__img--${which}`;
+  img.alt = '';
+  img.decoding = 'async';
+  img.addEventListener('error', () => {
+    img.remove();
+    // A two-frame loop with one frame left is not a loop, it is a blink: the
+    // survivor stops flipping and simply holds.
+    const rest = frame.querySelectorAll('.cab-art__img');
+    if (rest.length === 1) rest[0].classList.remove('cab-art__img--b');
+  }, { once: true });
+  img.src = `assets/${file}`;
+  return img;
+}
+
+/** Live data, not wallpaper. Both panels read the snapshot the board just drew. */
+function paintPanels(snapshot) {
+  if (!ui.cabPanels || !snapshot) return;
+  paintFame(ui.cabPanels.fame, snapshot);
+  paintSpecial(ui.cabPanels.special, snapshot);
+  paintPlaque(snapshot);
+}
+
+/**
+ * The wall of fame is the score list the lobby polaroids already draw from —
+ * `seats[].wins` — sorted, top four. Nobody has won yet is a real state, and it
+ * renders as nothing at all rather than as a heading over an empty box.
+ */
+function paintFame(host, snapshot) {
+  const winners = (snapshot.seats || [])
+    .filter((seat) => Number(seat.wins) >= 1)
+    .sort((a, b) => Number(b.wins) - Number(a.wins))
+    .slice(0, 4);
+  if (!winners.length) {
+    host.replaceChildren();
+    return;
+  }
+
+  const label = document.createElement('span');
+  label.className = 'cab-panel__label';
+  label.textContent = 'WALL OF FAME';
+  const list = document.createElement('div');
+  list.className = 'cab-fame__list';
+  winners.forEach((seat, index) => {
+    const row = document.createElement('div');
+    row.className = 'cab-fame__row';
+    const who = document.createElement('span');
+    who.className = 'cab-fame__who';
+    who.textContent = `${index + 1} ${seat.name.toUpperCase()}`;
+    const wins = document.createElement('span');
+    wins.className = 'cab-fame__wins';
+    wins.textContent = String(seat.wins).padStart(2, '0');
+    row.append(who, wins);
+    list.append(row);
+  });
+  host.replaceChildren(label, list);
+}
+
+/**
+ * The chalkboard carries the topping in play — the same live value as the badge
+ * under the oven, repainted the moment a wild changes it. Before the deal there
+ * is no topping and the board is blank, which is what a real one would be.
+ */
+function paintSpecial(host, snapshot) {
+  const view = snapshot.game;
+  const meta = view && view.currentTopping ? TOPPING_META[view.currentTopping] : null;
+  if (!meta) {
+    host.replaceChildren();
+    return;
+  }
+
+  const label = document.createElement('span');
+  label.className = 'cab-panel__label cab-panel__label--special';
+  label.textContent = "TODAY'S SPECIAL";
+  const dish = document.createElement('span');
+  dish.className = 'cab-special__dish';
+  dish.textContent = meta.label;
+  const note = document.createElement('span');
+  note.className = 'cab-special__note';
+  note.textContent = 'MATCH IT OR DRAW';
+  host.replaceChildren(label, dish, note);
+}
+
+// ---------------------------------------- what the cabinet does on an event --
+/**
+ * THE WIN. The cabinet prints the winner on the right panel — in addition to
+ * the round dialog, never instead of it. Below the cap there is no panel to
+ * print on and the dialog is the whole story, which is the fallback the spec
+ * asks for and costs nothing to implement: no panel, no plaque.
+ */
+function paintPlaque(snapshot) {
+  const panel = ui.cabPanels && ui.cabPanels.right;
+  if (!panel) return;
+  const view = snapshot.game;
+  const winner = snapshot.phase === 'roundOver' && view && view.winnerId
+    ? view.players.find((p) => p.id === view.winnerId)
+    : null;
+
+  if (!winner) {
+    if (ui.cabPlaque) {
+      ui.cabPlaque.remove();
+      ui.cabPlaque = null;
+    }
+    return;
+  }
+
+  const line = `${winner.name.toUpperCase()} TAKES THE PIE`;
+  if (ui.cabPlaque && ui.cabPlaque.isConnected) {
+    // Restaging the same win would replay the print for no reason.
+    if (ui.cabPlaque.textContent !== line) ui.cabPlaque.textContent = line;
+    return;
+  }
+  const plaque = document.createElement('div');
+  plaque.className = 'cab-plaque';
+  plaque.textContent = line;
+  panel.append(plaque);
+  ui.cabPlaque = plaque;
+}
+
+/**
+ * THE CHAIN. The glow lift and the running total both hang off the ladder the
+ * juice pass already counts (`ui.chain`) — no second signal, no new state.
+ * `ui.chainTotal` is the cards the run has forced, which is what "running
+ * total" means at the table: two links of +2 is +4, not "2".
+ */
+function syncChain() {
+  const table = document.querySelector('.table');
+  if (!table) return;
+  const live = ui.chain >= 1 && panelWidth() > 0;
+  table.classList.toggle('is-chaining', live);
+
+  if (!live) {
+    if (ui.chainNode) {
+      const going = ui.chainNode;
+      ui.chainNode = null;
+      going.classList.remove('is-on');
+      setTimeout(() => going.remove(), cssTime('--d-fast', 160));
+    }
+    return;
+  }
+
+  if (!ui.chainNode) {
+    const host = el.discardSlot.closest('.pile');
+    if (!host) return;
+    const node = document.createElement('span');
+    node.className = 'cab-chain';
+    node.setAttribute('aria-hidden', 'true');
+    const total = document.createElement('b');
+    total.className = 'cab-chain__n';
+    const label = document.createElement('i');
+    label.className = 'cab-chain__label';
+    label.textContent = 'CHAIN';
+    node.append(total, label);
+    host.append(node);
+    ui.chainNode = node;
+    ui.chainTotalNode = total;
+    requestAnimationFrame(() => node.classList.add('is-on'));
+  }
+  ui.chainTotalNode.textContent = `+${ui.chainTotal}`;
+}
+
+/**
+ * THE SHOUT. `declaredZa` going false -> true on any player is the shout, read
+ * off the snapshot the client already receives. The first snapshot of a session
+ * or a round seeds the map instead of firing, so joining a table mid-shout does
+ * not throw ZA! across a board you just arrived at.
+ */
+function syncShout(view) {
+  const seen = ui.prevDeclared;
+  let shouted = false;
+  for (const player of view.players) {
+    const now = Boolean(player.declaredZa);
+    if (seen.has(player.id) && now && !seen.get(player.id)) shouted = true;
+    seen.set(player.id, now);
+  }
+  if (shouted) showShout();
+}
+
+/** ZA! across the glass. Absolutely positioned, so the board does not move. */
+function showShout() {
+  const host = document.querySelector('.screen--game');
+  if (!host) return;
+  if (ui.shoutNode) ui.shoutNode.remove();
+  const node = document.createElement('div');
+  node.className = 'za-shout';
+  node.setAttribute('aria-hidden', 'true');
+  node.textContent = 'ZA!';
+  host.append(node);
+  ui.shoutNode = node;
+  // The slam holds its last frame; the exit is a plain opacity fade, which is
+  // the one thing reduced motion keeps because it aids comprehension.
+  setTimeout(() => node.classList.add('is-out'), 820);
+  setTimeout(() => {
+    node.remove();
+    if (ui.shoutNode === node) ui.shoutNode = null;
+  }, 1120);
+}
+
 // ---------------------------------------------------------- sound toggle ----
 /**
  * The cabinet's volume knob. Built here rather than in index.html so the
@@ -2156,7 +3566,14 @@ function playShout() {
 function buildMuteToggle() {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'btn btn--quiet btn--sm hud__mute';
+  button.className = 'screw screw--sound';
+  const head = document.createElement('span');
+  head.className = 'screw__head';
+  head.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.className = 'screw__label';
+  button.append(head, label);
+  ui.muteLabel = label;
 
   button.addEventListener('click', () => {
     sound.muted = !sound.muted;
@@ -2174,7 +3591,10 @@ function paintMuteToggle() {
   const button = ui.btnMute;
   if (!button) return;
   const on = !sound.muted;
-  button.textContent = on ? 'SND ON' : 'SND OFF';
+  // The label is a child now (the head is the other one), so the text goes
+  // into it rather than onto the button — writing the button would wipe the
+  // screw head out of the DOM.
+  ui.muteLabel.textContent = on ? 'SND ON' : 'SND OFF';
   button.setAttribute('aria-pressed', String(on));
 }
 
@@ -2240,8 +3660,33 @@ el.btnZa.addEventListener('click', () => {
 el.btnCallout.addEventListener('click', openCalloutPopover);
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
-el.btnNextRound.addEventListener('click', () => send({ type: 'newRound' }));
-el.btnToLobby.addEventListener('click', () => send({ type: 'backToLobby' }));
+// 09 · either button settles it, so the countdown has nothing left to decide.
+el.btnNextRound.addEventListener('click', () => {
+  stopWarmLobby();
+  send({ type: 'newRound' });
+});
+el.btnToLobby.addEventListener('click', () => {
+  stopWarmLobby();
+  send({ type: 'backToLobby' });
+});
+
+// 04 · any sign of life resets the nudge clock. Passive listeners: none of
+// these ever calls preventDefault, and the move handler is on the hot path.
+for (const kind of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) {
+  document.addEventListener(kind, bumpNudge, { passive: true });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // A hidden tab suspends rAF and clamps setTimeout, but snapshots keep
+    // arriving: without this every flight launched while away would still be
+    // on the layer, mid-transition, when the player came back. Nothing in
+    // flight is information — the seats and the oven already hold the state.
+    el.flyLayer.replaceChildren();
+    return;
+  }
+  lastActivityBump = 0;
+  bumpNudge();
+});
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closePopovers();
@@ -2276,7 +3721,17 @@ document.addEventListener('pointerdown', (event) => {
 let resizeFrame = 0;
 window.addEventListener('resize', () => {
   cancelAnimationFrame(resizeFrame);
-  resizeFrame = requestAnimationFrame(() => layoutHand([...el.hand.children]));
+  resizeFrame = requestAnimationFrame(() => {
+    layoutNear(ui.nearRow);
+    // The pit's height moves when it re-wraps, and the peek hangs off it.
+    if (ui.peekCardId) {
+      const slot = ui.handSlots.get(ui.peekCardId);
+      if (slot && slot.parentElement === el.handPit) showPeek(slot);
+    }
+    // 1A · the cabinet is a width, so it is a resize concern before it is a
+    // snapshot one: dragging past the cap has to build the room right there.
+    syncCabinet();
+  });
 });
 
 // ================================================================== BOOT ===
@@ -2305,7 +3760,9 @@ function boot() {
     ? `INSERT 25¢ — HI-SCORE ${String(best.wins).padStart(2, '0')} ${best.name.toUpperCase()}`
     : 'INSERT 25¢ — FREE PLAY';
   document.querySelector('.screen--home').append(attract);
+  buildSpecialBoard();
   buildMuteToggle();
+  bindPit();
 
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;
@@ -2314,7 +3771,48 @@ function boot() {
   if (code) el.inputCode.value = code.toUpperCase();
 
   el.inputName.focus({ preventScroll: true });
+  // 14 · from here on a screen change is worth covering. The first paint is
+  // not: there is no previous room to hide.
+  ui.booted = true;
   net.connect();
+}
+
+// ------------------------------------------------ 11 · special of the day ----
+/**
+ * The chalkboard by the door. Seven gags on a weekday rotation, entirely
+ * cosmetic: nothing here touches the deck, the rules, the odds or the price of
+ * anything, because there is no price of anything.
+ */
+const SPECIALS = [
+  ['Sunday Gravy', 'Nonna’s recipe. Nobody knows what is in it. Nobody asks.'],
+  ['Margherita Monday', 'Three toppings. One of them is optimism.'],
+  ['Double Anchovy Tuesday', 'Twice the fish. Half the friends.'],
+  ['White Pie Wednesday', 'No sauce. Enormous personality.'],
+  ['The Works Thursday', 'Everything on it, including regret.'],
+  ['Friday Deep Dish', 'Order at noon. Eat at eight. Worth it.'],
+  ['Saturday Calzone', 'A pizza that went into witness protection.'],
+];
+
+function buildSpecialBoard() {
+  const [name, joke] = SPECIALS[new Date().getDay() % SPECIALS.length];
+
+  const board = document.createElement('aside');
+  board.className = 'chalkboard';
+
+  const head = document.createElement('p');
+  head.className = 'chalkboard__head';
+  head.textContent = 'Today’s Special';
+
+  const dish = document.createElement('p');
+  dish.className = 'chalkboard__dish';
+  dish.textContent = name.toUpperCase();
+
+  const line = document.createElement('p');
+  line.className = 'chalkboard__line';
+  line.textContent = joke;
+
+  board.append(head, dish, line);
+  el.formJoin.after(board);
 }
 
 boot();
