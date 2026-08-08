@@ -2719,7 +2719,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    today; this whole column is desktop only. */
 @media (min-width: 721px) {
   .table {
-    grid-template-columns: 186px minmax(0, 1fr);
+    grid-template-columns: var(--chef-col, 186px) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     gap: var(--s3) var(--s6);
     padding: var(--s3) 18px 11px var(--s3);
@@ -3703,3 +3703,41 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    hide, halved lifts, a scrolling strip and its edge-fade mask. All of it came
    out with THE PIT. Nothing shrinks now — the pit is what makes the room, and
    the partition is what makes the hand readable at eighteen cards. */
+
+/* ------------------------------------------------- big-screen notches ----- */
+/* A 27-inch monitor was showing the same 84px cards as a laptop, adrift in
+   void. The cabinet steps up in whole notches instead of scaling smoothly:
+   Press Start 2P blurs at fractional sizes, and an arcade cabinet upscales
+   in integer steps anyway. Every consumer of --card-w moves together. */
+@media (min-width: 1600px) {
+  :root { --fs-base: 20px; --fs-ui: 21px; --fs-label: 17px; }
+  .hand__near .hand-slot, .hand__peek .card { --card-w: 100px; }
+  .table-center, .card--pile { --card-w: 112px; }
+  .card--rib { --card-w: 24px; }
+  .hand[data-mode="review"] .card--rib { --card-w: 38px; }
+  .hud__turn { font-size: 16px; }
+  .table { --chef-col: 210px; }
+  .seat__name { font-size: 20px; }
+  .log { font-size: 19px; }
+}
+
+@media (min-width: 2200px) {
+  :root { --fs-base: 22px; --fs-ui: 23px; }
+  .hand__near .hand-slot, .hand__peek .card { --card-w: 116px; }
+  .table-center, .card--pile { --card-w: 128px; }
+  .hud__turn { font-size: 18px; }
+}
+
+/* The direction text was a cramped afterthought in the HUD's right cluster.
+   The cycle icon carries it (it flashes cyan on every flip, and the log
+   narrates the spin); the words stay for screen readers only. */
+.hud__dir span:last-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.hud__dir .dir-arrow .ico { width: 1.5em; height: 1.5em; }
