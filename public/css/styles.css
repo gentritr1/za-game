@@ -282,6 +282,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .screen:not(.is-active) { pointer-events: none; }
 
+/* A screen takes focus when the room changes, so the room announces itself
+   (`landOnScreen`). It is a landing place, not a control — the same idiom as a
+   skip-link target — so it does not draw a ring around the whole window for it.
+   Everything inside it keeps its own `:focus-visible`. */
+.screen:focus { outline: none; }
+
 .screen.is-active {
   z-index: 1;
   opacity: 1;

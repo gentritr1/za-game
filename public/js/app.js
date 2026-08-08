@@ -164,6 +164,12 @@ const ui = {
   copyTimers: new WeakMap(),
   dealing: false, // true for the first hand render of a round
   roundFocusReturn: null,
+  // Focus, and where it has to go back to. `popoverReturn` is whatever opened
+  // the picker, the call-out list or the hire roster; `focusIntent` is the
+  // action whose landing place is only built when the next snapshot arrives.
+  popoverReturn: null,
+  focusIntent: null, // { kind: 'play' | 'draw', cardId }
+  keyboardActive: false, // the last input was a key, not a pointer
   roster: null, // the hire panel, built once on first use
   // Everything the receipts are made of. Filled in from snapshots as they
   // arrive, because none of it is on the wire as a number.
@@ -374,6 +380,30 @@ function paintScreen(name) {
   // in the void on a transparent screen, so panels left standing would show
   // straight through them.
   syncCabinet();
+  landOnScreen(name);
+}
+
+/**
+ * A room change has to take focus with it.
+ *
+ * Without this, walking lobby -> game leaves focus on the button that started
+ * the game — inside a screen that is `inert` a frame later — and the next Tab
+ * begins again at the top of the document, four rooms away from the table.
+ *
+ * The landing place is the screen section itself. It already carries the room's
+ * name as its `aria-label` ("Start", "Lobby", "Game table"), so a screen reader
+ * is told where it now is before it is told what is on the table, and no
+ * heading has to be invented to hold the focus. The first paint is left alone:
+ * `boot` puts the player in the name field, which is a better landing than the
+ * room's name for the one room they did not walk into.
+ */
+function landOnScreen(name) {
+  if (!ui.booted) return;
+  // The round-over dialog owns focus for as long as it is up, and hands it back
+  // itself. A screen repaint underneath it must not reach in and take it.
+  if (el.overlay.classList.contains('is-open')) return;
+  const screen = el.screens.find((node) => node.dataset.screen === name);
+  if (screen) screen.focus({ preventScroll: true });
 }
 
 /**
@@ -503,7 +533,9 @@ function applySnapshot(snapshot) {
   el.hudCodeText.textContent = snapshot.roomCode;
 
   if (snapshot.phase === 'lobby') {
-    closePopovers();
+    // No restore: the room itself is changing, and `landOnScreen` has a better
+    // answer than a card on a screen that is about to go inert.
+    closePopovers({ restoreFocus: false });
     closeRoundOverlay();
     renderLobby(snapshot);
     showScreen('lobby');
@@ -946,6 +978,7 @@ function rosterTile(regular, seated) {
 }
 
 function openRoster(snapshot) {
+  openedPopover(el.btnAddBot);
   const roster = ui.roster || buildRoster();
   if (!roster.panel.isConnected) {
     const host = el.btnAddBot.closest('.panel') || el.btnAddBot.parentElement;
@@ -1691,6 +1724,10 @@ function renderHand(snapshot, view, yourTurn) {
   // deal-in stagger and any flight from the dough pile have landed, because a
   // keyframe would otherwise swallow the entry transition.
   setHandBreathing(!yourTurn && view.status === 'playing' && (pit.length + near.length) > 0);
+
+  // The rails are laid; the card a play or a draw should hand focus to now
+  // exists. Last, so it cannot be moved out from under itself.
+  spendFocusIntent(fresh, near);
 }
 
 /**
@@ -2663,6 +2700,63 @@ function renderReceipts(snapshot, staged) {
   if (el.dialog) el.dialog.classList.add('dialog--receipts');
 }
 
+// ================================================================= FOCUS ===
+/**
+ * Books where focus should land once the next snapshot has rebuilt the hand.
+ *
+ * Only for a keyboard-driven action, and that restriction is the point. A
+ * pointer player already has their attention where their hand is, and moving
+ * focus for them would open the pit's peek over a card they never asked about.
+ * A keyboard player has nowhere at all: playing a card disables it, drawing
+ * disables the dough pile, and either way the browser drops focus on <body>
+ * with the whole document between them and the rest of their turn.
+ */
+function bookFocus(intent) {
+  ui.focusIntent = ui.keyboardActive ? intent : null;
+}
+
+/** Focus the card in a slot, if there is still a card in it. */
+function focusSlot(slot) {
+  const node = slot && slot.firstElementChild;
+  if (!node || !node.isConnected || node.disabled) return false;
+  node.focus({ preventScroll: true });
+  return document.activeElement === node;
+}
+
+/**
+ * Spends a booked intent, once the rails have been re-laid and the landing
+ * place actually exists. Called at the end of `renderHand`.
+ */
+function spendFocusIntent(fresh, near) {
+  const intent = ui.focusIntent;
+  if (!intent) return;
+  ui.focusIntent = null;
+
+  // A draw lands exactly one card, wherever the rails put it — a rib in the
+  // pit, or the row itself when the kitchen is open. That card is the news.
+  if (intent.kind === 'draw') {
+    const landed = fresh.length ? fresh[fresh.length - 1].slot : null;
+    if (focusSlot(landed)) return;
+  }
+
+  // A play leaves the rail one card shorter, so the same position now holds
+  // the card that took its place. Playing the last one carries on at the new
+  // last one rather than dropping out of the hand.
+  if (near.length) {
+    const at = Math.min(Math.max(intent.at || 0, 0), near.length - 1);
+    if (focusSlot(near[at].slot)) return;
+  }
+
+  // Nothing playable left. The dough pile is the only move there is; if even
+  // that is closed, the action rail is where the turn is decided.
+  const fallbacks = [el.drawPile, el.btnZa, el.btnPass, el.btnCallout, el.btnLeaveGame];
+  for (const node of fallbacks) {
+    if (!node || node.disabled || node.hidden || node.offsetParent === null) continue;
+    node.focus({ preventScroll: true });
+    return;
+  }
+}
+
 // =============================================================== ACTIONS ===
 function onCardActivate(card, slot) {
   const node = slot.firstElementChild;
@@ -2676,8 +2770,14 @@ function onCardActivate(card, slot) {
 }
 
 function commitPlay(card, topping, slot) {
-  closePopovers();
+  closePopovers({ restoreFocus: false });
   const node = slot.firstElementChild;
+  // `node.disabled = true` two lines down blurs this card on the spot, and the
+  // card focus should move to does not exist yet — the rails are only re-laid
+  // when the server's next snapshot lands. So the landing place is booked here
+  // by position in the rail and spent at the end of `renderHand`.
+  const at = ui.nearRow.findIndex((entry) => entry.card && entry.card.id === card.id);
+  bookFocus({ kind: 'play', at: at < 0 ? 0 : at });
   flyToDiscard(node);
   node.classList.add('is-leaving');
   node.disabled = true;
@@ -3144,20 +3244,60 @@ function cardBack() {
 }
 
 // ------------------------------------------------------------- popovers ----
-function closePopovers() {
+/** Every popover on the client, whether or not it has been built yet. */
+function popoverPanels() {
+  const panels = [el.picker, el.calloutPop];
+  if (ui.roster) panels.push(ui.roster.panel);
+  return panels;
+}
+
+/**
+ * Remembers what opened a popover, so closing it can hand focus straight back.
+ * One helper for all three — the picker, the call-out list and the hire roster
+ * — because "Escape put my focus inside a panel that is no longer there" is
+ * the same bug three times over.
+ */
+function openedPopover(invoker) {
+  ui.popoverReturn = invoker instanceof HTMLElement
+    ? invoker
+    : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+}
+
+/**
+ * Closes every popover and gives focus back to whatever opened one.
+ *
+ * The restore is conditional on focus actually being *inside* the panel that
+ * is going away. A click somewhere else already moved focus on purpose, and
+ * yanking it back to the trigger would undo the player's own choice — so only
+ * a close that would otherwise strand focus (Escape, Cancel, picking a
+ * topping) hands it back.
+ *
+ * `restoreFocus: false` is for the callers that have somewhere better to put
+ * it: committing a play focuses the next playable card, and a screen change
+ * focuses the screen.
+ */
+function closePopovers(options = {}) {
+  const { restoreFocus = true } = options;
+  const panels = popoverPanels();
+  const active = document.activeElement;
+  const stranded = active instanceof HTMLElement && panels.some((panel) => panel.contains(active));
+
   hide(el.picker);
   hide(el.calloutPop);
   if (ui.roster) hide(ui.roster.panel);
   ui.pendingWild = null;
+
+  const target = ui.popoverReturn;
+  ui.popoverReturn = null;
+  if (!restoreFocus || !stranded) return;
+  if (target && target.isConnected && !target.closest('[inert]') && target.offsetParent !== null) {
+    target.focus({ preventScroll: true });
+  }
 }
 
 /** True while any popover, including the hire roster, is on screen. */
 function popoverOpen() {
-  return (
-    el.picker.classList.contains('is-open') ||
-    el.calloutPop.classList.contains('is-open') ||
-    Boolean(ui.roster && ui.roster.panel.classList.contains('is-open'))
-  );
+  return popoverPanels().some((panel) => panel.classList.contains('is-open'));
 }
 
 /**
@@ -3182,6 +3322,8 @@ function popoverOriginX(popover, triggerRect) {
 
 function openPicker(card, slot) {
   ui.pendingWild = { card, slot };
+  // The card that opened it is where focus goes back to on Cancel or Escape.
+  openedPopover(slot.firstElementChild);
   el.pickerTitle.textContent = card.kind === 'wild4'
     ? 'The Whole Pie +4 — pick a topping'
     : "Chef's Choice — pick a topping";
@@ -3198,7 +3340,9 @@ function openPicker(card, slot) {
     button.append(emblem, label);
     button.addEventListener('click', () => {
       const pending = ui.pendingWild;
-      closePopovers();
+      // No restore: the card this would hand focus back to is the one about to
+      // leave for the oven. `commitPlay` books the landing place instead.
+      closePopovers({ restoreFocus: false });
       // H · the ding rides the IN PLAY badge recolouring.
       sound.play('confirm-ding');
       if (pending) commitPlay(pending.card, key, pending.slot);
@@ -3227,6 +3371,7 @@ function openCalloutPopover() {
     send({ type: 'callout', targetId: targets[0] });
     return;
   }
+  openedPopover(el.btnCallout);
   const rows = new DocumentFragment();
   for (const id of targets) {
     const player = view.players.find((p) => p.id === id);
@@ -3722,6 +3867,9 @@ el.btnLeaveGame.addEventListener('click', () => send({ type: 'leaveRoom' }));
 
 el.drawPile.addEventListener('click', () => {
   if (el.drawPile.disabled) return;
+  // A drawn card usually has to be played, which disables this very button on
+  // the next snapshot. Follow the card instead of being dropped on <body>.
+  bookFocus({ kind: 'draw' });
   send({ type: 'draw' });
   // G · rides the pile dropping 3px and the card flying into the hand.
   sound.play('card-snap');
@@ -3745,6 +3893,13 @@ el.btnToLobby.addEventListener('click', () => {
   stopWarmLobby();
   send({ type: 'backToLobby' });
 });
+
+// Which modality the player is on right now. Focus is only moved for them
+// after a play or a draw when they are on the keyboard — see `bookFocus`.
+// Capture phase and pointer-down first, so the flag is already right by the
+// time a click handler that books an intent runs.
+document.addEventListener('keydown', () => { ui.keyboardActive = true; }, { passive: true, capture: true });
+document.addEventListener('pointerdown', () => { ui.keyboardActive = false; }, { passive: true, capture: true });
 
 // 04 · any sign of life resets the nudge clock. Passive listeners: none of
 // these ever calls preventDefault, and the move handler is on the hot path.
@@ -3825,6 +3980,9 @@ function boot() {
   for (const screen of el.screens) {
     screen.hidden = false;
     screen.inert = screen.dataset.screen !== 'home';
+    // Not a control — a landing place. A room change focuses the section so the
+    // room announces itself; see `landOnScreen`.
+    screen.tabIndex = -1;
   }
 
   // Swap the emoji fallbacks in the static markup for the parlour icon set.
