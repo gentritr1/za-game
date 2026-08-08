@@ -53,6 +53,11 @@ export function describeCard(card) {
   if (isWild(card)) return KINDS[card.kind].label + (card.kind === 'wild4' ? ' plus four' : '');
   const suit = TOPPINGS[card.suit].label;
   if (card.kind === 'number') return `${suit} ${card.value}`;
+  // "Extra Toppings" is a name, not an effect: heard on its own it could be
+  // anything. The Whole Pie already says "plus four", so the +2 says what it
+  // costs too — otherwise the two penalties are told apart only by a symbol in
+  // a corner, which is exactly what a spoken name is for.
+  if (card.kind === 'draw2') return `${suit} ${KINDS.draw2.label}, draw two`;
   return `${suit} ${KINDS[card.kind].label}`;
 }
 
@@ -101,6 +106,22 @@ export function suitToken(card) {
 /** The small corner symbol, for anyone sizing a frame around it. */
 export function cardIndex(card) {
   return card ? cornerIndex(card) : '';
+}
+
+/**
+ * One ASCII letter for the suit: P, B, C, A — the first letter of the same
+ * three-letter token a narrow banner falls back to, so the two forms never
+ * disagree. A wild has no suit until somebody names one, and Press Start 2P
+ * has no star glyph, so it says W rather than drawing a tofu box.
+ *
+ * This exists for the rib, which is the whole card at 20px: no window, no
+ * banner, second corner hidden. Without it the only thing on a rib saying what
+ * suit it is, is the colour of its keyline.
+ */
+export function suitLetter(card) {
+  if (!card) return '';
+  if (isWild(card)) return 'W';
+  return TOPPINGS[card.suit].token.charAt(0);
 }
 
 function el(tag, className, text) {
@@ -181,10 +202,17 @@ export function renderCard(card, options = {}) {
   // than with whoever happens to be sizing the frame.
   root.dataset.glyphs = String(index.length);
 
+  // The suit letter rides in the corner with the index and is drawn only at
+  // rib size (the stylesheet decides). A rib hides the window, the banner and
+  // the second corner, so without this its suit reaches the player as nothing
+  // but the colour of its keyline. The letter is the same colour as that
+  // keyline, so it adds a glyph and no new colour.
+  const mark = suitLetter(card);
+
   const makeCorner = (side) => {
     const corner = el('span', `card__index card__index--${side}`);
     corner.setAttribute('aria-hidden', 'true');
-    corner.append(el('b', 'card__index-val', index));
+    corner.append(el('b', 'card__index-val', index), el('i', 'card__index-suit', mark));
     return corner;
   };
 
