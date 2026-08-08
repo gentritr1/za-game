@@ -944,6 +944,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   white-space: nowrap;
 }
 
+/* The last ten seconds of your own turn, on the marquee that already says it
+   is your turn. Empty the rest of the time, and empty means gone: no reserved
+   gap, so the line does not shift when the clock appears. Tabular figures
+   because a number that changes width once a second is a fidget, and the sauce
+   colour because this is the same alarm the call-out window uses. */
+.turn-count {
+  flex: none;
+  color: var(--sauce);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.turn-count:empty { display: none; }
+
 /* ----------------------------------------------------------------- table -- */
 .table {
   position: relative;
@@ -2896,6 +2910,34 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   50% { opacity: .35; transform: scale(.7); }
 }
 
+/* -------------------------------------------- the board while out of step --
+   An open socket is not a seat. Until the rejoin has come back with a fresh
+   snapshot, everything on screen is a memory of a round that may already be
+   over, so nothing on it may be pressed. No overlay and no scrim: the banner
+   above is already saying why, and a second layer would only hide the table
+   the player is waiting to see come back.
+
+   Pointer input dies at the screen; the action buttons are disabled in JS as
+   well, so the keyboard cannot reach round them.
+
+   Deliberately NOT a `filter` or a `transform`. `.popover` and `.fly-layer`
+   are `position: fixed` and they live INSIDE `.screen` — either property here
+   would make this element their containing block and move them off the
+   viewport the moment the line dropped. `.screen.is-active` is `transform:
+   none` for the same reason. `opacity` is out too: `.screen` already animates
+   its own opacity for the screen change and the two would fight. So the frozen
+   state is carried by the banner and by the disabled controls, and the board
+   is left looking exactly like the thing the player is waiting to get back. */
+.screen.is-desynced {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* The screws stay legible, and the leave screw stays disarmed, but nothing on
+   the frozen screen answers. `:disabled` styling already carries the buttons. */
+.screen.is-desynced .screw,
+.screen.is-desynced .btn { cursor: default; }
+
 /* ==========================================================================
    EFFECTS — README section 4 (A-I) and 6C
    Everything below is client-side seasoning. Nothing here knows a game rule,
@@ -3971,67 +4013,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    is the strip's own border now (see THE MARQUEE) rather than an inset shadow,
    so the three moments share one box and only its colour changes. */
 
-/* --- 09 · the warm lobby -------------------------------------------------- */
-/* Nobody has to be the person who suggests one more game. */
-.warm {
-  display: grid;
-  justify-items: center;
-  gap: var(--s2);
-  width: 100%;
-  padding: var(--s3) var(--s3) var(--s2);
-  background: var(--console);
-  border: var(--bd-thin) solid var(--bezel);
-}
-
-.warm__title {
-  font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--cheese);
-  text-shadow: 3px 3px 0 var(--sauce);
-  animation: hop 2.2s var(--ease-in-out) infinite;
-}
-
-@keyframes hop {
-  0%, 70%, 100% { transform: translateY(0); }
-  78% { transform: translateY(-7px); }
-  86% { transform: translateY(0); }
-}
-
-.warm__bar {
-  display: block;
-  width: 100%;
-  height: 10px;
-  background: var(--void);
-  border: 2px solid var(--cheese);
-  overflow: hidden;
-}
-
-/* The board's `eat` keyframe animates width. Redrawn as a scaleX off the left
-   edge, which is the same picture on the GPU instead of in layout. */
-.warm__fill {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--cheese);
-  transform-origin: 0 50%;
-  transform: scaleX(1);
-}
-
-.warm__fill.is-draining { animation: drain 5000ms var(--ease-step-5) both; }
-
-@keyframes drain {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
-}
-
-.warm__count {
-  font-family: var(--font);
-  font-size: var(--fs-label);
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--ui-cyan);
-}
-
 /* --- 11 · special of the day ---------------------------------------------- */
 /* The chalkboard by the door. Seven gags on a weekday rotation, and not one
    of them touches the deck. */
@@ -4244,7 +4225,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .pizza-box__lid,
   .pizza-box__lid.is-slam,
   .hand-zone.is-your-turn .hand-bar::after,
-  .warm__title,
   .chalkboard,
   .polaroid,
   .shutter,
@@ -4258,7 +4238,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hand.is-breathing .hand__pit,
   .hand .card.is-nudging,
   .hand .card.is-promoting,
-  .warm__title,
   .shutter,
   .shutter.is-rolling { transform: none !important; }
 
@@ -4315,15 +4294,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .opponents[data-mode="queue"].is-reforming .seat__body {
     transition: none !important;
     transform: none !important;
-  }
-
-  /* The countdown is the only thing telling a player the round restarts by
-     itself. It keeps its five seconds; the five steps flatten to a slide via
-     the --ease-step-5 fallback. */
-  .warm__fill.is-draining {
-    animation-name: drain !important;
-    animation-duration: 5000ms !important;
-    animation-iteration-count: 1 !important;
   }
 }
 
@@ -4515,6 +4485,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .screw--code .screw__head::before { transform: rotate(0deg); }
 .screw--sound .screw__head::before { transform: rotate(45deg); }
 .screw--leave .screw__head::before { transform: rotate(90deg); }
+
+/* 03 · armed. One press asks, the next one leaves, and four seconds of nothing
+   puts it back. Colour only — no new box, no ring, no border-radius — because
+   the screw is already the right size and the word is what changed. The
+   accessible name changes with it in JS; none of this is load-bearing. */
+.screw--leave.is-armed { color: var(--sauce); }
+.screw--leave.is-armed .screw__label { color: var(--sauce); }
+.screw--leave.is-armed .screw__head { border-color: var(--sauce); }
+.screw--leave.is-armed .screw__head::before { background: var(--sauce); }
 
 .screw__label {
   line-height: 1;

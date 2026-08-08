@@ -45,9 +45,12 @@ const el = {
   hudCodeText: $('hud-code-text'),
   turnBanner: $('turn-banner'),
   turnText: $('turn-text'),
+  turnCount: $('turn-count'),
+  turnWarn: $('turn-warn'),
   dirChase: $('dir-chase'),
   dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
+  btnLeaveGameLabel: $('btn-leave-game-label'),
   // table
   opponents: $('opponents'),
   drawPile: $('draw-pile'),
@@ -164,6 +167,14 @@ const ui = {
   queueSlideTimer: 0,
   gameId: null,
   lastLogId: -1,
+  // The connected-idle turn clock, held locally so the digits keep moving
+  // between snapshots. A deadline in this tab's own time, never the server's.
+  idleDeadline: 0,
+  idleWarnMs: 0,
+  idleTimer: 0,
+  // 03 · the leave screw, waiting for the second press.
+  leaveArmed: false,
+  leaveTimer: 0,
   pendingWild: null, // { cardId, sourceEl }
   toastTimer: 0,
   copyTimers: new WeakMap(),
@@ -205,7 +216,6 @@ const ui = {
   nudgeTimer: 0, // 04 · the 5s inactivity clock
   nudgeOffTimer: 0,
   nudgeArmed: false,
-  warm: null, // 09 · the warm lobby countdown
   nicknames: new Map(), // 13 · name -> { title, tone }, session-scoped
   wall: null, // 12 · the polaroid wall, kept between lobby renders
   wallCards: new Map(), // seatId -> polaroid
@@ -277,20 +287,78 @@ const net = new Connection({
   onStatus: handleStatus,
 });
 
+/**
+ * Every outgoing message goes through here. `net.send` returns false when it
+ * dropped the message — the socket is down, or the seat is not synchronized
+ * yet — and a dropped click has to be visible or the player just presses
+ * harder. The board is inert in that state, so in practice this only fires for
+ * the home screen's own buttons and for a keyboard shortcut that slipped past.
+ */
 function send(payload) {
-  net.send(payload);
+  if (net.send(payload)) return true;
+  toast(
+    net.state === 'joining'
+      ? 'Still taking your seat back. One second.'
+      : 'No line to the kitchen yet. Hold on.'
+  );
+  return false;
 }
 
+const CONN_FIRST = 'Knocking on the kitchen door…';
+const CONN_BACK = 'Lost the kitchen. Getting you back to your seat…';
+
+/**
+ * The banner and the inert board are one signal, driven by the connection's
+ * own state machine. An open socket used to hide the banner on its own, while
+ * the rejoin was still in flight and the board below it was a memory of a
+ * round that may already be over. Now only `synchronized` clears it.
+ *
+ * The line splits on whether there is a seat to get back to, not on which
+ * state we are in: a drop walks disconnected → connecting → joining, and
+ * three different sentences over one reconnect would read as three faults.
+ */
 function handleStatus(status) {
-  if (status === 'open') {
+  if (status === 'closed') return; // the player left on purpose
+  if (status === 'synchronized') {
     hide(el.connBanner);
-    return;
+  } else {
+    el.connBannerText.textContent = net.credentials ? CONN_BACK : CONN_FIRST;
+    show(el.connBanner);
   }
-  el.connBannerText.textContent =
-    status === 'connecting'
-      ? 'Knocking on the kitchen door…'
-      : 'Lost the kitchen. Getting you back to your seat…';
-  show(el.connBanner);
+  syncDesynced();
+}
+
+/**
+ * Freezes the table while this client is not synchronized. One class does it:
+ * the CSS blanks pointer input across the play column, and the action buttons
+ * are disabled outright so the keyboard cannot reach them either. The banner
+ * is outside the screen, so it keeps saying why.
+ */
+function syncDesynced() {
+  const stale = !net.synchronized;
+  for (const screen of el.screens) {
+    if (screen.dataset.screen === 'home') continue;
+    screen.classList.toggle('is-desynced', stale);
+  }
+  // The round-over dialog is a sibling of the screens, not a child, so the
+  // frozen screen does not cover it. Nothing else owns `disabled` on these two,
+  // so this sets it both ways rather than waiting for a snapshot to undo it.
+  for (const button of [el.btnNextRound, el.btnToLobby]) {
+    if (button) button.disabled = stale;
+  }
+  if (!stale) return; // the `state` that unfroze us re-enables the rest
+  for (const button of [el.btnPass, el.btnZa, el.btnCallout, el.drawPile]) {
+    if (button) button.disabled = true;
+  }
+  // A turn clock counted off a snapshot we no longer trust is a lie. The next
+  // snapshot brings the real remaining time with it.
+  clearInterval(ui.idleTimer);
+  ui.idleTimer = 0;
+  ui.idleDeadline = 0;
+  paintIdleCountdown();
+  // An armed screw across a dropped line would forfeit the round on the press
+  // that was only meant to ask. It starts again from Leave.
+  disarmLeave();
 }
 
 function handleMessage(message) {
@@ -343,10 +411,6 @@ function openRoundOverlay() {
 function closeRoundOverlay() {
   const wasOpen = el.overlay.classList.contains('is-open');
   hide(el.overlay);
-  // 09 · the countdown belongs to the open dialog. However the dialog goes
-  // away — a new round, back to the parlour, a dropped connection — the timer
-  // goes with it, so a closed overlay can never fire a newRound.
-  stopWarmLobby();
   el.app.inert = false;
   if (!wasOpen) return;
   const returnTarget = ui.roundFocusReturn;
@@ -606,7 +670,11 @@ function resetGameView() {
   clearNudge();
   ui.entrySettleAt = 0;
   setHandBreathing(false);
-  stopWarmLobby();
+  clearInterval(ui.idleTimer);
+  ui.idleTimer = 0;
+  ui.idleDeadline = 0;
+  paintIdleCountdown();
+  disarmLeave();
   ui.handSlots.clear();
   ui.handCards.clear();
   ui.handOrder = [];
@@ -1021,6 +1089,65 @@ function renderTurnBanner(snapshot, view, yourTurn) {
   el.turnBanner.classList.toggle('is-callout', callout);
   el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
   setTurnText(turnLabel(view, yourTurn, callout));
+  armIdleCountdown(snapshot, view, yourTurn);
+}
+
+// --------------------------------------------------- the turn running out --
+/**
+ * The server gives a connected player 45 seconds on their turn and then plays
+ * the same draw-and-pass it plays for somebody who is away. The last stretch of
+ * that is on the marquee, next to the line that already says it is your turn.
+ *
+ * The wire carries a REMAINING DURATION, never a deadline stamp: the two ends
+ * do not agree on what time it is. The client turns it into a local deadline
+ * the moment the snapshot lands and counts down from there, so the digits keep
+ * moving between snapshots without asking the server every second.
+ *
+ * Only your own turn gets a clock. Watching somebody else's run out is not
+ * information you can act on, and four countdowns at one table is a casino.
+ */
+function paintIdleCountdown() {
+  const warn = ui.idleWarnMs || 0;
+  const left = ui.idleDeadline ? ui.idleDeadline - Date.now() : Infinity;
+  if (!ui.idleDeadline || left > warn) {
+    if (el.turnCount.textContent) el.turnCount.textContent = '';
+    if (el.turnWarn.textContent) el.turnWarn.textContent = '';
+    return;
+  }
+  const seconds = Math.max(0, Math.ceil(left / 1000));
+  const text = ` — 0:${String(seconds).padStart(2, '0')}`;
+  if (el.turnCount.textContent !== text) el.turnCount.textContent = text;
+  // One sentence, once, when the window opens. The digits themselves are
+  // aria-hidden: the marquee is a polite live region, and a live region that
+  // changes every second stops being read as a warning.
+  if (!el.turnWarn.textContent) {
+    el.turnWarn.textContent = `${Math.ceil(warn / 1000)} seconds left, chef.`;
+  }
+}
+
+function armIdleCountdown(snapshot, view, yourTurn) {
+  clearInterval(ui.idleTimer);
+  ui.idleTimer = 0;
+
+  const live = yourTurn && view.status === 'playing' && snapshot.turnIdleMsLeft != null;
+  if (!live) {
+    ui.idleDeadline = 0;
+    ui.idleWarnMs = 0;
+    paintIdleCountdown();
+    return;
+  }
+  ui.idleDeadline = Date.now() + snapshot.turnIdleMsLeft;
+  ui.idleWarnMs = snapshot.turnIdleWarnMs || 10000;
+  paintIdleCountdown();
+  // Four beats a second: fast enough that the digit never looks stuck on a
+  // throttled tab coming back, cheap enough to be nothing.
+  ui.idleTimer = setInterval(() => {
+    if (!ui.idleDeadline || ui.idleDeadline - Date.now() < -1000) {
+      clearInterval(ui.idleTimer);
+      ui.idleTimer = 0;
+    }
+    paintIdleCountdown();
+  }, 250);
 }
 
 function turnLabel(view, yourTurn, callout) {
@@ -2762,12 +2889,18 @@ function renderRoundOver(snapshot, staged) {
   el.btnNextRound.hidden = !snapshot.isHost;
   el.btnToLobby.hidden = !snapshot.isHost;
 
-  // 09 · nobody has to be the person who suggests one more game.
-  if (hostPresent(snapshot)) {
+  // 09 · nothing starts by itself. The receipts are the point of this screen
+  // and a five-second bar draining under them turned reading your own round
+  // into a race. The host presses ANOTHER PIE? when the table has finished
+  // looking; everybody else is told, by name, who they are waiting on.
+  if (snapshot.isHost) {
     el.roundWait.textContent = '';
-    armWarmLobby(snapshot, staged);
+  } else if (hostPresent(snapshot)) {
+    const host = snapshot.seats.find((s) => s.id === snapshot.hostId);
+    el.roundWait.textContent = host
+      ? `Waiting for ${host.name} to fire up the next pie.`
+      : 'Waiting for the host to fire up the next pie.';
   } else {
-    stopWarmLobby();
     el.roundWait.textContent = 'The host stepped out. Nothing starts by itself now.';
   }
 }
@@ -2846,108 +2979,14 @@ function nicknameChip(name) {
   return chip;
 }
 
-// ------------------------------------------------------ 09 · the warm lobby --
 /**
- * The round-over screen never dumps anyone back to an idle lobby: ANOTHER PIE?
- * hops over a bar that drains in five countable steps, and when it runs out
- * the next round starts on its own.
- *
- * There is no wire change here at all. Only the host's own client sends the
- * `newRound` the host would have clicked anyway; every other client runs the
- * same countdown purely as a picture of what is about to happen, armed from
- * the moment its own round-over snapshot arrived. If nobody is holding the
- * oven — the host left, or is disconnected — nothing is armed, because a
- * countdown that cannot fire is a lie.
+ * Who is holding the oven. The round-over screen and its buttons both need to
+ * know, and after the acting-host election on the server this is simply the
+ * seat the snapshot names as host, present and connected.
  */
-const WARM_MS = 5000;
-
 function hostPresent(snapshot) {
   const host = snapshot.seats.find((s) => s.id === snapshot.hostId);
   return Boolean(host && host.connected !== false);
-}
-
-function buildWarmLobby() {
-  const box = document.createElement('div');
-  box.className = 'warm';
-
-  const title = document.createElement('p');
-  title.className = 'warm__title';
-  title.textContent = 'ANOTHER PIE?';
-
-  const bar = document.createElement('span');
-  bar.className = 'warm__bar';
-  bar.setAttribute('aria-hidden', 'true');
-  const fill = document.createElement('span');
-  fill.className = 'warm__fill';
-  bar.append(fill);
-
-  const count = document.createElement('p');
-  count.className = 'warm__count';
-  count.setAttribute('role', 'status');
-
-  box.append(title, bar, count);
-  ui.warm = { box, fill, count, timer: 0, deadline: 0, left: -1, host: false, fired: false };
-  return ui.warm;
-}
-
-function armWarmLobby(snapshot, staged) {
-  const warm = ui.warm || buildWarmLobby();
-  // Above the actions, so the bar reads as the thing the buttons interrupt.
-  if (!warm.box.isConnected) el.dialog.insertBefore(warm.box, el.btnNextRound.parentElement);
-
-  warm.host = Boolean(snapshot.isHost);
-  warm.box.hidden = false;
-
-  if (!staged && warm.deadline) return; // a later snapshot never resets the clock
-
-  warm.deadline = Date.now() + WARM_MS;
-  warm.fired = false;
-  warm.left = -1;
-  restartAnimation(warm.fill, 'is-draining', 'drain');
-  tickWarmLobby();
-}
-
-/**
- * The tick reads the wall clock rather than counting its own beats, so a
- * throttled background tab lands on the right second when it comes back
- * instead of finishing five seconds late.
- */
-function tickWarmLobby() {
-  const warm = ui.warm;
-  if (!warm || !warm.deadline) return;
-  clearTimeout(warm.timer);
-  warm.timer = 0;
-
-  const remaining = warm.deadline - Date.now();
-  const left = Math.max(0, Math.ceil(remaining / 1000));
-  if (left !== warm.left) {
-    warm.left = left;
-    warm.count.textContent = left > 0 ? `STARTS BY ITSELF IN ${left}` : 'FIRING UP THE OVEN…';
-    // The last three seconds tick, once each, on the same rising beep the
-    // call-out window uses. Everything before that is silent.
-    if (left > 0 && left <= 3) sound.play('timer-beep', 6 - left);
-  }
-
-  if (remaining > 0) {
-    warm.timer = setTimeout(tickWarmLobby, 180);
-    return;
-  }
-  if (warm.fired) return;
-  warm.fired = true;
-  // Only the host actually rolls the dough. Everyone else was watching.
-  if (warm.host) send({ type: 'newRound' });
-}
-
-function stopWarmLobby() {
-  const warm = ui.warm;
-  if (!warm) return;
-  clearTimeout(warm.timer);
-  warm.timer = 0;
-  warm.deadline = 0;
-  warm.fired = false;
-  warm.left = -1;
-  warm.fill.classList.remove('is-draining');
-  warm.box.hidden = true;
 }
 
 // =============================================================== RECEIPTS ==
@@ -4138,7 +4177,52 @@ el.btnAddBot.addEventListener('click', () => {
 });
 el.btnStart.addEventListener('click', () => send({ type: 'startGame' }));
 el.btnLeaveLobby.addEventListener('click', () => send({ type: 'leaveRoom' }));
-el.btnLeaveGame.addEventListener('click', () => send({ type: 'leaveRoom' }));
+
+// ------------------------------------------------- 03 · the armed screw ----
+/**
+ * Leaving a round in progress is a forfeit — the seat goes, the hand goes, and
+ * the round can end on the way out — and it used to happen on one press of a
+ * 44px screw sitting next to the code chip. The mis-tap and the deliberate
+ * exit were the same gesture.
+ *
+ * So the screw arms first. One press flips the label to SURE? in sauce; a
+ * second press inside four seconds leaves; silence disarms it. No modal: this
+ * is the cabinet idiom, and a dialog over a live table would hide the very
+ * thing somebody is deciding whether to walk away from. The lobby screw is
+ * untouched — leaving a lobby costs nothing and asking twice would be rude.
+ *
+ * For a screen reader the accessible name is the whole signal, so it changes
+ * with the state: "Leave" → "Confirm leave". Nothing depends on the colour.
+ */
+const LEAVE_ARM_MS = 4000;
+
+function disarmLeave() {
+  clearTimeout(ui.leaveTimer);
+  ui.leaveTimer = 0;
+  if (!ui.leaveArmed) return;
+  ui.leaveArmed = false;
+  el.btnLeaveGameLabel.textContent = 'Leave';
+  el.btnLeaveGame.classList.remove('is-armed');
+  el.btnLeaveGame.removeAttribute('aria-label');
+}
+
+function armLeave() {
+  ui.leaveArmed = true;
+  el.btnLeaveGameLabel.textContent = 'SURE?';
+  el.btnLeaveGame.classList.add('is-armed');
+  el.btnLeaveGame.setAttribute('aria-label', 'Confirm leave');
+  clearTimeout(ui.leaveTimer);
+  ui.leaveTimer = setTimeout(disarmLeave, LEAVE_ARM_MS);
+}
+
+el.btnLeaveGame.addEventListener('click', () => {
+  if (!ui.leaveArmed) {
+    armLeave();
+    return;
+  }
+  disarmLeave();
+  send({ type: 'leaveRoom' });
+});
 
 el.drawPile.addEventListener('click', () => {
   if (el.drawPile.disabled) return;
@@ -4187,15 +4271,9 @@ el.opponents.addEventListener('keydown', (event) => {
 
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
-// 09 · either button settles it, so the countdown has nothing left to decide.
-el.btnNextRound.addEventListener('click', () => {
-  stopWarmLobby();
-  send({ type: 'newRound' });
-});
-el.btnToLobby.addEventListener('click', () => {
-  stopWarmLobby();
-  send({ type: 'backToLobby' });
-});
+// 09 · the host decides. Nothing here is on a clock.
+el.btnNextRound.addEventListener('click', () => send({ type: 'newRound' }));
+el.btnToLobby.addEventListener('click', () => send({ type: 'backToLobby' }));
 
 // 04 · any sign of life resets the nudge clock. Passive listeners: none of
 // these ever calls preventDefault, and the move handler is on the hot path.
