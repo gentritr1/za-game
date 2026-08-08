@@ -1973,7 +1973,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   justify-content: center;
   align-items: flex-end;
   min-height: 52px;
-  padding: 8px 6px;
+  /* Full bleed, like the marquee learned to be: the strip used to sit ~22px
+     inside the hand zone's cheese border (the zone's padding plus the hand's
+     own), so two different widths stacked right at the seam. The negative
+     margins take it to the same edges the border runs between; the side
+     padding keeps the ribs where they were. */
+  margin-inline: calc(-1 * (var(--s3) + 8px));
+  padding: 8px calc(var(--s3) + 14px);
   background: var(--console);
   box-shadow: inset 0 var(--bd-thin) 0 var(--bezel);
   touch-action: none;
@@ -3259,14 +3265,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      the felt: the box was taking the exact space the piles needed. Newest
      entry only, no title, one thin strip — every older line already had its
      moment when it arrived (and was announced then; the live region only
-     ever speaks additions). */
+     ever speaks additions). And it is a real grid row, not a float: a strip
+     that owns its lane cannot sit on the topping badge, however short the
+     phone. Full bleed to the hand zone's own edges, like everything else
+     that learned that lesson. */
+  .table { grid-template-rows: auto minmax(0, 1fr) auto; }
+
   .log {
-    left: var(--s2);
-    right: var(--s2);
-    bottom: var(--s2);
+    position: static;
     width: auto;
     max-height: none;
+    margin-inline: calc(-1 * var(--s3));
     padding: 4px 8px;
+    border-inline: none;
+    border-bottom: none;
   }
 
   .log__title { display: none; }
