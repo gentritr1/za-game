@@ -1202,6 +1202,30 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .seat__body { transition: transform var(--d-fast) var(--ease-step); }
 }
 
+/* --- 2A/5 · the rank, printed ---------------------------------------------
+   The ordinal chip is the same number the weights are read from, said in
+   words. The counter does not draw it — position is the ordinal there — but
+   it stays in the markup so the queue is the same component reading the same
+   value rather than a second one. */
+.seat__rank {
+  display: none;
+  order: -1;
+  align-self: stretch;
+  padding: calc(5px * var(--k, 1)) calc(8px * var(--k, 1));
+  font-family: var(--font-display);
+  font-size: max(11px, calc(11px * var(--k, 1)));
+  line-height: 1;
+  letter-spacing: .06em;
+  text-align: center;
+  background: var(--void);
+  color: var(--text-mute);
+  border: 2px solid var(--bezel);
+}
+
+.seat.is-turn .seat__rank { background: var(--cheese); color: var(--void); border-color: var(--cheese); }
+.seat.is-next .seat__rank { color: var(--cheese); border-color: var(--cheese); }
+.seat.is-target .seat__rank { background: var(--sauce); color: var(--void); border-color: var(--sauce); }
+
 /* The spoken count. It never draws — the fan and the printed plate are what a
    sighted player reads — but it keeps the number in the accessibility tree. */
 .seat__count-long {

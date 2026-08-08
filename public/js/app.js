@@ -1430,6 +1430,11 @@ function updateSeat(node, player, view, exposed, rank) {
   // enclosed, NEXT is one edge, everything else is idle — three shapes, not
   // one shape at three brightnesses.
   node.dataset.rank = String(rank);
+  // 2A/5 · the same number, printed. The queue shows it as an ordinal chip;
+  // the counter keeps it in the markup and simply does not draw it, so the two
+  // arrangements are one component reading one value rather than two.
+  parts.rank.textContent =
+    rank === 0 ? 'NOW' : rank === 1 ? 'NEXT' : rank < 0 ? '' : String(rank + 1).padStart(2, '0');
   const isTurn = rank === 0;
   node.classList.toggle('is-turn', isTurn);
   node.classList.toggle('is-next', rank === 1);
