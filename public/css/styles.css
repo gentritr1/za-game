@@ -3177,6 +3177,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     opacity: 0 !important;
   }
 
+  /* 1A · the cabinet's reactions arrive in their final state. The house rule
+     above clamps transitions to 140ms rather than removing them, so the glow
+     has to say so itself: the delta is a step, not a ramp. The shout and the
+     plaque are simply there — no travel, no scale. The shout keeps its -6°
+     because that is its resting pose, not part of the movement, and both keep
+     their opacity fade, which aids comprehension rather than decorating. */
+  .shell.is-capped .table::after { transition: none !important; }
+
+  .za-shout,
+  .cab-plaque { animation: none !important; }
+
+  .cab-chain,
+  .cab-chain.is-on { transform: none !important; }
+
   /* The score and the stamps still cross-fade in place: they are the visual
      half of cues that must never be sound-only. */
   .shout-score,
@@ -4155,6 +4169,135 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: var(--ui-cyan);
 }
 
+/* --- what the cabinet does when something happens ------------------------- */
+/* All three are additive and all three are transform and opacity: nothing under
+   them moves, which is why they are absolutely positioned overlays rather than
+   anything the board's own boxes have to make room for.
+
+   The glow and the chain total are scoped to `.is-capped` — past the cap. Below
+   it the board must render exactly as it did before this direction existed, and
+   a standing .20 oven glow is not "exactly as it did"; the chain is already
+   carried down there by the oven-step ladder and the combo stamp, which are
+   untouched. */
+.shell.is-capped .table::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: min(560px, 84vw);
+  aspect-ratio: 1;
+  transform: translate(-50%, -46%);
+  /* Alpha lives on the layer, not inside the gradient, so the .20 -> .38 lift
+     is an opacity change and nothing has to re-parse a colour to animate. */
+  background: radial-gradient(46% 40% at 50% 46%, rgb(255, 140, 40), transparent 72%);
+  opacity: .20;
+  pointer-events: none;
+  transition: opacity var(--d-mid) var(--ease-step);
+}
+
+.shell.is-capped .table.is-chaining::after { opacity: .38; }
+
+/* The running total, planted beside the oven. Absolute off the discard pile, so
+   the piles do not shift by a pixel when it arrives. */
+.cab-chain {
+  position: absolute;
+  left: calc(100% + var(--s4));
+  top: 0;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: var(--s1);
+  padding: 10px 14px;
+  background: var(--void);
+  border: var(--bd-thick) solid var(--sauce);
+  box-shadow: var(--sh-lift);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(.72);
+  transition:
+    opacity var(--d-fast) var(--ease-step),
+    transform var(--d-fast) var(--ease-step);
+}
+
+.cab-chain.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+.cab-chain__n {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1;
+  color: var(--sauce);
+}
+
+.cab-chain__label {
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 16px;
+  letter-spacing: .14em;
+  color: var(--cheese);
+}
+
+/* THE SHOUT. Across the glass, over everything in the play column — the hand
+   zone and the marquee both sit at z-index 3, so this clears them. Notch sizes
+   step with the board (64 / 84 / 120) in the notch blocks below. */
+.za-shout {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 5;
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 1;
+  letter-spacing: .04em;
+  color: var(--cheese);
+  text-shadow: 8px 8px 0 var(--sauce), 16px 16px 0 rgba(0, 0, 0, .6);
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-6deg);
+  animation: za-shout-land var(--d-press) var(--ease-step) both;
+}
+
+/* Three frames, no tween — the same slam the ZA! button takes, at board scale.
+   The rotation is the resting pose, not part of the movement, so it is carried
+   on every frame and survives the animation being switched off. */
+@keyframes za-shout-land {
+  0%, 32%   { transform: translate(-50%, -50%) rotate(-6deg) scale(.55); }
+  33%, 65%  { transform: translate(-50%, -50%) rotate(-6deg) scale(1.24); }
+  66%, 100% { transform: translate(-50%, -50%) rotate(-6deg) scale(1); }
+}
+
+.za-shout.is-out {
+  opacity: 0;
+  transition: opacity var(--d-mid) var(--ease-step);
+}
+
+/* THE WIN. Printed on the right panel, so it only exists where the panel does —
+   below the cap the round dialog is the whole story, and it is the whole story
+   up here too. This is the extra thing the cabinet can say, never a substitute
+   for the thing every width says. */
+.cab-plaque {
+  flex: none;
+  width: 100%;
+  padding: var(--s3);
+  background: var(--cheese);
+  color: var(--void);
+  border: var(--bd-thick) solid var(--void);
+  box-shadow: var(--sh-lift);
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.5;
+  animation: cab-plaque-print var(--d-press) var(--ease-step) both;
+}
+
+@keyframes cab-plaque-print {
+  0%, 32%   { opacity: 0; transform: scale(.8); }
+  33%, 65%  { opacity: 1; transform: scale(1.1); }
+  66%, 100% { opacity: 1; transform: scale(1); }
+}
+
 /* ------------------------------------------------- big-screen notches ----- */
 /* A 27-inch monitor was showing the same 84px cards as a laptop, adrift in
    void. The cabinet steps up in whole notches instead of scaling smoothly:
@@ -4172,6 +4315,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .table { --chef-col: 210px; }
   .seat__name { font-size: 20px; }
   .log { font-size: 19px; }
+  .za-shout { font-size: 84px; }
 }
 
 @media (min-width: 2200px) {
@@ -4181,6 +4325,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hud__turn { font-size: 18px; }
   .marquee__mark { font-size: 23px; }
   .marquee__dir { font-size: 24px; }
+  .za-shout { font-size: 120px; }
 }
 
 /* The direction text was a cramped afterthought in the HUD's right cluster.

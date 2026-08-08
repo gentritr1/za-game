@@ -206,7 +206,13 @@ const ui = {
   // ---- 1A · the literal cabinet. Panels are built and dropped by width, so
   // the last snapshot is kept to redraw them from on a resize.
   cabSnapshot: null,
-  cabPanels: null, // { left, right, fame, special, art… } while they exist
+  cabPanels: null, // { left, right, fame, special } while they exist
+  cabPlaque: null, // the win plaque, while a round is over
+  chainTotal: 0, // cards the current run has forced, for the running total
+  chainNode: null,
+  chainTotalNode: null,
+  prevDeclared: new Map(), // playerId -> declaredZa last snapshot
+  shoutNode: null,
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -575,6 +581,10 @@ function toppingConfetti() {
 /** Drops every per-round effect counter and cancels anything still running. */
 function resetRoundEffects() {
   ui.chain = 0;
+  ui.chainTotal = 0;
+  // A new round re-deals, so nobody has shouted in it yet. Seeding rather than
+  // clearing would make the first snapshot of the round look like a shout.
+  ui.prevDeclared.clear();
   ui.prevTopKind = null;
   ui.anchovyCount = 0;
   ui.shoutArmedAt = 0;
@@ -981,6 +991,7 @@ function renderGame(snapshot) {
   renderActionBar(snapshot, view, yourTurn);
   renderLog(view);
   syncCabinet(snapshot);
+  syncShout(view);
 
   // 08 · your turn, loudly. One class drives the ping ring on the rail and
   // both borders warming from bezel to cheese, so the whole signal starts and
@@ -1458,6 +1469,10 @@ function renderPiles(view, yourTurn) {
       const isDraw = top.kind === 'draw2' || top.kind === 'wild4';
       const wasDraw = ui.prevTopKind === 'draw2' || ui.prevTopKind === 'wild4';
       ui.chain = isDraw ? (wasDraw ? ui.chain + 1 : 1) : 0;
+      // 1A · what the run has actually cost, for the cabinet's running total.
+      // Derived from the same landing, so it can never disagree with the ladder.
+      const forced = top.kind === 'wild4' ? 4 : top.kind === 'draw2' ? 2 : 0;
+      ui.chainTotal = ui.chain === 0 ? 0 : ui.chain === 1 ? forced : ui.chainTotal + forced;
     }
     if (isNew) {
       el.discardSlot.dataset.topId = top.id;
@@ -2813,6 +2828,9 @@ function onCardLanded(view, top) {
 function setOvenStep(step) {
   const centre = document.querySelector('.table-center');
   if (centre) centre.style.setProperty('--oven-step', String(step));
+  // 1A · the cabinet's own glow lift and the running total ride the same
+  // funnel, so they can never be left standing on a chain that has ended.
+  syncChain();
 }
 
 /**
@@ -3262,6 +3280,10 @@ function syncCabinet(snapshot) {
   const width = panelWidth();
   el.shell.classList.toggle('is-capped', width > 0);
 
+  // The chain's glow and total are a width concern too: dragging past the cap
+  // mid-run has to light the room, and dragging back under it has to stop.
+  syncChain();
+
   const wanted = width > PANEL_MIN && ui.screen === 'game';
   el.shell.classList.toggle('has-panels', wanted);
   if (!wanted) {
@@ -3278,6 +3300,8 @@ function dropPanels() {
   ui.cabPanels.left.remove();
   ui.cabPanels.right.remove();
   ui.cabPanels = null;
+  // The plaque lived on the right panel and went with it.
+  ui.cabPlaque = null;
 }
 
 /**
@@ -3355,6 +3379,7 @@ function paintPanels(snapshot) {
   if (!ui.cabPanels || !snapshot) return;
   paintFame(ui.cabPanels.fame, snapshot);
   paintSpecial(ui.cabPanels.special, snapshot);
+  paintPlaque(snapshot);
 }
 
 /**
@@ -3415,6 +3440,121 @@ function paintSpecial(host, snapshot) {
   note.className = 'cab-special__note';
   note.textContent = 'MATCH IT OR DRAW';
   host.replaceChildren(label, dish, note);
+}
+
+// ---------------------------------------- what the cabinet does on an event --
+/**
+ * THE WIN. The cabinet prints the winner on the right panel — in addition to
+ * the round dialog, never instead of it. Below the cap there is no panel to
+ * print on and the dialog is the whole story, which is the fallback the spec
+ * asks for and costs nothing to implement: no panel, no plaque.
+ */
+function paintPlaque(snapshot) {
+  const panel = ui.cabPanels && ui.cabPanels.right;
+  if (!panel) return;
+  const view = snapshot.game;
+  const winner = snapshot.phase === 'roundOver' && view && view.winnerId
+    ? view.players.find((p) => p.id === view.winnerId)
+    : null;
+
+  if (!winner) {
+    if (ui.cabPlaque) {
+      ui.cabPlaque.remove();
+      ui.cabPlaque = null;
+    }
+    return;
+  }
+
+  const line = `${winner.name.toUpperCase()} TAKES THE PIE`;
+  if (ui.cabPlaque && ui.cabPlaque.isConnected) {
+    // Restaging the same win would replay the print for no reason.
+    if (ui.cabPlaque.textContent !== line) ui.cabPlaque.textContent = line;
+    return;
+  }
+  const plaque = document.createElement('div');
+  plaque.className = 'cab-plaque';
+  plaque.textContent = line;
+  panel.append(plaque);
+  ui.cabPlaque = plaque;
+}
+
+/**
+ * THE CHAIN. The glow lift and the running total both hang off the ladder the
+ * juice pass already counts (`ui.chain`) — no second signal, no new state.
+ * `ui.chainTotal` is the cards the run has forced, which is what "running
+ * total" means at the table: two links of +2 is +4, not "2".
+ */
+function syncChain() {
+  const table = document.querySelector('.table');
+  if (!table) return;
+  const live = ui.chain >= 1 && panelWidth() > 0;
+  table.classList.toggle('is-chaining', live);
+
+  if (!live) {
+    if (ui.chainNode) {
+      const going = ui.chainNode;
+      ui.chainNode = null;
+      going.classList.remove('is-on');
+      setTimeout(() => going.remove(), cssTime('--d-fast', 160));
+    }
+    return;
+  }
+
+  if (!ui.chainNode) {
+    const host = el.discardSlot.closest('.pile');
+    if (!host) return;
+    const node = document.createElement('span');
+    node.className = 'cab-chain';
+    node.setAttribute('aria-hidden', 'true');
+    const total = document.createElement('b');
+    total.className = 'cab-chain__n';
+    const label = document.createElement('i');
+    label.className = 'cab-chain__label';
+    label.textContent = 'CHAIN';
+    node.append(total, label);
+    host.append(node);
+    ui.chainNode = node;
+    ui.chainTotalNode = total;
+    requestAnimationFrame(() => node.classList.add('is-on'));
+  }
+  ui.chainTotalNode.textContent = `+${ui.chainTotal}`;
+}
+
+/**
+ * THE SHOUT. `declaredZa` going false -> true on any player is the shout, read
+ * off the snapshot the client already receives. The first snapshot of a session
+ * or a round seeds the map instead of firing, so joining a table mid-shout does
+ * not throw ZA! across a board you just arrived at.
+ */
+function syncShout(view) {
+  const seen = ui.prevDeclared;
+  let shouted = false;
+  for (const player of view.players) {
+    const now = Boolean(player.declaredZa);
+    if (seen.has(player.id) && now && !seen.get(player.id)) shouted = true;
+    seen.set(player.id, now);
+  }
+  if (shouted) showShout();
+}
+
+/** ZA! across the glass. Absolutely positioned, so the board does not move. */
+function showShout() {
+  const host = document.querySelector('.screen--game');
+  if (!host) return;
+  if (ui.shoutNode) ui.shoutNode.remove();
+  const node = document.createElement('div');
+  node.className = 'za-shout';
+  node.setAttribute('aria-hidden', 'true');
+  node.textContent = 'ZA!';
+  host.append(node);
+  ui.shoutNode = node;
+  // The slam holds its last frame; the exit is a plain opacity fade, which is
+  // the one thing reduced motion keeps because it aids comprehension.
+  setTimeout(() => node.classList.add('is-out'), 820);
+  setTimeout(() => {
+    node.remove();
+    if (ui.shoutNode === node) ui.shoutNode = null;
+  }, 1120);
 }
 
 // ---------------------------------------------------------- sound toggle ----
