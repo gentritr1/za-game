@@ -163,8 +163,12 @@ export class Connection {
    */
   observe(message) {
     if (message.type === 'joined') {
+      // Only the flag, never the state. A reconnect is already in `joining`
+      // (the open handler put it there), and a first join from the home screen
+      // is `synchronized` with no table behind it — moving that one to
+      // `joining` would raise the banner and freeze the screen for the gap
+      // between `joined` and the `state` that follows it in the same tick.
       this.awaitingFirstState = true;
-      this.setState('joining');
       return;
     }
     if (message.type === 'state' && this.awaitingFirstState) {
