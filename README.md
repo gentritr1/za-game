@@ -367,3 +367,10 @@ the dependency list stays at one.
 ---
 
 Buon appetito. 🍕
+
+---
+
+## Learning
+
+- [The Kitchen Log](docs/KITCHEN-LOG.md) — how this project's mistakes and
+  blockers actually got countered, and the house rules they left behind.
