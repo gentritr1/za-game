@@ -167,6 +167,7 @@ const ui = {
   // Focus, and where it has to go back to. `popoverReturn` is whatever opened
   // the picker, the call-out list or the hire roster; `focusIntent` is the
   // action whose landing place is only built when the next snapshot arrives.
+  announcer: null, // the shared visually-hidden live region
   popoverReturn: null,
   focusIntent: null, // { kind: 'play' | 'draw', cardId }
   keyboardActive: false, // the last input was a key, not a pointer
@@ -369,6 +370,44 @@ function toast(text) {
   ui.toastTimer = setTimeout(() => hide(el.toast), 3200);
 }
 
+// ------------------------------------------------------- the announcer ----
+/**
+ * One visually-hidden live region, for the things this cabinet says in
+ * pictures.
+ *
+ * Every live region already on the page is spoken for. The toast is
+ * `assertive` and visible, so it cannot carry a quiet confirmation without
+ * putting a banner on the screen for it. The marquee is the turn state and
+ * nothing else may write there. And the kitchen chatter log is `display: none`
+ * below 620px of window — a live region that is not displayed announces
+ * nothing at all, which is exactly the height where a player most needs it.
+ * So: one node, built once, shared by everything that has to be heard rather
+ * than seen.
+ */
+function announcerNode() {
+  if (ui.announcer) return ui.announcer;
+  const node = document.createElement('p');
+  node.className = 'sr-only';
+  node.setAttribute('role', 'status');
+  node.setAttribute('aria-live', 'polite');
+  document.body.append(node);
+  ui.announcer = node;
+  return node;
+}
+
+/**
+ * Says one line to a screen reader.
+ *
+ * The same string written twice running is not re-read by every reader, so a
+ * repeat goes in with a trailing space. It is the same sentence to a listener
+ * and a different string to the live region.
+ */
+function announce(text) {
+  if (!text) return;
+  const node = announcerNode();
+  node.textContent = node.textContent === text ? `${text} ` : text;
+}
+
 function paintScreen(name) {
   ui.screen = name;
   for (const screen of el.screens) {
@@ -490,6 +529,9 @@ async function copyCode(chip) {
   try {
     await navigator.clipboard.writeText(code);
     flashCopied(chip);
+    // The chip flashing "Copied" is the whole confirmation, and it is a
+    // picture. Say it as well as show it.
+    announce(`Table code ${code} copied.`);
   } catch {
     toast(`Table code: ${code}`);
   }
@@ -1410,6 +1452,11 @@ function openCalloutWindow(playerId, isMine) {
     box.append(label, drain);
     el.handZone.append(box);
     entry.node = box;
+    // The window is a dashed sauce box and a bar draining over three seconds:
+    // entirely a picture, and the one moment where not knowing costs you cards.
+    // `syncCalloutWindows` only opens a window that is not already open, so
+    // this is once per arising rather than once per snapshot.
+    announce("You're on one card — shout ZA!");
   } else {
     const seat = ui.seatNodes.get(playerId);
     if (!seat) return;

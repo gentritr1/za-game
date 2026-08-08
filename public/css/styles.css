@@ -190,6 +190,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* Component display rules must never override the platform's hidden state. */
 [hidden] { display: none !important; }
 
+/* Heard, not seen. `clip-path` rather than the deprecated `clip: rect(...)`:
+   the old property is only still honoured because nobody has dared drop it,
+   and an inset of 50% cannot be mistaken for a zero-size rect by a layout
+   engine that decides to start believing `overflow: hidden`. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -197,7 +201,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
@@ -3144,7 +3148,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     margin: -1px;
     padding: 0;
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
     white-space: nowrap;
   }
 
