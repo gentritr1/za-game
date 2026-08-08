@@ -979,8 +979,19 @@ function renderGame(snapshot) {
   armNudge(yourTurn, view.playableCardIds.length > 0);
 }
 
+/**
+ * The marquee has three moments and they are mutually exclusive.
+ *
+ * The third one — the call-out window — is read off `calloutTargets`, the same
+ * field that governs the CALL OUT button, so the strip goes to sauce exactly
+ * while calling out is legal and never on a state the server did not send. It
+ * outranks "your turn" on purpose: the window closes on its own, your turn
+ * does not, and the rail's ping still says whose turn it is underneath.
+ */
 function renderTurnBanner(snapshot, view, yourTurn) {
-  el.turnBanner.classList.toggle('is-you', yourTurn);
+  const callout = view.status === 'playing' && (view.calloutTargets || []).length > 0;
+  el.turnBanner.classList.toggle('is-callout', callout);
+  el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
   setTurnText(turnLabel(view, yourTurn));
 }
 

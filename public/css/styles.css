@@ -702,7 +702,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   line-height: 1.25;
   font-weight: 700;
   white-space: nowrap;
-  background: var(--cabinet-hi);
+  /* MOMENT 1 · WAITING — cabinet fill, bezel rim, cyan type. The quiet one. */
+  background: var(--cabinet);
+  color: var(--ui-cyan);
   transform: none;
   transition:
     background-color var(--d-mid) var(--ease-out),
@@ -792,12 +794,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transition: opacity var(--d-mid) var(--ease-out);
 }
 
+/* MOMENT 2 · YOUR TURN — the strip floods. Fill, rim and type change; the box
+   does not. No scale, no padding change, no font change: a moment swap is a
+   repaint, never a reflow. */
 .hud__turn.is-you {
   background: linear-gradient(180deg, var(--cheese-hi), var(--cheese));
+  border-color: var(--cheese);
   color: var(--void);
-  transform: scale(1.025);
   transition-timing-function: var(--ease-pop);
 }
+
+/* MOMENT 3 · THE CALL-OUT WINDOW — the one moment that borrows the alarm
+   colour, so it is deliberately the one that holds still. Cheese rim so it
+   still reads as the cabinet's own strip and not as an error. */
+.hud__turn.is-callout {
+  background: var(--sauce);
+  border-color: var(--cheese);
+  color: var(--void);
+}
+
+/* On both flooded moments the chevrons stop being cyan lamps and become holes
+   punched in the fill. */
+.hud__turn.is-you .marquee__dir,
+.hud__turn.is-callout .marquee__dir { color: rgba(13, 15, 26, .75); }
 
 .hud__turn.is-you::before {
   opacity: 1;
@@ -2981,6 +3000,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .seat.is-turn,
   .hud__turn,
   .hud__turn.is-you,
+  .hud__turn.is-callout,
   .log__entry,
   .seat-row,
   .dialog,
