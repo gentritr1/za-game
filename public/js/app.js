@@ -156,6 +156,8 @@ const ui = {
   peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
   peekCardId: null, // which rib the peek is showing
   seatNodes: new Map(), // playerId -> seat element
+  belt: null, // 2B · the conveyor under the queue, built once
+  token: null, // 2A · the chevron that walks the counter, built once
   gameId: null,
   lastLogId: -1,
   pendingWild: null, // { cardId, sourceEl }
@@ -1073,18 +1075,155 @@ function renderDirection(view) {
 }
 
 /**
- * Opponents in play order, starting from whoever plays after you.
+ * Opponents around the counter, starting from whoever sits after you.
  *
- * The order follows the direction of play, so a Flip the Pie genuinely
- * reverses the row of chef panels — that reversal is effect F, and without it
- * there would be nothing for the hard swap in renderOpponents to swap.
+ * This is the seating, not the running order: it is dealt once and it holds
+ * for the whole round. The reversal that used to turn the row around on a
+ * Flip the Pie is gone — a real table does not re-seat itself when play turns
+ * around, you simply read it the other way, and the token walking back the
+ * other way (step 7) is the whole event.
  */
 function orderedOpponents(snapshot, view) {
   const players = view.players.filter((p) => !p.left);
   const mine = players.findIndex((p) => p.id === snapshot.youId);
   if (mine === -1) return players;
-  const after = [...players.slice(mine + 1), ...players.slice(0, mine)];
-  return view.direction === -1 ? after.reverse() : after;
+  return [...players.slice(mine + 1), ...players.slice(0, mine)];
+}
+
+/* --- 2A/6 · the arrangement -----------------------------------------------
+   Hand-authored, one short array per opponent count, as percentages inside the
+   felt with an anchor of top, left or right. A formula stacks chefs on top of
+   one another at the ends of the arc; a map does not, so every count is placed
+   to look deliberate rather than computed.
+
+   One opponent sits at top centre, opposite you across the oven. That is the
+   table a game of two actually is, and it is deliberate, not broken.
+
+   [leftPct, topPct, anchor] */
+const COUNTER_MAP = {
+  1: [[50, 3, 't']],
+  2: [[26, 4, 't'], [74, 4, 't']],
+  3: [[19, 9, 't'], [50, 1, 't'], [81, 9, 't']],
+  4: [[6, 30, 'l'], [31, 3, 't'], [69, 3, 't'], [94, 30, 'r']],
+  5: [[5, 34, 'l'], [25, 6, 't'], [50, 0, 't'], [75, 6, 't'], [95, 34, 'r']],
+  // The two counts that put chefs on the side walls sit them lower than the
+  // rendered comp does. The comp's felt is 16:9; this one is capped at 1280
+  // wide while the height keeps growing, so at the third notch a wall seat is
+  // 250px of portrait-plus-cards and the old 14/15% put its shoulder through
+  // the outermost chef along the top. Measured, not guessed: see the pairwise
+  // rect assertion at 1280 and 2400.
+  6: [[5, 50, 'l'], [11, 20, 'l'], [37, 1, 't'], [63, 1, 't'], [89, 20, 'r'], [95, 50, 'r']],
+  7: [[5, 54, 'l'], [11, 26, 'l'], [32, 2, 't'], [50, 0, 't'], [68, 2, 't'], [89, 26, 'r'], [95, 54, 'r']],
+};
+
+/* The one breakpoint. Below it the counter hands over to the queue — said
+   once here and once in the stylesheet, and nowhere else. Both are read
+   through the same media engine, so they cannot silently disagree. */
+const QUEUE_BELOW = '(max-width: 519.98px)';
+
+function seatingMode() {
+  return window.matchMedia(QUEUE_BELOW).matches ? 'queue' : 'counter';
+}
+
+/**
+ * 2A/6 · place the seats.
+ *
+ * The counter reads the map; the queue sorts by rank and lets flex do the
+ * rest. Either way the seat nodes themselves are the ones already cached in
+ * `ui.seatNodes` — an arrangement moves chefs, it never rebuilds them.
+ */
+/**
+ * Dragging across the breakpoint has to hand the counter over to the queue
+ * right there, without waiting for the next snapshot — a table that only
+ * re-arranges when somebody plays a card is a table that is wrong for as long
+ * as it takes them to think. The seat nodes are the ones already cached, and
+ * the rank is already on each node, so this moves chefs and builds nothing.
+ */
+function relayoutSeating() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view) return;
+  const order = orderedOpponents(snapshot, view)
+    .map((player) => ui.seatNodes.get(player.id))
+    .filter(Boolean);
+  if (order.length === 0) return;
+  placeSeats(order, seatRanks(view), view);
+}
+
+/**
+ * The two pieces of furniture that belong to the table rather than to a chef:
+ * the belt under the queue and (step 7) the token that walks the counter.
+ * Built once and kept on `ui`, next to the seat cache, so nothing rebuilds a
+ * node another part of the client is holding a reference to.
+ */
+function seatingFurniture() {
+  if (!ui.belt) {
+    const belt = document.createElement('div');
+    belt.className = 'counter-belt';
+    belt.setAttribute('aria-hidden', 'true');
+    const tread = document.createElement('span');
+    tread.className = 'counter-belt__tread';
+    belt.append(tread);
+    el.opponents.after(belt);
+    ui.belt = belt;
+  }
+  return ui;
+}
+
+function placeSeats(order, ranks, view) {
+  const mode = seatingMode();
+  el.opponents.dataset.mode = mode;
+  const count = order.length;
+  const { belt } = seatingFurniture();
+  belt.dataset.dir = view.direction === -1 ? '-1' : '1';
+
+  if (mode === 'queue') {
+    // A queue is only a queue if left-to-right IS the order of play, so the
+    // slots sort by rank every render and the head is a fixed place on screen.
+    const sorted = order
+      .map((node) => ({ node, rank: Number(node.dataset.rank) }))
+      .sort((a, b) => (a.rank < 0 ? 99 : a.rank) - (b.rank < 0 ? 99 : b.rank));
+    sorted.forEach(({ node, rank }, index) => {
+      node.style.removeProperty('left');
+      node.style.removeProperty('right');
+      node.style.removeProperty('top');
+      node.dataset.anchor = 't';
+      // The head of the queue is worth three times the room of a seat five
+      // places away; the tail only has to say who and how many.
+      const port = rank === 0 ? 58 : rank === 1 ? 46 : 34;
+      node.style.setProperty('--port', `${port}px`);
+      node.dataset.box = port >= 40 ? '1' : '0';
+      node.style.order = String(index);
+    });
+    return;
+  }
+
+  const map = COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
+  order.forEach((node, index) => {
+    const spot = map[Math.min(index, map.length - 1)];
+    // A chef along the top is centred on their percentage; one down a wall is
+    // hung off that wall, so the outer seats stay on the felt instead of half
+    // over its edge. The anchor already says which way they face; letting it
+    // pick the box edge as well is the same fact used twice.
+    if (spot[2] === 'r') {
+      node.style.removeProperty('left');
+      node.style.right = `${(100 - spot[0]).toFixed(1)}%`;
+    } else {
+      node.style.removeProperty('right');
+      node.style.left = `${spot[0]}%`;
+    }
+    node.style.top = `${spot[1]}%`;
+    node.dataset.anchor = spot[2];
+    node.dataset.box = '1';
+    node.style.removeProperty('--port');
+    node.style.removeProperty('order');
+  });
+
+  // The counter only reaches as far down the walls as somebody is actually
+  // sitting: at four players a shallow lip along the top, at eight most of the
+  // way down both sides.
+  const deepest = map.reduce((low, spot) => Math.max(low, spot[1]), 0);
+  el.opponents.style.setProperty('--rail-bottom', `${Math.max(16, 100 - deepest - 30)}%`);
 }
 
 /**
@@ -1144,28 +1283,15 @@ function renderOpponents(snapshot, view) {
     }
   }
 
-  // F · after a flip the order reverses on the spot. Suspending the seat
-  // transition for the reorder is what makes it a hard swap and not a slide.
-  const hardSwap = ui.dirJustFlipped;
-  ui.dirJustFlipped = false;
-  if (hardSwap) {
-    el.opponents.classList.add('is-hard-swap');
-    const release = () => el.opponents.classList.remove('is-hard-swap');
-    requestAnimationFrame(() => requestAnimationFrame(release));
-    // A backgrounded tab throttles rAF, and a suspended class would leave the
-    // seats without a transition for the rest of the round. The timer is the
-    // belt to that pair of braces.
-    setTimeout(release, 200);
-  }
-
-  // Reorder without rebuilding, so entry animations are not restarted.
+  // The DOM order is the seating order and it never changes inside a round.
+  // The counter places by percentage and the queue reorders with `order`, so
+  // neither arrangement has to move a node to move a chef — which is what
+  // makes "the seats do not re-sort on a reverse" true rather than merely
+  // intended.
   order.forEach((node, index) => {
-    if (el.opponents.children[index] !== node) el.opponents.insertBefore(node, el.opponents.children[index] || null);
-    // A gentle arc makes the players look seated around the far edge. The
-    // desktop chef column is a straight list and overrides it in CSS.
-    const count = order.length;
-    const norm = count === 1 ? 0 : (index - (count - 1) / 2) / ((count - 1) / 2);
-    node.style.setProperty('--arc', `${(Math.abs(norm) ** 2 * -10).toFixed(1)}px`);
+    if (el.opponents.children[index] !== node) {
+      el.opponents.insertBefore(node, el.opponents.children[index] || null);
+    }
   });
 
   // "CHEFS · n" counts everyone still at the table, you included. Seven and
@@ -1174,6 +1300,7 @@ function renderOpponents(snapshot, view) {
   const atTable = view.players.filter((p) => !p.left).length;
   el.opponents.dataset.chefs = String(atTable);
   el.opponents.dataset.crowd = atTable >= 7 ? '1' : '0';
+  placeSeats(order, ranks, view);
   renderChefStats(snapshot);
 }
 
@@ -3924,6 +4051,9 @@ window.addEventListener('resize', () => {
     // 1A · the cabinet is a width, so it is a resize concern before it is a
     // snapshot one: dragging past the cap has to build the room right there.
     syncCabinet();
+    // 2A/8 · and so is the seating: the counter hands over to the queue at the
+    // breakpoint, not at the next snapshot.
+    relayoutSeating();
   });
 });
 

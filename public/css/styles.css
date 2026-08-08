@@ -963,6 +963,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .opponents {
   --k: 1;
   --port: 54px;
+  position: relative;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -971,7 +973,169 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding-bottom: var(--s2);
 }
 
+/* --- 2A/6 · the counter ---------------------------------------------------
+   The round table drawn square, because zero radii is a house rule and a
+   square counter is more pizzeria anyway. Three dashed 2px sides with the near
+   edge open, which is where your own hand already is. Chefs are placed on it
+   from the hand-authored map, so turn order is where people are sitting rather
+   than a label anybody has to read.
+
+   The felt and the two piles share one grid cell: the counter is drawn AROUND
+   the oven, not above it. */
+@media (min-width: 520px) {
+  .table {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .table > .opponents,
+  .table > .table-center {
+    grid-area: 1 / 1;
+  }
+
+  /* The piles sit at 56% of the felt, which is what leaves the top of the
+     table to the people sitting at it. */
+  .table-center {
+    position: relative;
+    padding-top: 12%;
+    z-index: 1;
+  }
+}
+
+.opponents[data-mode="counter"] {
+  display: block;
+  padding-bottom: 0;
+}
+
+/* A chef along the top edge is centred on their percentage. A chef down a wall
+   is hung off it instead — the anchor already says which way they face across
+   the counter, and letting it pick the box edge too is what keeps the outer
+   two seats on the felt rather than half off it. */
+.opponents[data-mode="counter"] .seat {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.opponents[data-mode="counter"] .seat[data-anchor="l"],
+.opponents[data-mode="counter"] .seat[data-anchor="r"] { transform: none; }
+
+/* Three sides and no fourth. The top clears the portraits by a little over
+   half a head, and `--rail-bottom` is set by the client from the deepest chef
+   in the map — the counter only reaches as far down the walls as somebody is
+   actually sitting. */
+.opponents[data-mode="counter"]::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: calc(var(--port) * .62);
+  bottom: var(--rail-bottom, 40%);
+  pointer-events: none;
+  border: 2px dashed var(--bezel);
+  border-bottom: none;
+}
+
+/* --- 2B/6 · the queue -----------------------------------------------------
+   Seating is abandoned and the order becomes the layout: NOW at the head, NEXT
+   beside it, then 03, 04. The head is a fixed place on the screen and the
+   chefs move through it. The strip is content-sized rather than a fixed
+   height — the fan is the tallest thing in it and it grows with the notch. */
+/* Strip, belt, then the table. The belt is 8px of furniture and must not be
+   handed the free row — without this it takes the 1fr and the piles are pushed
+   a hundred pixels down the phone. */
+@media (max-width: 519.98px) {
+  .table { grid-template-rows: auto auto minmax(0, 1fr); }
+}
+
+.opponents[data-mode="queue"] {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 6px;
+  /* The counter's own edge, seen from closer up: the one token carried over,
+     so the phone reads as the same game rather than a different one. It sits
+     on the strip itself, so it holds still while the seats scroll under it. */
+  border-top: 2px dashed var(--bezel);
+  padding: calc(8px * var(--k, 1)) 0 2px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bezel) transparent;
+}
+
+.opponents[data-mode="queue"] .seat {
+  position: relative;
+  flex: none;
+  gap: calc(7px * var(--k, 1));
+  padding: calc(9px * var(--k, 1)) calc(10px * var(--k, 1));
+  background: var(--cabinet);
+  border: var(--bd-thin) solid var(--bezel);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .45);
+  transform: translateY(0);
+  /* The slide is one slot on steps(3, end); the reverse re-forms the tail
+     behind the head as a hard swap on steps(2, end). */
+  transition:
+    transform 200ms steps(2, end),
+    border-color 160ms steps(2, end),
+    background-color 160ms steps(2, end);
+}
+
+.opponents[data-mode="queue"] .seat .seat__rank { display: block; }
+
+.opponents[data-mode="queue"] .seat.is-turn {
+  background: rgba(255, 225, 77, .1);
+  border-color: var(--cheese);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
+  transform: translateY(calc(-6px * var(--k, 1)));
+}
+
+.opponents[data-mode="queue"] .seat.is-next { border-color: rgba(255, 225, 77, .5); }
+.opponents[data-mode="queue"] .seat.is-target { border-color: var(--sauce); }
+
+/* The conveyor belt under the strip, scrolling in the direction of play. It is
+   an overflowing tread moved by a transform rather than a scrolled background
+   position, because nothing in this cabinet animates a layout property. */
+.counter-belt {
+  display: none;
+  position: relative;
+  flex: none;
+  height: 8px;
+  overflow: hidden;
+  background: var(--console);
+}
+
+.opponents[data-mode="queue"] ~ .counter-belt { display: block; }
+
+.counter-belt__tread {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(100% + 40px);
+  background: repeating-linear-gradient(90deg, var(--bezel) 0 22px, var(--console) 22px 40px);
+  animation: belt-run 900ms steps(4, end) infinite;
+}
+
+.counter-belt[data-dir="-1"] .counter-belt__tread { animation-name: belt-run-back; }
+
+@keyframes belt-run {
+  from { transform: translateX(0); }
+  to { transform: translateX(-40px); }
+}
+
+@keyframes belt-run-back {
+  from { transform: translateX(-40px); }
+  to { transform: translateX(0); }
+}
+
 .opponents[data-crowd="1"] { --port: 46px; }
+
+/* Below the one breakpoint the counter hands over to the queue and everything
+   steps down with it. `--port` is set per seat there, by rank. */
+@media (max-width: 519.98px) {
+  .opponents { --k: .78; }
+}
 
 @media (min-width: 1600px) {
   .opponents { --k: 1.16; --port: 62px; }
@@ -3053,34 +3217,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    today; this whole column is desktop only. */
 @media (min-width: 721px) {
   .table {
-    grid-template-columns: var(--chef-col, 186px) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-    gap: var(--s3) var(--s6);
     padding: var(--s3) 18px 11px var(--s3);
   }
 
-  /* CHEFS — fixed 186px, full height of the table, clear of the action bar. */
-  .opponents {
-    grid-area: 1 / 1 / 3 / 2;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: var(--s2);
-    min-height: 0;
-    padding: 0;
-    /* A full table only needs to scroll on a short window. The block axis has
-       to be `auto` for that, which would make the inline axis scrollable off
-       the active panel's 4px hard shadow — so that one is clipped instead. */
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--bezel) transparent;
-  }
-
-
-  /* SCORE and RND sit side by side: they do not fit stacked in 186px. */
+  /* SCORE and RND, side by side in the near corner of the felt: they used to
+     be the foot of the chef column and the column is gone, but the two numbers
+     are not part of the seating and had no reason to go with it. */
   .chef-stats {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 1;
     display: flex;
     flex: none;
     gap: var(--s2);
@@ -3117,20 +3264,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .chef-stat--score .chef-stat__value { color: var(--cheese); }
   .chef-stat--rnd .chef-stat__value { color: var(--ui-cyan); }
 
-  /* Centre column: piles on top, console log under them. */
-  .table-center {
-    grid-area: 1 / 2 / 2 / 3;
-    position: relative;
-  }
-
+  /* The counter takes the whole felt, so the log stops being the second half
+     of a centre column and goes back to floating over it — in the far corner,
+     away from both the near edge and the SCORE tiles. */
   .log {
-    position: static;
-    grid-area: 2 / 2 / 3 / 3;
-    width: auto;
+    position: absolute;
+    left: auto;
+    right: 18px;
+    bottom: 0;
+    width: 246px;
     min-height: 0;
-    max-height: 178px;
+    max-height: min(38%, 178px);
     padding: 9px 11px;
-    box-shadow: none;
   }
 }
 
@@ -3440,14 +3585,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   --hatch: repeating-linear-gradient(45deg, var(--cabinet-hi) 0 3px, var(--cabinet) 3px 6px);
 }
 
-/* Under 40px of portrait there is no room for a box under the fan. It goes,
-   and the numeral becomes its own chip. */
+/* Under 40px of portrait there is no room for a box, and no room to count
+   slivers either: five places down the queue a chef only has to say who they
+   are and how many they are holding. The object drops to the numeral alone. */
 .seat[data-box="0"] .seat__cards {
-  height: calc(var(--ch) + 14px);
+  width: auto;
+  height: auto;
   --sit: 0px;
 }
 
-.seat[data-box="0"] .pizza-box { display: none; }
+.seat[data-box="0"] .pizza-box,
+.seat[data-box="0"] .seat__fan,
+.seat[data-box="0"] .seat__deck { display: none; }
 
 /* One sliver per card. `transform-origin: 50% 128%` puts the pivot below the
    card, which is where a hand of cards actually hinges. */
@@ -3579,15 +3728,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* With the box dropped the numeral has nothing to be printed on, so it becomes
-   its own chip under the fan. */
+   its own chip and the whole card object is that chip. */
 .seat[data-box="0"] .seat__count {
-  bottom: 0;
+  position: static;
+  display: inline-block;
   padding: 3px 5px;
   font-size: 11px;
   background: var(--console);
   color: var(--text-mute);
   border: 2px solid var(--bezel);
-  transform: translate(-50%, 0);
+  transform: none;
   animation: none;
 }
 
