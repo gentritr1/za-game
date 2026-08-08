@@ -14,6 +14,7 @@ import {
   cardIndex,
   TOPPING_META,
   TOPPING_ORDER,
+  SPRITE_DIR,
 } from './cards.js';
 import { icon, suitIcon } from './icons.js';
 import { sound } from './sounds.js';
@@ -1532,12 +1533,43 @@ function handSortKey(card) {
  * the rails; it is never rebuilt, so the entry transition, the flight from the
  * dough pile and the focus a player is holding all survive a promotion.
  */
+/**
+ * Whether the whole hand fits the rail full size, gap and all. Measured, not
+ * configured: the card width comes from a probe slot the stylesheet sizes, so
+ * a notch change or a resize moves the answer without anybody keeping a copy
+ * of the numbers. (Runtime truth — the chamber-size lesson.)
+ */
+function handFitsOpen(count) {
+  if (!count) return true;
+  let probe = ui.nearProbe;
+  if (!probe) {
+    probe = document.createElement('div');
+    probe.className = 'hand-slot';
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;';
+    probe.append(renderCard(null, { size: 'hand' }));
+    ui.nearProbe = probe;
+  }
+  el.handNear.append(probe);
+  const cardW = probe.firstElementChild.offsetWidth || 84;
+  probe.remove();
+  // The same 8px gap and 16px of side padding `layoutNear` works with.
+  return count * cardW + (count - 1) * 8 + 16 <= el.hand.clientWidth;
+}
+
 function renderHand(snapshot, view, yourTurn) {
   const playable = new Set(view.playableCardIds);
   const seen = new Set();
   const fresh = [];
   const pit = [];
   const near = [];
+
+  // THE OPEN KITCHEN. The pit exists to compress a hand that does not fit;
+  // when the whole hand stands full size with room to spare, compressing it
+  // anyway is just hiding cards. So the pit only engages under pressure:
+  // while everything fits, dead cards stand in the row dimmed — the way they
+  // did before the pit existed — and the strip stays empty and collapsed.
+  const open = handFitsOpen(view.hand.length);
+  el.hand.dataset.open = open ? '1' : '0';
 
   const sortedHand = [...view.hand].sort((a, b) => handSortKey(a) - handSortKey(b) || (a.id < b.id ? -1 : 1));
   ui.handOrder = sortedHand.map((c) => c.id);
@@ -1552,9 +1584,10 @@ function renderHand(snapshot, view, yourTurn) {
     // it promotes a beat later, and that promotion is the news rather than the
     // draw. A dealt hand is not a draw — it arrives already sorted, so it goes
     // straight to the rail it belongs in instead of promoting seven cards at
-    // once over the deal stagger.
-    const landsInPit = isFresh && !ui.dealing;
-    const wantsNear = isPlayable && !landsInPit;
+    // once over the deal stagger. An open kitchen has no pit to land in: the
+    // drawn card takes its place in the row directly.
+    const landsInPit = isFresh && !ui.dealing && !open;
+    const wantsNear = open || (isPlayable && !landsInPit);
 
     if (isFresh) {
       slot = document.createElement('div');
@@ -2017,13 +2050,14 @@ function layoutNear(entries) {
   // `.hand` carries 8px of side padding, so this is the room the cards get.
   const available = Math.max(el.hand.clientWidth - 16, cardWidth);
 
-  let gap = total > 4 ? -Math.round(cardWidth * 0.24) : 8;
-  // Past about six live cards even a 24% overlap runs off a 375px screen, and
-  // a card under the bezel is worse than a card behind another card. This is
-  // not a density step: the cards stay 84px, they just hide further.
+  // Cards overlap only under pressure. Every card that CAN stand clear does —
+  // a five-card hand on a monitor spreads at full 8px gaps; the same hand on
+  // a phone overlaps exactly as much as the width demands and no more. This
+  // is not a density step: the cards never shrink, they only hide further.
+  let gap = 8;
   const needed = total * cardWidth + (total - 1) * gap;
   if (needed > available && total > 1) {
-    gap = Math.min(gap, Math.floor((available - total * cardWidth) / (total - 1)));
+    gap = Math.floor((available - total * cardWidth) / (total - 1));
     gap = Math.max(gap, -Math.round(cardWidth * MAX_OVERLAP));
   }
 
@@ -3366,9 +3400,11 @@ function muralFrame(frame, file, which) {
   img.addEventListener('error', () => {
     img.remove();
     // A two-frame loop with one frame left is not a loop, it is a blink: the
-    // survivor stops flipping and simply holds.
+    // survivor stops flipping and simply holds. Both frames animate now (A
+    // counter-phases B because the vinyl is transparent), so the survivor
+    // sheds whichever phase class it was carrying.
     const rest = frame.querySelectorAll('.cab-art__img');
-    if (rest.length === 1) rest[0].classList.remove('cab-art__img--b');
+    if (rest.length === 1) rest[0].classList.remove('cab-art__img--a', 'cab-art__img--b');
   }, { once: true });
   img.src = `assets/${file}`;
   return img;
@@ -3421,7 +3457,17 @@ function paintFame(host, snapshot) {
  * The chalkboard carries the topping in play — the same live value as the badge
  * under the oven, repainted the moment a wild changes it. Before the deal there
  * is no topping and the board is blank, which is what a real one would be.
+ *
+ * A real chalkboard also knows what time it is: the parlour sells TODAY'S
+ * special while the sun is up and TONIGHT'S once it goes down. Local clock,
+ * read at paint time — snapshots arrive constantly, so an evening that starts
+ * mid-round flips the board without anyone touching it.
  */
+function specialWord() {
+  const hour = new Date().getHours();
+  return hour >= 5 && hour < 18 ? "TODAY'S" : "TONIGHT'S";
+}
+
 function paintSpecial(host, snapshot) {
   const view = snapshot.game;
   const meta = view && view.currentTopping ? TOPPING_META[view.currentTopping] : null;
@@ -3432,14 +3478,22 @@ function paintSpecial(host, snapshot) {
 
   const label = document.createElement('span');
   label.className = 'cab-panel__label cab-panel__label--special';
-  label.textContent = "TODAY'S SPECIAL";
+  label.textContent = `${specialWord()} SPECIAL`;
+  // The dish gets its plate: the same sprite the card windows use, so the
+  // chalkboard advertises the exact topping on the table.
+  const art = document.createElement('img');
+  art.className = 'cab-special__art';
+  art.src = `${SPRITE_DIR}/${meta.slug}.png`;
+  art.alt = '';
+  art.decoding = 'async';
+  art.draggable = false;
   const dish = document.createElement('span');
   dish.className = 'cab-special__dish';
   dish.textContent = meta.label;
   const note = document.createElement('span');
   note.className = 'cab-special__note';
   note.textContent = 'MATCH IT OR DRAW';
-  host.replaceChildren(label, dish, note);
+  host.replaceChildren(label, art, dish, note);
 }
 
 // ---------------------------------------- what the cabinet does on an event --
@@ -3722,7 +3776,16 @@ let resizeFrame = 0;
 window.addEventListener('resize', () => {
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
-    layoutNear(ui.nearRow);
+    // A width change can open or close the kitchen — the pit engages only
+    // under pressure, and pressure is a function of width. The full render
+    // moves the cards between rails; a plain relayout covers the rest.
+    const view = ui.snapshot && ui.snapshot.game;
+    if (view && view.hand && el.hand.dataset.open !== (handFitsOpen(view.hand.length) ? '1' : '0')) {
+      const yourTurn = view.turnPlayerId === ui.snapshot.youId && view.status === 'playing';
+      renderHand(ui.snapshot, view, yourTurn);
+    } else {
+      layoutNear(ui.nearRow);
+    }
     // The pit's height moves when it re-wraps, and the peek hangs off it.
     if (ui.peekCardId) {
       const slot = ui.handSlots.get(ui.peekCardId);

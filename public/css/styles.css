@@ -1541,6 +1541,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand__pit {
   display: flex;
   flex-wrap: wrap;
+  /* Centred like the rail below it: a handful of ribs used to huddle in the
+     left corner of a full-width strip while the live cards stood centred —
+     two alignments in one hand. */
+  justify-content: center;
   align-items: flex-end;
   min-height: 52px;
   padding: 8px 6px;
@@ -3174,6 +3178,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   /* 1A · the mural holds on frame A. The bulb never flips, and the window is
      still a mural in a dashed frame — nothing was carried by the flip alone. */
+  .cab-art__img--a {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
   .cab-art__img--b {
     animation: none !important;
     opacity: 0 !important;
@@ -3230,6 +3239,21 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    on eighteen ribs. The roll along the fan went out with the fan: two rows of
    ribs rolling card by card is a shiver, not a breath. */
 .hand.is-breathing .hand__pit {
+  animation: breathe 3.2s var(--ease-in-out) infinite;
+}
+
+/* THE OPEN KITCHEN. When the whole hand fits full size the pit never engages:
+   the strip collapses to nothing and the dead cards stand dimmed in the row.
+   The idle breathe moves to the rail, since the rail is where the hand is. */
+.hand[data-open="1"] .hand__pit:empty {
+  min-height: 0;
+  padding-block: 0;
+  box-shadow: none;
+}
+
+.hand[data-open="1"].is-breathing .hand__pit { animation: none; }
+
+.hand[data-open="1"].is-breathing .hand__near {
   animation: breathe 3.2s var(--ease-in-out) infinite;
 }
 
@@ -4106,6 +4130,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .cab-panel__label--special { color: var(--basil); }
 
+/* The dish on its plate: the suit sprite the card windows already use, blown
+   up chalk-menu size. Pixelated, because it is pixel art and because a soft
+   upscale is the one thing this cabinet never does. */
+.cab-special__art {
+  width: min(72px, calc(var(--panel-w, 250px) * .3));
+  image-rendering: pixelated;
+  margin: var(--s1) auto 0;
+}
+
 .cab-special__dish {
   font-family: var(--font-script);
   font-size: 31px;
@@ -4128,8 +4161,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .cab-art {
   position: relative;
   flex: none;
-  width: var(--panel-w);
+  /* Capped: the art was cut at 500px and a panel on an ultrawide (or a
+     zoomed-out window) can outgrow it — past 340px the mural stops scaling
+     and the checker keeps the rest of the panel, like a poster on a wall
+     rather than wallpaper. */
+  width: min(var(--panel-w), 340px);
   margin-inline: calc(-1 * var(--cab-pad-x));
+  align-self: center;
   aspect-ratio: 3 / 4;
   display: grid;
   place-items: center;
@@ -4154,11 +4192,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    bulb-flip per 900ms — the same grid the marquee's chevron chase runs on.
    Opacity only; the images never move. The right window starts half a cycle
    late so the two panels do not tick in unison. */
+/* The murals are transparent vinyl, so the two frames must counter-phase: a
+   frame B fading in OVER a frame A that stays lit shows both discs of dough
+   at once through each other's transparent ground. A hides while B shows —
+   one frame on screen at any instant, like the flipbook it is imitating. */
+.cab-art__img--a {
+  animation: cab-art-flip-a 1800ms steps(1, end) infinite;
+}
+
 .cab-art__img--b {
   opacity: 0;
   animation: cab-art-flip 1800ms steps(1, end) infinite;
 }
 
+.cab-panel--right .cab-art__img--a,
 .cab-panel--right .cab-art__img--b { animation-delay: 450ms; }
 
 /* Under steps(1, end) each interval holds its own start value, so this is one
@@ -4167,6 +4214,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   0%   { opacity: 0; }
   50%  { opacity: 1; }
   100% { opacity: 1; }
+}
+
+@keyframes cab-art-flip-a {
+  0%   { opacity: 1; }
+  50%  { opacity: 0; }
+  100% { opacity: 0; }
 }
 
 /* Uncovered only when a mural fails to load: the dashed window over cabinet is
