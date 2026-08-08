@@ -30,3 +30,14 @@ special sitting above it.
 - Transparent background is fine; the panel checker sits behind it.
 - Deliver as PNG at 2x, `public/assets/cabinet-left.png` and
   `public/assets/cabinet-right.png`.
+
+---
+
+## As shipped — transparent, and animated in two frames
+
+Both murals shipped background-removed (RGBA over the panel checker, as this
+file allows) and each carries a second frame for an arcade-style two-frame
+loop: `cabinet-left-b.png` (the dough drops to the fingertips) and
+`cabinet-right-b.png` (the flames in an alternate lick). The flip is two
+stacked images and a stepped opacity swap — `steps(1, end)`, opacity only,
+frame A alone under `prefers-reduced-motion`.
