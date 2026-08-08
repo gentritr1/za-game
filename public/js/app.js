@@ -467,16 +467,53 @@ async function copyCode(chip) {
 }
 
 // ------------------------------------------------------- press feedback ----
-// Pressable things answer on pointer-down, not on release.
+/**
+ * Pressable things answer on pointer-down, not on release.
+ *
+ * This used to book a fresh pair of `{ once: true }` window listeners per
+ * press. `once` only retires the listener that actually fires, so every
+ * completed press left its unfired `pointercancel` twin on the window for the
+ * rest of the session — measured on the probe: twenty-five press/release
+ * cycles left exactly twenty-five live handlers, and one stray cancel ran all
+ * of them. The pair also carried no pointer identity, so on a two-finger table
+ * lifting one finger released the button the OTHER finger was still holding.
+ *
+ * Now it is one session per pointer id. At most three window listeners exist
+ * at any moment, they are removed the instant the last finger lifts, and a
+ * release only ever touches the target that pointer put down.
+ */
+const PRESS_END = ['pointerup', 'pointercancel', 'lostpointercapture'];
+const pressedBy = new Map(); // pointerId -> the element that pointer pressed
+let pressWatching = false;
+
+function endPress(event) {
+  const target = pressedBy.get(event.pointerId);
+  if (!target) return;
+  pressedBy.delete(event.pointerId);
+  // Two fingers can rest on the same control. It stays pressed until the last
+  // of them leaves, which is what the player's hand is actually doing.
+  let stillHeld = false;
+  for (const other of pressedBy.values()) if (other === target) stillHeld = true;
+  if (!stillHeld) target.classList.remove('is-pressed');
+  if (pressedBy.size === 0) {
+    pressWatching = false;
+    for (const type of PRESS_END) window.removeEventListener(type, endPress);
+  }
+}
+
 document.addEventListener('pointerdown', (event) => {
   const target = event.target.closest(
     '.btn, .screw, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
   );
   if (!target || target.disabled) return;
+  // A repeated down on a live id would strand whatever it was holding.
+  if (pressedBy.has(event.pointerId)) endPress(event);
   target.classList.add('is-pressed');
-  const release = () => target.classList.remove('is-pressed');
-  window.addEventListener('pointerup', release, { once: true });
-  window.addEventListener('pointercancel', release, { once: true });
+  pressedBy.set(event.pointerId, target);
+  if (!pressWatching) {
+    pressWatching = true;
+    for (const type of PRESS_END) window.addEventListener(type, endPress);
+  }
 });
 
 // ============================================================== SNAPSHOT ===
