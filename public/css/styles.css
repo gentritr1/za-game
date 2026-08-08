@@ -4027,6 +4027,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .cab-fame { gap: var(--s2); }
 
+/* Nothing real to show is a state, not a gap to fill. The client empties the
+   block rather than inventing placeholder copy, and an empty block takes its
+   own frame down with it — an empty bordered chalkboard is still a stub. */
+.cab-fame:empty,
+.cab-special:empty { display: none; }
+
 .cab-fame__list {
   display: flex;
   flex-direction: column;

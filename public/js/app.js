@@ -3335,8 +3335,72 @@ function artWindow(file) {
   return frame;
 }
 
-/** Filled by the next step; the panels are furniture until then. */
-function paintPanels() {}
+/** Live data, not wallpaper. Both panels read the snapshot the board just drew. */
+function paintPanels(snapshot) {
+  if (!ui.cabPanels || !snapshot) return;
+  paintFame(ui.cabPanels.fame, snapshot);
+  paintSpecial(ui.cabPanels.special, snapshot);
+}
+
+/**
+ * The wall of fame is the score list the lobby polaroids already draw from —
+ * `seats[].wins` — sorted, top four. Nobody has won yet is a real state, and it
+ * renders as nothing at all rather than as a heading over an empty box.
+ */
+function paintFame(host, snapshot) {
+  const winners = (snapshot.seats || [])
+    .filter((seat) => Number(seat.wins) >= 1)
+    .sort((a, b) => Number(b.wins) - Number(a.wins))
+    .slice(0, 4);
+  if (!winners.length) {
+    host.replaceChildren();
+    return;
+  }
+
+  const label = document.createElement('span');
+  label.className = 'cab-panel__label';
+  label.textContent = 'WALL OF FAME';
+  const list = document.createElement('div');
+  list.className = 'cab-fame__list';
+  winners.forEach((seat, index) => {
+    const row = document.createElement('div');
+    row.className = 'cab-fame__row';
+    const who = document.createElement('span');
+    who.className = 'cab-fame__who';
+    who.textContent = `${index + 1} ${seat.name.toUpperCase()}`;
+    const wins = document.createElement('span');
+    wins.className = 'cab-fame__wins';
+    wins.textContent = String(seat.wins).padStart(2, '0');
+    row.append(who, wins);
+    list.append(row);
+  });
+  host.replaceChildren(label, list);
+}
+
+/**
+ * The chalkboard carries the topping in play — the same live value as the badge
+ * under the oven, repainted the moment a wild changes it. Before the deal there
+ * is no topping and the board is blank, which is what a real one would be.
+ */
+function paintSpecial(host, snapshot) {
+  const view = snapshot.game;
+  const meta = view && view.currentTopping ? TOPPING_META[view.currentTopping] : null;
+  if (!meta) {
+    host.replaceChildren();
+    return;
+  }
+
+  const label = document.createElement('span');
+  label.className = 'cab-panel__label cab-panel__label--special';
+  label.textContent = "TODAY'S SPECIAL";
+  const dish = document.createElement('span');
+  dish.className = 'cab-special__dish';
+  dish.textContent = meta.label;
+  const note = document.createElement('span');
+  note.className = 'cab-special__note';
+  note.textContent = 'MATCH IT OR DRAW';
+  host.replaceChildren(label, dish, note);
+}
 
 // ---------------------------------------------------------- sound toggle ----
 /**
