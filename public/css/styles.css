@@ -748,13 +748,24 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     color var(--d-mid) var(--ease-out);
 }
 
-/* The cabinet's own name, always at the left end of the strip. */
+/* The cabinet's own name, always at the left end of the strip. At rest it is
+   the logotype — cheese on a hard sauce offset, the same treatment the attract
+   screen gives it. On a flooded moment it drops to void with the shadow off,
+   because a yellow-on-yellow logotype is not a logotype. */
 .marquee__mark {
   justify-self: start;
   font-family: var(--font-display);
   font-size: 19px;
   letter-spacing: .04em;
   line-height: inherit;
+  color: var(--cheese);
+  text-shadow: 3px 3px 0 var(--sauce);
+}
+
+.hud__turn.is-you .marquee__mark,
+.hud__turn.is-callout .marquee__mark {
+  color: var(--void);
+  text-shadow: none;
 }
 
 /* The direction rail. Five chevrons and — under reduced motion only — the
@@ -764,9 +775,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   justify-self: end;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   font-family: var(--font);
-  font-size: 15px;
+  /* Six pixels above the turn text, the proportion the reference render uses:
+     VT323 draws small, and at parity the chase reads as specks. */
+  font-size: 20px;
   line-height: inherit;
 }
 
@@ -3897,7 +3910,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hand[data-mode="review"] .card--rib { --card-w: 38px; }
   .hud__turn { font-size: 16px; }
   .marquee__mark { font-size: 21px; }
-  .marquee__dir { font-size: 17px; }
+  .marquee__dir { font-size: 22px; }
   .table { --chef-col: 210px; }
   .seat__name { font-size: 20px; }
   .log { font-size: 19px; }
@@ -3909,7 +3922,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .table-center, .card--pile { --card-w: 128px; }
   .hud__turn { font-size: 18px; }
   .marquee__mark { font-size: 23px; }
-  .marquee__dir { font-size: 19px; }
+  .marquee__dir { font-size: 24px; }
 }
 
 /* The direction text was a cramped afterthought in the HUD's right cluster.

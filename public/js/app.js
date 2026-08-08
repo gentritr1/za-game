@@ -993,11 +993,14 @@ function renderTurnBanner(snapshot, view, yourTurn) {
   const callout = view.status === 'playing' && (view.calloutTargets || []).length > 0;
   el.turnBanner.classList.toggle('is-callout', callout);
   el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
-  setTurnText(turnLabel(view, yourTurn));
+  setTurnText(turnLabel(view, yourTurn, callout));
 }
 
-function turnLabel(view, yourTurn) {
+function turnLabel(view, yourTurn, callout) {
   if (view.status !== 'playing') return 'Round over';
+  // The alarm colour needs a line that earns it. Whose turn it is is still on
+  // screen either way — the rail is ringed and the hint under the hand says so.
+  if (callout) return 'Somebody forgot to shout!';
   if (yourTurn) return view.mustPlayDrawnCard ? 'Your turn — play it or pass' : 'Your turn, chef';
   const current = view.players.find((p) => p.id === view.turnPlayerId);
   return current ? `${current.name} is eyeing the pile…` : 'Waiting…';
