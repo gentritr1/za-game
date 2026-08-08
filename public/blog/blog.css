@@ -546,11 +546,13 @@ code {
 
 /* No. 06 — the turn token walks a seat per beat, and jumps rather than glides,
    because a turn advance is a state change and not a journey. */
+/* The offsets are the four seat centres in No. 06's diagram, measured off
+   that drawing. If the seating moves, these move with it. */
 @keyframes zine-walk {
   0%   { transform: translate(0, 0); }
-  25%  { transform: translate(46px, -26px); }
-  50%  { transform: translate(92px, 0); }
-  75%  { transform: translate(46px, 26px); }
+  25%  { transform: translate(34px, -38px); }
+  50%  { transform: translate(96px, -38px); }
+  75%  { transform: translate(130px, 0); }
   100% { transform: translate(0, 0); }
 }
 .anim-walk { animation: zine-walk 5600ms steps(1, end) infinite; }
