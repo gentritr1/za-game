@@ -156,6 +156,11 @@ const ui = {
   peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
   peekCardId: null, // which rib the peek is showing
   seatNodes: new Map(), // playerId -> seat element
+  belt: null, // 2B · the conveyor under the queue, built once
+  token: null, // 2A · the chevron that walks the counter, built once
+  tokenTurnTimer: 0,
+  queuePlaced: false, // 2B · true once the strip has laid out at least once
+  queueSlideTimer: 0,
   gameId: null,
   lastLogId: -1,
   pendingWild: null, // { cardId, sourceEl }
@@ -1059,9 +1064,9 @@ function renderDirection(view) {
   const words = reversed ? 'to the right' : 'to the left';
   if (el.dirAnnounce.textContent !== words) el.dirAnnounce.textContent = words;
 
-  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip;
-  // renderOpponents picks the flag up and reorders the seats without a tween,
-  // so the panels swap rather than slide.
+  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip.
+  // The seats no longer hear about it — they hold their places for the whole
+  // round — but the token does: it turns around, and that is the reverse.
   const flipped = Boolean(ui.prevDir && ui.prevDir !== view.direction);
   ui.dirJustFlipped = flipped;
   if (flipped) {
@@ -1073,22 +1078,325 @@ function renderDirection(view) {
 }
 
 /**
- * Opponents in play order, starting from whoever plays after you.
+ * Opponents around the counter, starting from whoever sits after you.
  *
- * The order follows the direction of play, so a Flip the Pie genuinely
- * reverses the row of chef panels — that reversal is effect F, and without it
- * there would be nothing for the hard swap in renderOpponents to swap.
+ * This is the seating, not the running order: it is dealt once and it holds
+ * for the whole round. The reversal that used to turn the row around on a
+ * Flip the Pie is gone — a real table does not re-seat itself when play turns
+ * around, you simply read it the other way, and the token walking back the
+ * other way (step 7) is the whole event.
  */
 function orderedOpponents(snapshot, view) {
   const players = view.players.filter((p) => !p.left);
   const mine = players.findIndex((p) => p.id === snapshot.youId);
   if (mine === -1) return players;
-  const after = [...players.slice(mine + 1), ...players.slice(0, mine)];
-  return view.direction === -1 ? after.reverse() : after;
+  return [...players.slice(mine + 1), ...players.slice(0, mine)];
+}
+
+/* --- 2A/6 · the arrangement -----------------------------------------------
+   Hand-authored, one short array per opponent count, as percentages inside the
+   felt with an anchor of top, left or right. A formula stacks chefs on top of
+   one another at the ends of the arc; a map does not, so every count is placed
+   to look deliberate rather than computed.
+
+   One opponent sits at top centre, opposite you across the oven. That is the
+   table a game of two actually is, and it is deliberate, not broken.
+
+   [leftPct, topPct, anchor] */
+const COUNTER_MAP = {
+  1: [[50, 3, 't']],
+  2: [[26, 4, 't'], [74, 4, 't']],
+  3: [[19, 9, 't'], [50, 1, 't'], [81, 9, 't']],
+  4: [[6, 30, 'l'], [31, 3, 't'], [69, 3, 't'], [94, 30, 'r']],
+  5: [[5, 34, 'l'], [25, 6, 't'], [50, 0, 't'], [75, 6, 't'], [95, 34, 'r']],
+  // The two counts that put chefs on the side walls sit them lower than the
+  // rendered comp does. The comp's felt is 16:9; this one is capped at 1280
+  // wide while the height keeps growing, so at the third notch a wall seat is
+  // 250px of portrait-plus-cards and the old 14/15% put its shoulder through
+  // the outermost chef along the top. Measured, not guessed: see the pairwise
+  // rect assertion at 1280 and 2400.
+  6: [[5, 50, 'l'], [11, 20, 'l'], [37, 1, 't'], [63, 1, 't'], [89, 20, 'r'], [95, 50, 'r']],
+  7: [[5, 54, 'l'], [11, 26, 'l'], [32, 2, 't'], [50, 0, 't'], [68, 2, 't'], [89, 26, 'r'], [95, 54, 'r']],
+};
+
+/* The one breakpoint. Below it the counter hands over to the queue — said
+   once here and once in the stylesheet, and nowhere else. Both are read
+   through the same media engine, so they cannot silently disagree. */
+const QUEUE_BELOW = window.matchMedia('(max-width: 519.98px)');
+
+function seatingMode() {
+  return QUEUE_BELOW.matches ? 'queue' : 'counter';
+}
+
+/**
+ * Crossing the breakpoint is a discrete event, not a continuous one, so it
+ * gets its own listener rather than riding the resize handler's
+ * requestAnimationFrame — a backgrounded tab throttles rAF away entirely, and
+ * a phone that came back from the background showing a counter it cannot fit
+ * would be the arrangement lying about which mode it is in.
+ */
+QUEUE_BELOW.addEventListener('change', () => relayoutSeating());
+
+/**
+ * 2A/6 · place the seats.
+ *
+ * The counter reads the map; the queue sorts by rank and lets flex do the
+ * rest. Either way the seat nodes themselves are the ones already cached in
+ * `ui.seatNodes` — an arrangement moves chefs, it never rebuilds them.
+ */
+/**
+ * Dragging across the breakpoint has to hand the counter over to the queue
+ * right there, without waiting for the next snapshot — a table that only
+ * re-arranges when somebody plays a card is a table that is wrong for as long
+ * as it takes them to think. The seat nodes are the ones already cached, and
+ * the rank is already on each node, so this moves chefs and builds nothing.
+ */
+function relayoutSeating() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view) return;
+  const order = orderedOpponents(snapshot, view)
+    .map((player) => ui.seatNodes.get(player.id))
+    .filter(Boolean);
+  if (order.length === 0) return;
+  placeSeats(order, seatRanks(view), view);
+}
+
+/**
+ * The two pieces of furniture that belong to the table rather than to a chef:
+ * the belt under the queue and (step 7) the token that walks the counter.
+ * Built once and kept on `ui`, next to the seat cache, so nothing rebuilds a
+ * node another part of the client is holding a reference to.
+ */
+function seatingFurniture() {
+  if (!ui.belt) {
+    const belt = document.createElement('div');
+    belt.className = 'counter-belt';
+    belt.setAttribute('aria-hidden', 'true');
+    const tread = document.createElement('span');
+    tread.className = 'counter-belt__tread';
+    belt.append(tread);
+    el.opponents.after(belt);
+    ui.belt = belt;
+  }
+  if (!ui.token) {
+    const token = document.createElement('span');
+    token.className = 'counter-token';
+    token.setAttribute('aria-hidden', 'true');
+    el.opponents.append(token);
+    ui.token = token;
+  }
+  return ui;
+}
+
+/**
+ * 2A/7 · the token that walks the counter.
+ *
+ * Direction is not a word and not a colour: it is a chevron sitting on the
+ * counter halfway between the chef playing and the chef next, and on the
+ * handoff it walks one gap in four visible steps. A reverse is the token
+ * turning around and walking the other way, and that is the whole event —
+ * a real table does not re-seat itself when play turns around.
+ *
+ * It is placed in pixels rather than percentages because a transform is the
+ * only thing allowed to move, and a percentage translate would be a percentage
+ * of the token rather than of the felt.
+ */
+function placeToken(token, order, ranks, view) {
+  const seats = order.length;
+  // A token needs two different places to stand between. At a table of two
+  // there is one opponent and one of you, so the walk has nowhere to go.
+  if (seats < 2 || seatingMode() !== 'counter') {
+    token.hidden = true;
+    return;
+  }
+
+  const map = COUNTER_MAP[Math.min(7, seats)] || COUNTER_MAP[7];
+  // Where you sit: the near edge, dead centre, which is the one place on the
+  // counter that is not in the map because it is not a seat.
+  const YOURS = [50, 78];
+  const spotOf = (node) => {
+    if (!node) return YOURS;
+    const index = order.indexOf(node);
+    const spot = map[Math.min(index, map.length - 1)];
+    return [spot[0], spot[1]];
+  };
+
+  // The chef playing and the chef next, read off the same ranks the weights
+  // are read off. `null` is you — you are at the counter too.
+  let from = null;
+  let to = null;
+  let known = false;
+  for (const node of order) {
+    const rank = Number(node.dataset.rank);
+    if (rank === 0) { from = node; known = true; }
+    if (rank === 1) { to = node; known = true; }
+  }
+  // Ranks 0 and 1 are always somebody at the table; whichever of the two is
+  // missing from the opponents is you.
+  if (!known) {
+    token.hidden = true;
+    return;
+  }
+  const a = spotOf(from);
+  const b = spotOf(to);
+
+  const width = el.opponents.offsetWidth;
+  const height = el.opponents.offsetHeight;
+  if (width === 0 || height === 0) {
+    token.hidden = true;
+    return;
+  }
+  const port = parseFloat(getComputedStyle(el.opponents).getPropertyValue('--port')) || 54;
+  const x = ((a[0] + b[0]) / 2 / 100) * width;
+  const y = ((a[1] + b[1]) / 2 / 100) * height + port * 0.5;
+
+  token.hidden = false;
+  // The glyph is drawn with borders, not set as a character: neither VT323 nor
+  // Press Start 2P carries U+25B8, and a tofu box walking the counter would be
+  // worse than no marker at all. The same reason the turn triangle is drawn.
+  token.dataset.dir = view.direction === -1 ? '-1' : '1';
+  // The turn-around is the whole reverse, so it says so for one beat.
+  if (ui.dirJustFlipped) {
+    restartAnimation(token, 'is-turning', 'token-turn');
+    clearTimeout(ui.tokenTurnTimer);
+    ui.tokenTurnTimer = setTimeout(() => token.classList.remove('is-turning'), 260);
+  }
+  token.style.setProperty('--tx', `${x.toFixed(1)}px`);
+  token.style.setProperty('--ty', `${y.toFixed(1)}px`);
+}
+
+function placeSeats(order, ranks, view) {
+  const mode = seatingMode();
+  el.opponents.dataset.mode = mode;
+  const count = order.length;
+  const { belt, token } = seatingFurniture();
+  belt.dataset.dir = view.direction === -1 ? '-1' : '1';
+  placeToken(token, order, ranks, view);
+
+  if (mode === 'queue') {
+    // A queue is only a queue if left-to-right IS the order of play, so the
+    // slots sort by rank every render and the head is a fixed place on screen.
+    const sorted = order
+      .map((node) => ({ node, rank: Number(node.dataset.rank) }))
+      .sort((a, b) => (a.rank < 0 ? 99 : a.rank) - (b.rank < 0 ? 99 : b.rank));
+
+    // Where every chef stood before the sort. `offsetLeft` rather than a rect:
+    // a rect read mid-transition returns the transformed position, and the
+    // whole point of this measurement is where the seat BELONGS.
+    const slid = ui.queuePlaced;
+    const before = new Map(order.map((node) => [node, node.offsetLeft]));
+
+    sorted.forEach(({ node, rank }, index) => {
+      node.style.removeProperty('left');
+      node.style.removeProperty('right');
+      node.style.removeProperty('top');
+      node.dataset.anchor = 't';
+      // The head of the queue is worth three times the room of a seat five
+      // places away; the tail only has to say who and how many.
+      const port = rank === 0 ? 58 : rank === 1 ? 46 : 34;
+      node.style.setProperty('--port', `${port}px`);
+      node.dataset.box = port >= 40 ? '1' : '0';
+      node.style.order = String(index);
+    });
+    ui.queuePlaced = true;
+
+    // `order` re-sorts on the frame it is set — there is nothing to tween. So
+    // the slide is handed back: each seat is put where it just was and then
+    // walks to where it now belongs, one slot, in three visible steps. The
+    // chips have already renumbered, which is the point: an ordinal that
+    // counts down while the seat travels is a lie about what happened.
+    el.opponents.classList.toggle('is-reforming', Boolean(ui.dirJustFlipped));
+    if (!slid || !wantsMotion()) return;
+    let moved = false;
+    for (const node of order) {
+      const dx = before.get(node) - node.offsetLeft;   // forces the reflow
+      const body = node._parts.body;
+      if (Math.abs(dx) < 1) continue;
+      moved = true;
+      body.style.transition = 'none';
+      body.style.transform = `translateX(${dx.toFixed(1)}px)`;
+    }
+    if (!moved) return;
+    const release = () => {
+      for (const node of order) {
+        node._parts.body.style.removeProperty('transition');
+        node._parts.body.style.removeProperty('transform');
+      }
+    };
+    requestAnimationFrame(release);
+    // A backgrounded tab throttles rAF away entirely, and a strip left holding
+    // its inverse offsets would come back from the background with every chef
+    // one slot to the left of where they belong. The timer is the belt.
+    clearTimeout(ui.queueSlideTimer);
+    ui.queueSlideTimer = setTimeout(release, 300);
+    return;
+  }
+
+  // Leaving the queue: forget where the strip stood, and clear anything a
+  // slide left behind, or the first counter frame starts from a stale offset.
+  ui.queuePlaced = false;
+  el.opponents.classList.remove('is-reforming');
+
+  const map = COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
+  order.forEach((node, index) => {
+    node._parts.body.style.removeProperty('transition');
+    node._parts.body.style.removeProperty('transform');
+    const spot = map[Math.min(index, map.length - 1)];
+    // A chef along the top is centred on their percentage; one down a wall is
+    // hung off that wall, so the outer seats stay on the felt instead of half
+    // over its edge. The anchor already says which way they face; letting it
+    // pick the box edge as well is the same fact used twice.
+    if (spot[2] === 'r') {
+      node.style.removeProperty('left');
+      node.style.right = `${(100 - spot[0]).toFixed(1)}%`;
+    } else {
+      node.style.removeProperty('right');
+      node.style.left = `${spot[0]}%`;
+    }
+    node.style.top = `${spot[1]}%`;
+    node.dataset.anchor = spot[2];
+    node.dataset.box = '1';
+    node.style.removeProperty('--port');
+    node.style.removeProperty('order');
+  });
+
+  // The counter only reaches as far down the walls as somebody is actually
+  // sitting: at four players a shallow lip along the top, at eight most of the
+  // way down both sides.
+  const deepest = map.reduce((low, spot) => Math.max(low, spot[1]), 0);
+  el.opponents.style.setProperty('--rail-bottom', `${Math.max(16, 100 - deepest - 30)}%`);
+}
+
+/**
+ * 2A/5 · one number drives every weight on the table.
+ *
+ * `rank` is how far a seat is from the chef playing, counted along the
+ * direction of play: 0 is NOW, 1 is NEXT, everything else is idle, and in the
+ * queue the same number prints as the ordinal chip. It is computed once per
+ * render, here, and handed to the seats — nothing downstream works out "who is
+ * next" a second time.
+ *
+ * `-1` means there is nobody at the oven (the round is over, or the snapshot
+ * arrived between turns), and every seat reads as idle.
+ */
+function seatRanks(view) {
+  const players = view.players.filter((p) => !p.left);
+  const n = players.length;
+  const active = players.findIndex((p) => p.id === view.turnPlayerId);
+  const ranks = new Map();
+  if (n === 0) return ranks;
+  const live = active !== -1 && view.status === 'playing';
+  const dir = view.direction === -1 ? -1 : 1;
+  for (let i = 0; i < n; i++) {
+    ranks.set(players[i].id, live ? ((i - active) * dir + n * 4) % n : -1);
+  }
+  return ranks;
 }
 
 function renderOpponents(snapshot, view) {
   const list = orderedOpponents(snapshot, view);
+  const ranks = seatRanks(view);
   const seen = new Set();
   const order = [];
 
@@ -1106,7 +1414,7 @@ function renderOpponents(snapshot, view) {
       node = buildSeat(player);
       ui.seatNodes.set(player.id, node);
     }
-    updateSeat(node, player, view, exposed);
+    updateSeat(node, player, view, exposed, ranks.get(player.id) ?? -1);
     order.push(node);
   }
 
@@ -1117,32 +1425,24 @@ function renderOpponents(snapshot, view) {
     }
   }
 
-  // F · after a flip the order reverses on the spot. Suspending the seat
-  // transition for the reorder is what makes it a hard swap and not a slide.
-  const hardSwap = ui.dirJustFlipped;
-  ui.dirJustFlipped = false;
-  if (hardSwap) {
-    el.opponents.classList.add('is-hard-swap');
-    const release = () => el.opponents.classList.remove('is-hard-swap');
-    requestAnimationFrame(() => requestAnimationFrame(release));
-    // A backgrounded tab throttles rAF, and a suspended class would leave the
-    // seats without a transition for the rest of the round. The timer is the
-    // belt to that pair of braces.
-    setTimeout(release, 200);
-  }
-
-  // Reorder without rebuilding, so entry animations are not restarted.
+  // The DOM order is the seating order and it never changes inside a round.
+  // The counter places by percentage and the queue reorders with `order`, so
+  // neither arrangement has to move a node to move a chef — which is what
+  // makes "the seats do not re-sort on a reverse" true rather than merely
+  // intended.
   order.forEach((node, index) => {
-    if (el.opponents.children[index] !== node) el.opponents.insertBefore(node, el.opponents.children[index] || null);
-    // A gentle arc makes the players look seated around the far edge. The
-    // desktop chef column is a straight list and overrides it in CSS.
-    const count = order.length;
-    const norm = count === 1 ? 0 : (index - (count - 1) / 2) / ((count - 1) / 2);
-    node.style.setProperty('--arc', `${(Math.abs(norm) ** 2 * -10).toFixed(1)}px`);
+    if (el.opponents.children[index] !== node) {
+      el.opponents.insertBefore(node, el.opponents.children[index] || null);
+    }
   });
 
-  // "CHEFS · n" counts everyone still at the table, you included.
-  el.opponents.dataset.chefs = String(view.players.filter((p) => !p.left).length);
+  // "CHEFS · n" counts everyone still at the table, you included. Seven and
+  // eight seats is the crowded board: the portrait steps down so the counter
+  // still has room for a hand of cards in front of every chef.
+  const atTable = view.players.filter((p) => !p.left).length;
+  el.opponents.dataset.chefs = String(atTable);
+  el.opponents.dataset.crowd = atTable >= 7 ? '1' : '0';
+  placeSeats(order, ranks, view);
   renderChefStats(snapshot);
 }
 
@@ -1190,48 +1490,88 @@ function buildChefStat(parent, kind, label) {
   return value;
 }
 
+/**
+ * 2A/1 · a seat is a chef, not a panel.
+ *
+ * The bordered card is gone. What is left is the three things a person at a
+ * table actually is from across the room: a face, a name plate, and their
+ * cards in front of them. Nothing draws a box around the group — the counter
+ * (step 6) is the only furniture, and it belongs to the table rather than to
+ * any one chef.
+ *
+ * `.seat__ring` and `.seat__edge` are the two overlays step 3 uses for the
+ * NOW/NEXT weights; they are built here so the cache and the builder stay in
+ * one place, and they draw nothing until a class turns them on.
+ */
 function buildSeat(player) {
   const node = document.createElement('div');
   node.className = 'seat';
   node.dataset.id = player.id;
+  // The tray is on until an arrangement says the portrait is too small for it.
+  node.dataset.box = '1';
+  // Which way the seat faces across the counter. The arrangement overwrites
+  // it; a chef along the top edge is the default.
+  node.dataset.anchor = 't';
+
+  const body = document.createElement('div');
+  body.className = 'seat__body';
+
+  // The chef: face over name plate, as one column whichever way the seat faces.
+  const idcol = document.createElement('div');
+  idcol.className = 'seat__id';
 
   const avatar = document.createElement('div');
   avatar.className = 'seat__avatar';
-  node.append(avatar);
 
   const name = document.createElement('span');
   name.className = 'seat__name';
-  node.append(name);
+  idcol.append(avatar, name);
 
-  // Two readings of the same number: "5 cards" for the chip row and for a
-  // screen reader, and the two-digit plate the desktop chef column prints.
+  // The cards in front of them. Filled in by step 2; the tray is built now so
+  // the node structure never changes after the seat is cached.
+  const cards = document.createElement('div');
+  cards.className = 'seat__cards';
+  cards.setAttribute('aria-hidden', 'true');
+
+  // 06 · the box lid. The count is also a pizza box: the lid stands wide open
+  // on a full hand and shuts as it empties, so the table reads closeness
+  // without anyone reading a number.
+  const box = document.createElement('span');
+  box.className = 'pizza-box';
+  const boxLid = document.createElement('span');
+  boxLid.className = 'pizza-box__lid';
+  const boxBase = document.createElement('span');
+  boxBase.className = 'pizza-box__base';
+  box.append(boxLid, boxBase);
+
+  const fan = document.createElement('span');
+  fan.className = 'seat__fan';
+  const deck = document.createElement('span');
+  deck.className = 'seat__deck';
+
+  const count = document.createElement('span');
+  count.className = 'seat__count';
+  const countNum = document.createElement('b');
+  countNum.className = 'seat__count-num';
+  countNum.setAttribute('aria-hidden', 'true');
+  count.append(countNum);
+  cards.append(box, fan, deck, count);
+
+  body.append(idcol, cards);
+  node.append(body);
+
+  // Two readings of the same number: the printed plate above, and "5 cards"
+  // for a screen reader, which stays out of the picture entirely.
+  const countLong = document.createElement('span');
+  countLong.className = 'seat__count-long';
+  node.append(countLong);
+
   // 13 · the title they carried out of the last round. Hidden until there is
   // one, so a seat that earned nothing looks exactly as it did.
   const nick = document.createElement('span');
   nick.className = 'seat__nick';
   nick.hidden = true;
   node.append(nick);
-
-  const count = document.createElement('span');
-  count.className = 'seat__count';
-  const countLong = document.createElement('span');
-  countLong.className = 'seat__count-long';
-  const countNum = document.createElement('b');
-  countNum.className = 'seat__count-num';
-  countNum.setAttribute('aria-hidden', 'true');
-  // 06 · the box lid. The count is also a pizza box: the lid stands wide open
-  // on a full hand and shuts as it empties, so the table reads closeness
-  // without anyone reading a number.
-  const box = document.createElement('span');
-  box.className = 'pizza-box';
-  box.setAttribute('aria-hidden', 'true');
-  const boxBase = document.createElement('span');
-  boxBase.className = 'pizza-box__base';
-  const boxLid = document.createElement('span');
-  boxLid.className = 'pizza-box__lid';
-  box.append(boxBase, boxLid);
-  count.append(countLong, countNum, box);
-  node.append(count);
 
   const status = document.createElement('span');
   status.className = 'seat__status';
@@ -1241,7 +1581,23 @@ function buildSeat(player) {
   badge.className = 'seat__badge';
   node.append(badge);
 
-  node._parts = { avatar, name, count, countLong, countNum, badge, status, nick, boxLid };
+  // The two weights, and the ordinal the queue prints. All three are inert
+  // until a class turns them on.
+  const edge = document.createElement('span');
+  edge.className = 'seat__edge';
+  edge.setAttribute('aria-hidden', 'true');
+  const ring = document.createElement('span');
+  ring.className = 'seat__ring';
+  ring.setAttribute('aria-hidden', 'true');
+  const rank = document.createElement('span');
+  rank.className = 'seat__rank';
+  rank.setAttribute('aria-hidden', 'true');
+  node.append(edge, ring, rank);
+
+  node._parts = {
+    avatar, name, body, idcol, cards, count, countLong, countNum,
+    badge, status, nick, box, boxLid, boxBase, fan, deck, edge, ring, rank,
+  };
   return node;
 }
 
@@ -1258,17 +1614,55 @@ function lidAngle(cardCount) {
 }
 
 /**
+ * 2A/2 · the card object — the piece that makes a count physical.
+ *
+ * One to seven cards is a literal fan: one sliver per card, so the number is
+ * something you count without meaning to. Eight and over a fan at opponent
+ * scale is mush, so it becomes a deck — one card back with two hard offset
+ * shadows behind it — and the numeral printed on the box says how many.
+ *
+ * The slivers are seat furniture, not cards: they carry no rank, no suit and
+ * no id, and `renderCard()` stays the single source of real card markup.
+ */
+const FAN_MAX = 7;
+
+function renderCardObject(parts, cardCount) {
+  const count = Math.max(0, cardCount);
+  const deckMode = count >= 8;
+  const shown = Math.min(count, FAN_MAX);
+  // Symmetric about centre, and it stops widening at 64 degrees — past that
+  // the outermost sliver lies flat and the fan stops reading as a hand.
+  const spread = Math.min(count * 11, 64);
+
+  parts.deck.hidden = !deckMode;
+  const wanted = deckMode ? 0 : shown;
+  const fan = parts.fan;
+  while (fan.childElementCount > wanted) fan.lastElementChild.remove();
+  while (fan.childElementCount < wanted) {
+    const sliver = document.createElement('i');
+    sliver.className = 'seat__sliver';
+    fan.append(sliver);
+  }
+  for (let i = 0; i < wanted; i++) {
+    const angle = shown === 1 ? 0 : -spread / 2 + spread * (i / (shown - 1));
+    fan.children[i].style.setProperty('--a', `${angle.toFixed(1)}deg`);
+  }
+}
+
+/**
  * One status word for a chef bot, from state the snapshot already carries.
  * A human opponent gets nothing: their tell is their own business.
  */
-function seatStatus(player, view, exposed) {
+function seatStatus(player, view, exposed, rank) {
   if (!player.isBot || player.left || view.status !== 'playing') return '';
   if (exposed) return 'watching you';
-  if (view.turnPlayerId === player.id) return 'thinking';
+  // Reads the same rank the weights do, rather than asking who is at the oven
+  // a second time.
+  if (rank === 0) return 'thinking';
   return '';
 }
 
-function updateSeat(node, player, view, exposed) {
+function updateSeat(node, player, view, exposed, rank) {
   const parts = node._parts;
   const avatarState = `${player.isBot}:${player.connected}`;
   if (node.dataset.avatarState !== avatarState) {
@@ -1276,10 +1670,9 @@ function updateSeat(node, player, view, exposed) {
     renderAvatar(parts.avatar, player);
   }
   parts.name.textContent = player.name;
-  parts.countLong.replaceChildren(
-    icon('cardback'),
-    document.createTextNode(` ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`)
-  );
+  // Spoken only. The picture of the hand is the fan and the printed plate.
+  parts.countLong.textContent =
+    `${player.name}, ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`;
   parts.countNum.textContent = String(player.cardCount).padStart(2, '0');
 
   // 13 · the chip beside the name.
@@ -1292,21 +1685,59 @@ function updateSeat(node, player, view, exposed) {
   // reason to fly open before settling back.
   const previous = node.dataset.count === undefined ? null : Number(node.dataset.count);
   node.dataset.count = String(player.cardCount);
+  // 2A/2 · the fan, the deck and the one-card state. `data-hand` is what the
+  // stylesheet switches on, so the three readings can never be on at once.
+  node.dataset.hand = player.cardCount >= 8 ? 'deck' : player.cardCount === 1 ? 'one' : 'fan';
+  renderCardObject(parts, player.cardCount);
   parts.boxLid.style.setProperty('--lid', `${lidAngle(player.cardCount).toFixed(1)}deg`);
   if (previous !== null && player.cardCount - previous >= 2 && wantsMotion()) {
     restartAnimation(parts.boxLid, 'is-slam', 'lid-slam');
     setTimeout(() => parts.boxLid.classList.remove('is-slam'), 460);
   }
 
-  node.classList.toggle('is-turn', view.turnPlayerId === player.id && view.status === 'playing');
+  // 2A/3 · the three weights, all three read off the one rank. NOW is
+  // enclosed, NEXT is one edge, everything else is idle — three shapes, not
+  // one shape at three brightnesses.
+  node.dataset.rank = String(rank);
+  // 2A/5 · the same number, printed. The queue shows it as an ordinal chip;
+  // the counter keeps it in the markup and simply does not draw it, so the two
+  // arrangements are one component reading one value rather than two.
+  parts.rank.textContent =
+    rank === 0 ? 'NOW' : rank === 1 ? 'NEXT' : rank < 0 ? '' : String(rank + 1).padStart(2, '0');
+  const isTurn = rank === 0;
+  node.classList.toggle('is-turn', isTurn);
+  node.classList.toggle('is-next', rank === 1);
   node.classList.toggle('is-away', !player.connected);
+  // 2A/1 · three states of presence, and only three. Live is full colour;
+  // idle is dimmed and desaturated; a chef who dropped is a ghost. NEXT is
+  // deliberately NOT a fourth brightness — its whole distinction is the edge
+  // bar step 3 draws, so a player never compares two dimnesses.
+  node.classList.toggle('is-live', isTurn);
   // Their call-out window is open: the chef column dashes the panel in sauce.
   node.classList.toggle('is-vulnerable', Boolean(player.vulnerable) && player.cardCount === 1);
 
-  const word = seatStatus(player, view, exposed);
+  const word = seatStatus(player, view, exposed, rank);
   parts.status.textContent = word;
   parts.status.classList.toggle('is-shown', Boolean(word));
   parts.status.classList.toggle('is-watching', word === 'watching you');
+
+  // 2A/4 · the seat IS the call-out button.
+  //
+  // Read off `calloutTargets`, the same field that governs the CALL OUT button
+  // in the hand zone — that button is untouched, so the action is reached two
+  // ways and keyboard and screen-reader users lose nothing. The seat is a
+  // second door on the same handler, never a second rule.
+  const target = (view.calloutTargets || []).includes(player.id);
+  node.classList.toggle('is-target', target);
+  if (target) {
+    node.setAttribute('role', 'button');
+    node.setAttribute('tabindex', '0');
+    node.setAttribute('aria-label', `Call out ${player.name}`);
+  } else {
+    node.removeAttribute('role');
+    node.removeAttribute('tabindex');
+    node.removeAttribute('aria-label');
+  }
 
   const badge = parts.badge;
   if (player.vulnerable && player.cardCount === 1) {
@@ -3658,6 +4089,37 @@ el.btnZa.addEventListener('click', () => {
   playShout();
 });
 el.btnCallout.addEventListener('click', openCalloutPopover);
+
+/**
+ * 2A/4 · pressing a chef calls them out.
+ *
+ * One delegated listener on the counter rather than one per seat: seats are
+ * cached in `ui.seatNodes` and re-used for the whole round, and a handler
+ * re-bound per render is the shape that silently dies. The seat only fires
+ * while the live snapshot still lists it, so a stale press cannot send a
+ * call-out the server would reject.
+ */
+function calloutFromSeat(node) {
+  const id = node && node.dataset.id;
+  const view = ui.snapshot && ui.snapshot.game;
+  if (!id || !view || !(view.calloutTargets || []).includes(id)) return;
+  closePopovers();
+  send({ type: 'callout', targetId: id });
+}
+
+el.opponents.addEventListener('click', (event) => {
+  const seat = event.target.closest('.seat');
+  if (seat) calloutFromSeat(seat);
+});
+
+el.opponents.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const seat = event.target.closest('.seat[role="button"]');
+  if (!seat) return;
+  event.preventDefault();
+  calloutFromSeat(seat);
+});
+
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
 // 09 · either button settles it, so the countdown has nothing left to decide.
@@ -3731,6 +4193,9 @@ window.addEventListener('resize', () => {
     // 1A · the cabinet is a width, so it is a resize concern before it is a
     // snapshot one: dragging past the cap has to build the room right there.
     syncCabinet();
+    // 2A/8 · and so is the seating: the counter hands over to the queue at the
+    // breakpoint, not at the next snapshot.
+    relayoutSeating();
   });
 });
 

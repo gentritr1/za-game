@@ -952,8 +952,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   min-height: 0;
 }
 
-/* opponents sit along the far edge of the table */
+/* opponents sit around the counter -----------------------------------------
+   `--port` is the portrait edge and `--k` the notch scale; every dimension in
+   a seat is written against one of the two, so the whole arrangement moves in
+   whole steps with the cabinet instead of drifting on a multiplier. The two
+   crowded values are stated outright rather than derived, because 46 * 1.16
+   is 53.4 and Press Start 2P blurs at a fractional size.
+
+   `data-crowd="1"` is set by the client at seven and eight seats. */
 .opponents {
+  --k: 1;
+  --port: 54px;
+  position: relative;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -962,107 +973,520 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding-bottom: var(--s2);
 }
 
-.seat {
-  position: relative;
-  width: 104px;
-  display: grid;
-  justify-items: center;
-  gap: var(--s1);
-  padding: var(--s2) var(--s2) var(--s3);
-  background: var(--cabinet);
-  border: var(--bd-thin) solid var(--bezel);
-  border-radius: var(--r-lg);
-  transform: translateY(var(--arc, 0px));
-  opacity: 1;
-  transition:
-    transform var(--d-slow) var(--ease-out),
-    opacity var(--d-mid) var(--ease-out),
-    background-color var(--d-mid) var(--ease-out);
+/* --- 2A/6 · the counter ---------------------------------------------------
+   The round table drawn square, because zero radii is a house rule and a
+   square counter is more pizzeria anyway. Three dashed 2px sides with the near
+   edge open, which is where your own hand already is. Chefs are placed on it
+   from the hand-authored map, so turn order is where people are sitting rather
+   than a label anybody has to read.
+
+   The felt and the two piles share one grid cell: the counter is drawn AROUND
+   the oven, not above it. */
+@media (min-width: 520px) {
+  .table {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .table > .opponents,
+  .table > .table-center {
+    grid-area: 1 / 1;
+  }
+
+  /* The piles sit at 56% of the felt, which is what leaves the top of the
+     table to the people sitting at it. */
+  .table-center {
+    position: relative;
+    padding-top: 12%;
+    z-index: 1;
+  }
 }
 
-@starting-style {
-  .seat { opacity: 0; transform: translateY(-10px) scale(.96); }
+.opponents[data-mode="counter"] {
+  display: block;
+  padding-bottom: 0;
 }
 
-/* The player whose turn it is breathes gently: alive, thinking, about to act.
-
-   The lift declared on `.seat.is-turn` below is folded in here rather than
-   left to the rule: an animation out-cascades a declaration, so while this is
-   running the -3px rise and the 1.035 step-up never rendered at all. The rule
-   stays as the still frame for when the animation is off; these keyframes are
-   what the player actually sees, and they now breathe from the lifted pose
-   instead of from the resting one.
-
-   2.4s, not 2.6s, so it phase-locks with the 1.2s marquee glow. */
-.seat.is-turn { animation: seat-breathe 2.4s var(--ease-in-out) infinite; }
-
-@keyframes seat-breathe {
-  0%, 100% { transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.035); }
-  50% { transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.055); }
+/* A chef along the top edge is centred on their percentage. A chef down a wall
+   is hung off it instead — the anchor already says which way they face across
+   the counter, and letting it pick the box edge too is what keeps the outer
+   two seats on the felt rather than half off it. */
+.opponents[data-mode="counter"] .seat {
+  position: absolute;
+  transform: translateX(-50%);
 }
 
-/* The ring and the glow fade in on a pseudo-element: opacity only, no
-   box-shadow animation, and the seat itself lifts a little so the turn is
-   impossible to miss. */
-.seat::after {
+.opponents[data-mode="counter"] .seat[data-anchor="l"],
+.opponents[data-mode="counter"] .seat[data-anchor="r"] { transform: none; }
+
+/* Three sides and no fourth. The top clears the portraits by a little over
+   half a head, and `--rail-bottom` is set by the client from the deepest chef
+   in the map — the counter only reaches as far down the walls as somebody is
+   actually sitting. */
+.opponents[data-mode="counter"]::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 3px var(--cheese);
-  opacity: 0;
+  left: 4%;
+  right: 4%;
+  top: calc(var(--port) * .62);
+  bottom: var(--rail-bottom, 40%);
   pointer-events: none;
+  border: 2px dashed var(--bezel);
+  border-bottom: none;
+}
+
+/* --- 2B/6 · the queue -----------------------------------------------------
+   Seating is abandoned and the order becomes the layout: NOW at the head, NEXT
+   beside it, then 03, 04. The head is a fixed place on the screen and the
+   chefs move through it. The strip is content-sized rather than a fixed
+   height — the fan is the tallest thing in it and it grows with the notch. */
+/* Strip, belt, then the table. The belt is 8px of furniture and must not be
+   handed the free row — without this it takes the 1fr and the piles are pushed
+   a hundred pixels down the phone. */
+@media (max-width: 519.98px) {
+  .table { grid-template-rows: auto auto minmax(0, 1fr); }
+}
+
+.opponents[data-mode="queue"] {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 6px;
+  /* The counter's own edge, seen from closer up: the one token carried over,
+     so the phone reads as the same game rather than a different one. It sits
+     on the strip itself, so it holds still while the seats scroll under it. */
+  border-top: 2px dashed var(--bezel);
+  padding: calc(8px * var(--k, 1)) 0 2px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bezel) transparent;
+}
+
+.opponents[data-mode="queue"] .seat {
+  position: relative;
+  flex: none;
+  gap: calc(7px * var(--k, 1));
+  padding: calc(9px * var(--k, 1)) calc(10px * var(--k, 1));
+  background: var(--cabinet);
+  border: var(--bd-thin) solid var(--bezel);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .45);
+  transform: translateY(0);
+  /* The slide is one slot on steps(3, end); the reverse re-forms the tail
+     behind the head as a hard swap on steps(2, end). */
+  transition:
+    transform 200ms steps(2, end),
+    border-color 160ms steps(2, end),
+    background-color 160ms steps(2, end);
+}
+
+.opponents[data-mode="queue"] .seat .seat__rank { display: block; }
+
+.opponents[data-mode="queue"] .seat.is-turn {
+  background: rgba(255, 225, 77, .1);
+  border-color: var(--cheese);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
+  transform: translateY(calc(-6px * var(--k, 1)));
+}
+
+.opponents[data-mode="queue"] .seat.is-next { border-color: rgba(255, 225, 77, .5); }
+.opponents[data-mode="queue"] .seat.is-target { border-color: var(--sauce); }
+
+/* --- 2A/7 · the handoff and the reverse -----------------------------------
+   The handoff happens hundreds of times a round, so the rule is that almost
+   nothing moves: the ring fades off the old seat and onto the new one, and the
+   token walks one gap. The counter, the oven, the pit and every other seat
+   hold perfectly still.
+
+   The token rides the counter halfway between the chef playing and the chef
+   next. It is placed by transform in pixels the client measures off the felt,
+   not by left/top, because a layout property is the one thing that never
+   animates here. */
+.counter-token {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: calc(30px * var(--k, 1));
+  height: calc(26px * var(--k, 1));
+  background: var(--void);
+  border: var(--bd-thin) solid var(--cheese);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .6);
+  pointer-events: none;
+  transform: translate(var(--tx, 0px), var(--ty, 0px)) translate(-50%, -50%);
+  /* One gap, four visible frames, no glide. */
+  transition: transform 240ms steps(4, end);
+}
+
+.counter-token[hidden] { display: none; }
+
+/* The chevron is drawn with borders. Neither VT323 nor Press Start 2P carries
+   U+25B8 and a tofu box walking the counter is worse than no marker at all —
+   the same reason the shipped turn marker is drawn rather than typed. */
+.counter-token::before {
+  content: "";
+  display: block;
+  border: calc(6px * var(--k, 1)) solid transparent;
+  border-right-width: 0;
+  border-left-color: var(--cheese);
+}
+
+.counter-token[data-dir="-1"]::before {
+  border: calc(6px * var(--k, 1)) solid transparent;
+  border-left-width: 0;
+  border-right-color: var(--cheese);
+}
+
+/* The reverse is the token turning around and walking the other way. The turn
+   is one hard step in sauce, not a spin. */
+.counter-token.is-turning {
+  animation: token-turn 200ms steps(2, end);
+}
+
+@keyframes token-turn {
+  0%, 50% { border-color: var(--sauce); }
+  100% { border-color: var(--cheese); }
+}
+
+/* --- 2B/7 · the strip advances one slot ------------------------------------
+   The chef who just played wraps to the tail and everybody shuffles up one.
+   The chips renumber on the frame the slide lands, with no tween, because an
+   ordinal that counts down is a lie about what happened. `order` does the
+   re-sorting, so the seats are moved rather than rebuilt and each one carries
+   its own transform. */
+.opponents[data-mode="queue"] .seat__body {
+  transition: transform 240ms steps(3, end);
+}
+
+/* The reverse re-forms the tail behind the head: a hard swap, not a slide. A
+   queue re-forming is a thing a queue is allowed to do, where a row of seats
+   shuffling is not. */
+.opponents[data-mode="queue"].is-reforming .seat__body {
+  transition: transform 200ms steps(2, end);
+}
+
+/* --- 2A/8 · the marquee hands its chevrons back ---------------------------
+   With the counter built, direction is furniture: the token walks it. So the
+   five-chevron chase comes out at counter widths and the turn text takes the
+   whole strip. Below the breakpoint the queue has no token, so the chase — and
+   the static arrow that replaces it under reduced motion — comes back. The
+   visually-hidden direction words in .marquee__sr stay at every width. */
+@media (min-width: 520px) {
+  .marquee__dir { display: none; }
+}
+
+/* The conveyor belt under the strip, scrolling in the direction of play. It is
+   an overflowing tread moved by a transform rather than a scrolled background
+   position, because nothing in this cabinet animates a layout property. */
+.counter-belt {
+  display: none;
+  position: relative;
+  flex: none;
+  height: 8px;
+  overflow: hidden;
+  background: var(--console);
+}
+
+.opponents[data-mode="queue"] ~ .counter-belt { display: block; }
+
+.counter-belt__tread {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(100% + 40px);
+  background: repeating-linear-gradient(90deg, var(--bezel) 0 22px, var(--console) 22px 40px);
+  animation: belt-run 900ms steps(4, end) infinite;
+}
+
+.counter-belt[data-dir="-1"] .counter-belt__tread { animation-name: belt-run-back; }
+
+@keyframes belt-run {
+  from { transform: translateX(0); }
+  to { transform: translateX(-40px); }
+}
+
+@keyframes belt-run-back {
+  from { transform: translateX(-40px); }
+  to { transform: translateX(0); }
+}
+
+.opponents[data-crowd="1"] { --port: 46px; }
+
+/* Below the one breakpoint the counter hands over to the queue and everything
+   steps down with it. `--port` is set per seat there, by rank. */
+@media (max-width: 519.98px) {
+  .opponents { --k: .78; }
+}
+
+@media (min-width: 1600px) {
+  .opponents { --k: 1.16; --port: 62px; }
+  .opponents[data-crowd="1"] { --port: 53px; }
+}
+
+@media (min-width: 2200px) {
+  .opponents { --k: 1.32; --port: 70px; }
+  .opponents[data-crowd="1"] { --port: 60px; }
+}
+
+/* --- 2A/1 · the seat is a chef -------------------------------------------
+   No bordered card, no fill, no shadow around the group: a seat is a face, a
+   name plate and a hand of cards, and the counter behind them is the only
+   furniture on the table. Every dimension steps off two variables the client
+   sets on `#opponents` — `--port`, the portrait edge, and `--k`, the notch
+   scale — so one number moves a whole seat and none of them is a multiplier
+   on a small constant. */
+.seat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 1;
   transition: opacity var(--d-mid) var(--ease-out);
 }
 
-.seat.is-turn {
-  background: rgba(255, 225, 77, .16);
-  transform: translateY(calc(var(--arc, 0px) - 3px)) scale(1.035);
+@starting-style {
+  .seat { opacity: 0; }
 }
 
-.seat.is-turn::after { opacity: 1; }
+/* The body is the chef and their cards side by side or stacked, depending on
+   which way the seat faces across the counter. */
+.seat__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(7px * var(--k, 1));
+}
 
-.seat.is-away { opacity: .45; }
+.seat[data-anchor="l"] .seat__body { flex-direction: row; align-items: center; }
+.seat[data-anchor="r"] .seat__body { flex-direction: row-reverse; align-items: center; }
 
+.seat__id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(5px * var(--k, 1));
+  min-width: 0;
+}
+
+/* The portrait. Pixel art upscaled with a pixel filter, never smoothed. */
 .seat__avatar {
   position: relative;
+  flex: none;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  background: rgba(0, 0, 0, .3);
-  border-radius: var(--r-pill);
-  font-size: 19px;
+  width: var(--port, 54px);
+  height: var(--port, 54px);
   overflow: hidden;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .5);
+  font-size: calc(var(--port, 54px) * .42);
+  transition: border-color var(--d-fast) var(--ease-step);
 }
 
-.seat.is-turn .seat__avatar { background: rgba(0, 0, 0, .45); }
+.seat__avatar .avatar__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: pixelated;
+}
 
+/* Three states of presence and only three: live, idle, gone. NEXT is not a
+   fourth brightness — it is a shape, and step 3 draws it. */
+.seat .avatar__image {
+  opacity: .62;
+  filter: saturate(.55);
+  transition: opacity var(--d-fast) var(--ease-step), filter var(--d-fast) var(--ease-step);
+}
+
+.seat.is-live .avatar__image { opacity: 1; filter: saturate(1); }
+.seat.is-away .avatar__image { opacity: .3; filter: saturate(.55); }
+
+/* The name plate. Press Start 2P, 11px floor — the one size the spec grants
+   below the 12px display floor, because a plate is a card index, not copy.
+   Filled when the seat is live, outlined when it is not. */
 .seat__name {
-  max-width: 100%;
-  font-size: 12.5px;
-  font-weight: 700;
+  max-width: calc(var(--port, 54px) * 2.4);
+  padding: calc(5px * var(--k, 1)) calc(7px * var(--k, 1));
+  font-family: var(--font-display);
+  font-size: max(11px, calc(11px * var(--k, 1)));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: .02em;
   text-align: center;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: var(--cabinet);
+  color: var(--text-mute);
+  border: 2px solid var(--bezel);
+  transition: background-color var(--d-fast) var(--ease-step), color var(--d-fast) var(--ease-step);
+}
+
+.seat.is-live .seat__name {
+  background: var(--cheese);
+  color: var(--void);
+  border-color: var(--cheese);
+}
+
+.seat.is-away { opacity: .82; }
+
+/* --- 2A/3 · three weights that cannot be confused --------------------------
+   Not one treatment at three brightnesses — three different shapes, so a
+   player never has to compare two dimnesses to work out which is which and a
+   colourblind player gets the whole distinction from geometry.
+
+   NOW is ENCLOSED: a ring on all four sides, a pool of cheese light under the
+   seat, the name plate filled, breathing on the shipped 2.4s seat-breathe.
+   NEXT is ONE EDGE: a single 6px bar at 62% on the side play is arriving
+   from — no ring, no lift, no breathing.
+   IDLE is bezel everywhere and a 62% portrait, which is the base state above. */
+.seat__ring {
+  position: absolute;
+  inset: calc(-9px * var(--k, 1));
+  z-index: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px var(--cheese);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(255, 225, 77, .16), transparent 72%);
+  opacity: 0;
+  /* The handoff: 130ms off the old seat, 130ms onto the new one, both in two
+     visible steps. Nothing else about a seat moves. */
+  transition: opacity 130ms steps(2, end);
+}
+
+.seat.is-turn .seat__ring {
+  opacity: 1;
+  animation: seat-breathe 2.4s var(--ease-in-out) infinite;
+}
+
+/* The breath belongs to the ring, not to the seat: a seat that scaled would
+   move its own cards, its name plate and its place on the counter, and the
+   handoff rule is that nothing else moves. */
+@keyframes seat-breathe {
+  0%, 100% { transform: scale(1.03); }
+  50% { transform: scale(1.06); }
+}
+
+.seat__edge {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--cheese);
+  opacity: 0;
+  transition: opacity 130ms steps(2, end);
+}
+
+/* Play arrives from the top for a chef along the counter's top edge, and from
+   the outer wall for one sitting down a side. */
+.seat[data-anchor="t"] .seat__edge {
+  left: 0;
+  right: 0;
+  top: calc(-9px * var(--k, 1));
+  height: calc(6px * var(--k, 1));
+}
+
+.seat[data-anchor="l"] .seat__edge {
+  top: 0;
+  bottom: 0;
+  left: calc(-9px * var(--k, 1));
+  width: calc(6px * var(--k, 1));
+}
+
+.seat[data-anchor="r"] .seat__edge {
+  top: 0;
+  bottom: 0;
+  right: calc(-9px * var(--k, 1));
+  width: calc(6px * var(--k, 1));
+}
+
+.seat.is-next .seat__edge { opacity: .62; }
+
+/* NOW also owns the portrait keyline and the tray. */
+.seat.is-turn .seat__avatar { border-color: var(--cheese); box-shadow: 4px 4px 0 rgba(0, 0, 0, .55); }
+.seat.is-turn .pizza-box__base,
+.seat.is-turn .pizza-box__lid { border-color: var(--cheese); }
+
+/* --- 2A/4 · the seat is the call-out button -------------------------------
+   A chef the server has named in `calloutTargets` becomes pressable: the ring
+   turns sauce and pulses, their single card stands up, and the whole seat is a
+   target. The CALL OUT button in the hand zone is untouched — same handler,
+   reached two ways. */
+.seat.is-target {
+  cursor: pointer;
+  /* On a phone the seat has to be a 44px target before the fan is counted. */
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.seat.is-target .seat__ring {
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--sauce);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(255, 46, 107, .2), transparent 72%);
+  animation: sliver-danger 640ms steps(2, end) infinite;
+}
+
+.seat.is-target .seat__avatar { border-color: var(--sauce); }
+.seat.is-target .seat__name {
+  background: var(--sauce);
+  color: var(--void);
+  border-color: var(--sauce);
+}
+
+/* The one card stands upright out of the tray, whoever else is at the oven. */
+.seat.is-target .seat__sliver { transform: translateX(-50%) rotate(0deg); }
+
+.seat.is-target:focus-visible {
+  outline: var(--bd-thin) solid var(--cheese);
+  outline-offset: calc(9px * var(--k, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seat.is-target:hover .seat__body { transform: translateY(-3px); }
+  .seat__body { transition: transform var(--d-fast) var(--ease-step); }
+}
+
+/* --- 2A/5 · the rank, printed ---------------------------------------------
+   The ordinal chip is the same number the weights are read from, said in
+   words. The counter does not draw it — position is the ordinal there — but
+   it stays in the markup so the queue is the same component reading the same
+   value rather than a second one. */
+.seat__rank {
+  display: none;
+  order: -1;
+  align-self: stretch;
+  padding: calc(5px * var(--k, 1)) calc(8px * var(--k, 1));
+  font-family: var(--font-display);
+  font-size: max(11px, calc(11px * var(--k, 1)));
+  line-height: 1;
+  letter-spacing: .06em;
+  text-align: center;
+  background: var(--void);
+  color: var(--text-mute);
+  border: 2px solid var(--bezel);
+}
+
+.seat.is-turn .seat__rank { background: var(--cheese); color: var(--void); border-color: var(--cheese); }
+.seat.is-next .seat__rank { color: var(--cheese); border-color: var(--cheese); }
+.seat.is-target .seat__rank { background: var(--sauce); color: var(--void); border-color: var(--sauce); }
+
+/* The spoken count. It never draws — the fan and the printed plate are what a
+   sighted player reads — but it keeps the number in the accessibility tree. */
+.seat__count-long {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
-
-.seat__count {
-  display: flex;
-  align-items: center;
-  gap: var(--s1);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.seat__count-long { display: flex; align-items: center; gap: var(--s1); }
-
-/* The chef column prints the count as a two-digit scoreboard number. It is
-   decoration for the spoken "5 cards" next to it, so it only exists there. */
-.seat__count-num { display: none; }
 
 /* SCORE / RND tiles: the foot of the desktop chef column, nowhere else. */
 .chef-stats { display: none; }
@@ -2629,7 +3053,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* --- C - the catch ------------------------------------------------------- */
 /* A seat inside a call-out window: dashed sauce keyline, buzzing name, and a
    chunky bar that drains in five countable steps. */
-.seat.is-callout {
+/* The three-second window the client dramatises. The seat itself is the
+   button (see `.seat.is-target` in the seating block); this class is what the
+   drain bar hangs on while the window is open. */
+.seat.is-callout .pizza-box__base,
+.seat.is-callout .pizza-box__lid {
   border-style: dashed;
   border-color: var(--sauce);
 }
@@ -2727,14 +3155,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat__stamp.is-on { opacity: 1; }
 
 /* --- F - flip the pie ---------------------------------------------------- */
-/* The seat order reverses on the spot. Killing the transition for one frame is
-   what makes it a swap rather than a slide. */
-.opponents.is-hard-swap .seat {
-  transition: none !important;
-  animation: none !important;
-}
+/* The seats used to reverse on the spot and the hard swap was what kept that
+   from being a slide. Both are gone: a real table does not re-seat itself when
+   play turns around, so the seating holds and the token turns around instead
+   (see .counter-token.is-turning).
 
-/* The rail, not a glyph: the whole chevron group flashes, and because the
+   The rail, not a glyph: the whole chevron group flashes, and because the
    chevrons draw in currentColor the flash reads on all five at once. */
 .marquee__dir.is-flipping { animation: dir-flash 480ms steps(1, end) both; }
 
@@ -2821,16 +3247,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
   .logo__flourish { font-size: 22px; }
 
-  /* Seats compress to name-and-count chips in a strip. */
-  .seat {
-    width: auto;
-    min-width: 76px;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    column-gap: var(--s2);
-    padding: var(--s1) var(--s2);
-  }
-  .seat__avatar { width: 22px; height: 22px; }
   .seat__badge { font-size: 12px; }
 
   /* The log tightens to a two-line ticker above the hand. */
@@ -2884,154 +3300,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    today; this whole column is desktop only. */
 @media (min-width: 721px) {
   .table {
-    grid-template-columns: var(--chef-col, 186px) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-    gap: var(--s3) var(--s6);
     padding: var(--s3) 18px 11px var(--s3);
   }
 
-  /* CHEFS — fixed 186px, full height of the table, clear of the action bar. */
-  .opponents {
-    grid-area: 1 / 1 / 3 / 2;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: var(--s2);
-    min-height: 0;
-    padding: 0;
-    /* A full table only needs to scroll on a short window. The block axis has
-       to be `auto` for that, which would make the inline axis scrollable off
-       the active panel's 4px hard shadow — so that one is clipped instead. */
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--bezel) transparent;
-  }
-
-  .opponents::before {
-    content: "CHEFS · " attr(data-chefs);
-    flex: none;
-    font-family: var(--font);
-    font-size: var(--fs-label);
-    letter-spacing: .16em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-
-  /* One panel per chef: name on the left, card count on the right. */
-  .opponents .seat {
-    width: auto;
-    min-width: 0;
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--s2);
-    padding: 6px 9px;
-    background: var(--cabinet);
-    border: var(--bd-thin) solid var(--bezel);
-    transform: none;
-    animation: none;
-  }
-
-  .opponents .seat__avatar { display: none; }
-
-  .opponents .seat__name {
-    flex: 1;
-    min-width: 0;
-    font-size: 20px;
-    font-weight: 400;
-    text-align: left;
-  }
-
-  .opponents .seat__count {
-    order: 2;
-    flex: none;
-    gap: 0;
-    font-family: var(--font-display);
-    font-size: 10px;
-    font-weight: 400;
-    color: var(--ui-cyan);
-  }
-
-  /* The spoken count stays in the accessibility tree; the eye gets the
-     two-digit plate the kit draws. */
-  .opponents .seat__count-long {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  /* `<b>` in Press Start 2P would synthesise a bold the font does not have. */
-  .opponents .seat__count-num { display: block; font-weight: 400; }
-
-  /* Whoever is at the oven: inverted, sauce fill and a cheese keyline. */
-  .opponents .seat.is-turn {
-    background: var(--sauce);
-    border-color: var(--cheese);
-    box-shadow: var(--sh-card);
-    transform: none;
-    animation: none;
-  }
-
-  .opponents .seat.is-turn::after { opacity: 0; }
-  .opponents .seat.is-turn .seat__name,
-  .opponents .seat.is-turn .seat__count { color: var(--void); }
-  /* The kit's turn marker is a solid triangle. Drawn with borders rather than
-     set as a glyph: neither VT323 nor Press Start 2P carries U+25B8, and a
-     tofu box on the active chef is worse than no marker at all. */
-  .opponents .seat.is-turn .seat__name::after {
-    content: "";
-    display: inline-block;
-    margin-left: 6px;
-    border: 5px solid transparent;
-    border-right-width: 0;
-    border-left-color: currentColor;
-  }
-
-  /* A chef inside a call-out window: dashed sauce, name in sauce-hi. */
-  .opponents .seat.is-vulnerable {
-    border-style: dashed;
-    border-color: var(--sauce);
-  }
-
-  .opponents .seat.is-vulnerable .seat__name { color: var(--sauce-hi); }
-
-  /* A Burnt Slice at a table of two hands the turn straight back, so the same
-     chef can be at the oven and inside a call-out window at once. The panel
-     keeps the inverted turn fill and dashes its cheese keyline instead. */
-  .opponents .seat.is-turn.is-vulnerable { border-color: var(--cheese); }
-  .opponents .seat.is-turn.is-vulnerable .seat__name { color: var(--void); }
-
-  /* The badge joins the row instead of floating over the panel's top edge,
-     which the column's own scroll would clip. */
-  .opponents .seat__badge {
-    position: static;
-    order: 1;
-    flex: none;
-    padding: 0;
-    background: none;
-    border-radius: 0;
-    font-family: var(--font);
-    font-size: var(--fs-label);
-    letter-spacing: .04em;
-    transform: none;
-    animation: none;
-  }
-
-  .opponents .seat__badge:not(.is-shown) { display: none; }
-  .opponents .seat__badge--za { color: var(--basil); }
-  .opponents .seat__badge--caught { color: var(--sauce-hi); }
-  .opponents .seat.is-turn .seat__badge { color: var(--void); }
-
-  /* SCORE and RND sit side by side: they do not fit stacked in 186px. */
+  /* SCORE and RND, side by side in the near corner of the felt: they used to
+     be the foot of the chef column and the column is gone, but the two numbers
+     are not part of the seating and had no reason to go with it. */
   .chef-stats {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 1;
     display: flex;
     flex: none;
     gap: var(--s2);
@@ -3068,20 +3347,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .chef-stat--score .chef-stat__value { color: var(--cheese); }
   .chef-stat--rnd .chef-stat__value { color: var(--ui-cyan); }
 
-  /* Centre column: piles on top, console log under them. */
-  .table-center {
-    grid-area: 1 / 2 / 2 / 3;
-    position: relative;
-  }
-
+  /* The counter takes the whole felt, so the log stops being the second half
+     of a centre column and goes back to floating over it — in the far corner,
+     away from both the near edge and the SCORE tiles. */
   .log {
-    position: static;
-    grid-area: 2 / 2 / 3 / 3;
-    width: auto;
+    position: absolute;
+    left: auto;
+    right: 18px;
+    bottom: 0;
+    width: 246px;
     min-height: 0;
-    max-height: 178px;
+    max-height: min(38%, 178px);
     padding: 9px 11px;
-    box-shadow: none;
   }
 }
 
@@ -3364,49 +3641,202 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   78%, 100% { transform: rotate(var(--pull-angle, 0deg)) scaleX(1); opacity: 0; }
 }
 
-/* --- 06 · the box lid ----------------------------------------------------- */
-/* The card count is also a pizza box seen from the side. Seven cards or more
-   and the lid stands wide open; one card and it is all but shut. */
-.pizza-box {
+/* --- 2A/2 · the card object ------------------------------------------------
+   A count as a thing on the table rather than a number beside a name. Up to
+   seven cards it is a literal fan — one sliver per card, and you count them
+   without meaning to. At eight the fan turns to mush at this size, so it
+   becomes a deck: the block says "a lot" and the numeral says how many.
+
+   06 · the pizza box stays and gains a job: it is the tray the fan stands in,
+   and the two-digit count is printed on its front, so the object and the
+   numeral are one element instead of two competing ones. The lid angle is the
+   shipped map, unchanged — wide open at -62deg on seven or more, all but shut
+   at -6deg on one. */
+.seat__cards {
   position: relative;
-  display: inline-block;
   flex: none;
-  width: 17px;
-  height: 11px;
-  margin-left: 3px;
-  perspective: 90px;
+  width: calc(var(--box-w) + 10px * var(--k, 1));
+  height: calc(var(--ch) + var(--box-base-h) + 6px * var(--k, 1));
+  --cw: calc(25px * var(--k, 1));
+  --ch: calc(35px * var(--k, 1));
+  --box-w: calc(var(--cw) * 2.6);
+  --box-base-h: calc(17px * var(--k, 1));
+  --box-lid-h: calc(30px * var(--k, 1));
+  /* Where the slivers stand: on the floor of the tray, or on the table when
+     the box has been dropped. */
+  --sit: calc(var(--box-base-h) - 4px * var(--k, 1));
+  /* cabinet-hi over cabinet was a hatch in name only — #151b33 stripes on
+     #101426 read as a black rectangle on the void. Bezel over cabinet is the
+     same weave with contrast that survives 25px. */
+  --hatch: repeating-linear-gradient(45deg, var(--bezel) 0 3px, var(--cabinet) 3px 6px);
+}
+
+/* Under 40px of portrait there is no room for a box, and no room to count
+   slivers either: five places down the queue a chef only has to say who they
+   are and how many they are holding. The object drops to the numeral alone. */
+.seat[data-box="0"] .seat__cards {
+  width: auto;
+  height: auto;
+  --sit: 0px;
+}
+
+.seat[data-box="0"] .pizza-box,
+.seat[data-box="0"] .seat__fan,
+.seat[data-box="0"] .seat__deck { display: none; }
+
+/* One sliver per card. `transform-origin: 50% 128%` puts the pivot below the
+   card, which is where a hand of cards actually hinges. */
+.seat__fan,
+.seat__deck { position: absolute; inset: 0; z-index: 1; }
+
+.seat__sliver {
+  position: absolute;
+  left: 50%;
+  bottom: var(--sit);
+  width: var(--cw);
+  height: var(--ch);
+  background: var(--hatch);
+  /* The keyline is what makes a sliver read as a CARD and not a shadow: the
+     ZA! back is cheese-on-navy, so its sliver is too. The void border it
+     replaces vanished into the felt. */
+  border: 2px solid var(--cheese);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .45);
+  transform-origin: 50% 128%;
+  transform: translateX(-50%) rotate(var(--a, 0deg));
+  transition: transform 220ms steps(3, end);
+}
+
+/* Eight or more: one card back and two hard offset shadows behind it. */
+.seat__deck::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: var(--sit);
+  width: var(--cw);
+  height: var(--ch);
+  background: var(--hatch);
+  border: 2px solid var(--cheese);
+  box-shadow:
+    -3px -3px 0 var(--bezel),
+    -6px -6px 0 var(--cabinet-hi),
+    3px 3px 0 rgba(0, 0, 0, .5);
+  transform: translateX(-50%);
+}
+
+.seat__deck[hidden] { display: none; }
+
+/* One card is the state that matters, and it should be visible from across a
+   room: the sliver stands alone in a sauce hatch with a sauce keyline, the
+   box under it is filled sauce, and the whole thing pulses in two steps. */
+.seat[data-hand="one"] .seat__sliver {
+  background: repeating-linear-gradient(45deg, var(--sauce-deep) 0 3px, var(--void) 3px 6px);
+  border-color: var(--sauce);
+  box-shadow: 0 0 0 3px rgba(255, 46, 107, .5);
+  animation: sliver-danger 640ms steps(2, end) infinite;
+}
+
+@keyframes sliver-danger {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .32; }
+}
+
+/* The box. Base and lid, hinged at the back edge — a 2D rotation, because the
+   tray is drawn flat like everything else in the cabinet. */
+.pizza-box {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .pizza-box__base {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   bottom: 0;
-  height: 7px;
-  background: var(--cheese-deep);
-  box-shadow: inset 0 0 0 2px var(--void);
+  z-index: 2;
+  width: var(--box-w);
+  height: var(--box-base-h);
+  background: var(--cabinet-hi);
+  border: 2px solid var(--bezel);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
+  transform: translateX(-50%);
+  transition: border-color var(--d-fast) var(--ease-step), background-color var(--d-fast) var(--ease-step);
 }
 
 .pizza-box__lid {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 7px;
-  background: var(--cheese);
-  box-shadow: inset 0 0 0 2px var(--void);
-  transform-origin: 50% 0%;
-  transform: rotateX(var(--lid, 0deg));
-  transition: transform var(--d-slow) var(--ease-in-out);
+  left: 50%;
+  bottom: calc(var(--box-base-h) - 2px);
+  z-index: 0;
+  width: var(--box-w);
+  height: var(--box-lid-h);
+  background: var(--cabinet-hi);
+  border: 2px solid var(--bezel);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .45);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotate(var(--lid, 0deg));
+  transition: transform 260ms steps(4, end), border-color var(--d-fast) var(--ease-step);
+}
+
+.seat[data-hand="one"] .pizza-box__base {
+  background: var(--sauce);
+  border-color: var(--sauce);
 }
 
 /* Two cards at once is not a lid easing open. One step, wide, then rest. */
 .pizza-box__lid.is-slam { animation: lid-slam 420ms steps(1, end); }
 
 @keyframes lid-slam {
-  0%, 60% { transform: rotateX(-62deg); }
-  100% { transform: rotateX(var(--lid, 0deg)); }
+  0%, 60% { transform: translateX(-50%) rotate(-62deg); }
+  100% { transform: translateX(-50%) rotate(var(--lid, 0deg)); }
 }
+
+/* The count, printed on the front of the box. */
+.seat__count {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--box-base-h) / 2);
+  z-index: 3;
+  font-family: var(--font-display);
+  font-size: max(11px, calc(11px * var(--k, 1)));
+  line-height: 1;
+  color: var(--text);
+  transform: translate(-50%, 50%);
+}
+
+.seat[data-count="1"] .seat__count,
+.seat[data-count="2"] .seat__count { color: var(--cheese); }
+
+.seat[data-hand="one"] .seat__count {
+  color: var(--void);
+  animation: count-buzz 500ms steps(2, end) infinite;
+}
+
+@keyframes count-buzz {
+  0%, 100% { transform: translate(-50%, 50%) translateX(-1px); }
+  50% { transform: translate(-50%, 50%) translateX(1px); }
+}
+
+/* With the box dropped the numeral has nothing to be printed on, so it becomes
+   its own chip and the whole card object is that chip. */
+.seat[data-box="0"] .seat__count {
+  position: static;
+  display: inline-block;
+  padding: 3px 5px;
+  font-size: 11px;
+  background: var(--console);
+  color: var(--text-mute);
+  border: 2px solid var(--bezel);
+  transform: none;
+  animation: none;
+}
+
+.seat[data-box="0"][data-hand="one"] .seat__count {
+  background: var(--sauce);
+  color: var(--void);
+  border-color: var(--sauce);
+}
+
+.seat__count-num { font-weight: 400; }
 
 /* --- 07 · topping confetti ------------------------------------------------ */
 /* Not confetti: the pizza coming apart over the dialog. Twelve pieces, one
@@ -3673,13 +4103,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .nickname--cheese { color: var(--cheese); }
 .nickname--cyan { color: var(--ui-cyan); }
 
-.seat__nick { max-width: 100%; }
-
-/* On the desktop chef column the panel is one flex row, so the chip takes its
-   own line under the name — and only when there is one to take. */
-@media (min-width: 721px) {
-  .opponents .seat { flex-wrap: wrap; }
-  .opponents .seat__nick { order: 5; flex-basis: 100%; text-align: left; }
+/* The title rides under the name plate, centred with it, and only exists when
+   the chef carried one out of the last round. */
+.seat__nick {
+  max-width: calc(var(--port, 54px) * 2.4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .receipt__nick {
@@ -3779,6 +4210,47 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   /* The ping stops travelling but the rail keeps its warm keyline: the turn
      is still stated, it just no longer moves. */
   .hand-zone.is-your-turn .hand-bar::after { opacity: .9 !important; transform: none !important; }
+
+  /* --- 2A/8 · the seating under reduced motion ----------------------------
+     Every state stays readable, because the arrangement is carrying the
+     meaning and the motion was only ever confirming it.
+
+     The belt stops dead. The token jumps rather than walks — it is still in
+     the right place and still pointing the right way, it simply gets there on
+     one frame. The ring stops breathing but stays lit, because the ring is
+     what says whose turn it is. And the one-card pulse becomes a static sauce
+     ring: the most dangerous moment in the game must not depend on a blink. */
+  .counter-belt__tread {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .counter-token,
+  .counter-token.is-turning {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .seat.is-turn .seat__ring,
+  .seat.is-target .seat__ring {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .seat[data-hand="one"] .seat__sliver {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .seat[data-hand="one"] .seat__count { animation: none !important; }
+
+  /* The slide and the re-forming swap both stop being travel. */
+  .opponents[data-mode="queue"] .seat__body,
+  .opponents[data-mode="queue"].is-reforming .seat__body {
+    transition: none !important;
+    transform: none !important;
+  }
 
   /* The countdown is the only thing telling a player the round restarts by
      itself. It keeps its five seconds; the five steps flatten to a slide via
