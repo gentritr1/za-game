@@ -2878,6 +2878,89 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .table { padding-top: var(--s2); }
 }
 
+/* ------------------------------------------ short height (WCAG 1.4.10) ---- */
+/* A 375x560 landscape phone — and a 320px-wide window at 400% browser zoom,
+   which is the same rectangle — cannot hold the three-row game grid at full
+   chrome. `auto minmax(0,1fr) auto` gives the table row whatever is left, and
+   at this height that is less than the piles need: the dough pile and the oven
+   are cut off under the hand zone with no scrollbar to reach them.
+
+   Here the game screen stops being a fixed frame and becomes ONE vertically
+   scrolling column. Every row sizes to its own content, the screen itself
+   takes the scrollbar, and the inline axis stays clipped — so the page never
+   scrolls in two directions, which is the actual reflow bar. The chrome gives
+   up padding to keep that column as short as it can be; nothing shrinks that
+   the design says never shrinks (the hand cards keep their 84px), because the
+   scroll is what makes the room here, not a density step. */
+@media (max-height: 560px) {
+  .screen--game {
+    grid-template-rows: auto auto auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bezel) transparent;
+  }
+
+  /* The marquee keeps its type size — it is the one thing that must stay
+     readable — and gives up the padding either side of it instead. */
+  .hud__turn { padding: var(--s1) var(--s2); gap: var(--s2); }
+
+  /* `.table` carries `min-height: 0` so it can be squeezed by the 1fr row it
+     normally lives in. That is exactly what has to stop here: with the row
+     sized to content, the min-height is what would still let the grid crush
+     it, and the piles would stay cut off with a scrollbar that had nothing to
+     scroll. Both rows inside it size to content too. */
+  .table {
+    min-height: auto;
+    grid-template-rows: auto auto;
+    padding-top: var(--s1);
+    padding-bottom: var(--s1);
+    gap: var(--s2);
+  }
+
+  .opponents { gap: var(--s1); }
+
+  .hand-zone { gap: var(--s1); padding: var(--s2) var(--s2) var(--s2); }
+  .hand__pit { min-height: 40px; padding: 4px 6px; }
+  .hand__near { padding-top: 8px; }
+
+  /* Heads only, per the kit: the bezel rail is hardware, not gameplay, so it
+     is the first thing to give up its type. The label goes visually hidden
+     rather than `display: none` — it is the accessible name of the button it
+     sits in, and a screw head with no name is not a control. The head is
+     19px, so the button keeps a 44px target around it by hand. */
+  .screws { gap: var(--s1) var(--s4); }
+
+  .screw {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* A popover is `position: absolute` inside the game screen, and the game
+     screen is now a scroll container — so the picker would scroll away from
+     the hand it belongs to. Pin it to the viewport instead, the way the hire
+     roster already is, and cap it so it can never be taller than the window. */
+  .popover {
+    position: fixed;
+    bottom: var(--s3);
+    max-height: calc(100dvh - var(--s6));
+    overflow-y: auto;
+  }
+}
+
 /* ------------------------------------------------ table — desktop (kit 03) */
 /* The kit's board is a static 820x600 frame with the 211px action bar drawn
    into it, so it pins the chef column and the log at `bottom: 222px` — eleven
