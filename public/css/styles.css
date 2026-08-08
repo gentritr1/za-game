@@ -3170,6 +3170,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   /* The starburst is pure spectacle; the button slam is what it decorated. */
   .za-burst { display: none !important; }
 
+  /* 1A · the mural holds on frame A. The bulb never flips, and the window is
+     still a mural in a dashed frame — nothing was carried by the flip alone. */
+  .cab-art__img--b {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
   /* The score and the stamps still cross-fade in place: they are the visual
      half of cues that must never be sound-only. */
   .shout-score,
@@ -4108,13 +4115,35 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   border: var(--bd-thin) dashed var(--bezel);
 }
 
+/* The murals are transparent, so the checker reads through them and `contain`
+   is what keeps the vinyl's own proportions rather than cropping to the frame.
+   Both frames are stacked in the same box: A underneath, B over it. */
 .cab-art__img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+}
+
+/* Two-frame arcade loop, not a cross-fade: B is either on or off, one hard
+   bulb-flip per 900ms — the same grid the marquee's chevron chase runs on.
+   Opacity only; the images never move. The right window starts half a cycle
+   late so the two panels do not tick in unison. */
+.cab-art__img--b {
+  opacity: 0;
+  animation: cab-art-flip 1800ms steps(1, end) infinite;
+}
+
+.cab-panel--right .cab-art__img--b { animation-delay: 450ms; }
+
+/* Under steps(1, end) each interval holds its own start value, so this is one
+   frame of A and one frame of B — never anything in between. */
+@keyframes cab-art-flip {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
 }
 
 /* Uncovered only when a mural fails to load: the dashed window over cabinet is

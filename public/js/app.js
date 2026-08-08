@@ -3296,12 +3296,12 @@ function buildPanels() {
   wordmark.textContent = 'ZA! ARCADE';
   const fame = document.createElement('div');
   fame.className = 'cab-fame';
-  left.append(wordmark, fame, artWindow('cabinet-left.png'));
+  left.append(wordmark, fame, artWindow('cabinet-left'));
 
   const right = panelShell('right');
   const special = document.createElement('div');
   special.className = 'cab-special';
-  right.append(special, artWindow('cabinet-right.png'));
+  right.append(special, artWindow('cabinet-right'));
 
   el.shell.append(left, right);
   return { left, right, fame, special };
@@ -3315,24 +3315,39 @@ function panelShell(side) {
 }
 
 /**
- * The mural in its frame. The dashed window IS the frame in both states, so a
- * mural that fails to load leaves the handoff's placeholder rather than a
- * broken-image box — the panels were designed to read correctly either way.
+ * The mural in its frame, as a two-frame arcade loop: frame A under, frame B
+ * over, B flipping on and off in whole frames. The vinyl is transparent, so the
+ * panel's checker reads through both.
+ *
+ * The dashed window IS the frame in every state, so a mural that fails to load
+ * leaves the handoff's placeholder rather than a broken-image box — the panels
+ * were designed to read correctly either way, and a missing frame B just leaves
+ * frame A holding still.
  */
-function artWindow(file) {
+function artWindow(stem) {
   const frame = document.createElement('div');
   frame.className = 'cab-art';
   const note = document.createElement('span');
   note.className = 'cab-art__note';
   note.textContent = 'SIDE ART';
+  frame.append(note, muralFrame(frame, `${stem}.png`, 'a'), muralFrame(frame, `${stem}-b.png`, 'b'));
+  return frame;
+}
+
+function muralFrame(frame, file, which) {
   const img = document.createElement('img');
-  img.className = 'cab-art__img';
+  img.className = `cab-art__img cab-art__img--${which}`;
   img.alt = '';
   img.decoding = 'async';
-  img.addEventListener('error', () => img.remove(), { once: true });
+  img.addEventListener('error', () => {
+    img.remove();
+    // A two-frame loop with one frame left is not a loop, it is a blink: the
+    // survivor stops flipping and simply holds.
+    const rest = frame.querySelectorAll('.cab-art__img');
+    if (rest.length === 1) rest[0].classList.remove('cab-art__img--b');
+  }, { once: true });
   img.src = `assets/${file}`;
-  frame.append(note, img);
-  return frame;
+  return img;
 }
 
 /** Live data, not wallpaper. Both panels read the snapshot the board just drew. */
