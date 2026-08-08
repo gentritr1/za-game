@@ -158,6 +158,7 @@ const ui = {
   seatNodes: new Map(), // playerId -> seat element
   belt: null, // 2B · the conveyor under the queue, built once
   token: null, // 2A · the chevron that walks the counter, built once
+  tokenTurnTimer: 0,
   gameId: null,
   lastLogId: -1,
   pendingWild: null, // { cardId, sourceEl }
@@ -1061,9 +1062,9 @@ function renderDirection(view) {
   const words = reversed ? 'to the right' : 'to the left';
   if (el.dirAnnounce.textContent !== words) el.dirAnnounce.textContent = words;
 
-  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip;
-  // renderOpponents picks the flag up and reorders the seats without a tween,
-  // so the panels swap rather than slide.
+  // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip.
+  // The seats no longer hear about it — they hold their places for the whole
+  // round — but the token does: it turns around, and that is the reverse.
   const flipped = Boolean(ui.prevDir && ui.prevDir !== view.direction);
   ui.dirJustFlipped = flipped;
   if (flipped) {
@@ -1167,15 +1168,100 @@ function seatingFurniture() {
     el.opponents.after(belt);
     ui.belt = belt;
   }
+  if (!ui.token) {
+    const token = document.createElement('span');
+    token.className = 'counter-token';
+    token.setAttribute('aria-hidden', 'true');
+    el.opponents.append(token);
+    ui.token = token;
+  }
   return ui;
+}
+
+/**
+ * 2A/7 · the token that walks the counter.
+ *
+ * Direction is not a word and not a colour: it is a chevron sitting on the
+ * counter halfway between the chef playing and the chef next, and on the
+ * handoff it walks one gap in four visible steps. A reverse is the token
+ * turning around and walking the other way, and that is the whole event —
+ * a real table does not re-seat itself when play turns around.
+ *
+ * It is placed in pixels rather than percentages because a transform is the
+ * only thing allowed to move, and a percentage translate would be a percentage
+ * of the token rather than of the felt.
+ */
+function placeToken(token, order, ranks, view) {
+  const seats = order.length;
+  // A token needs two different places to stand between. At a table of two
+  // there is one opponent and one of you, so the walk has nowhere to go.
+  if (seats < 2 || seatingMode() !== 'counter') {
+    token.hidden = true;
+    return;
+  }
+
+  const map = COUNTER_MAP[Math.min(7, seats)] || COUNTER_MAP[7];
+  // Where you sit: the near edge, dead centre, which is the one place on the
+  // counter that is not in the map because it is not a seat.
+  const YOURS = [50, 78];
+  const spotOf = (node) => {
+    if (!node) return YOURS;
+    const index = order.indexOf(node);
+    const spot = map[Math.min(index, map.length - 1)];
+    return [spot[0], spot[1]];
+  };
+
+  // The chef playing and the chef next, read off the same ranks the weights
+  // are read off. `null` is you — you are at the counter too.
+  let from = null;
+  let to = null;
+  let known = false;
+  for (const node of order) {
+    const rank = Number(node.dataset.rank);
+    if (rank === 0) { from = node; known = true; }
+    if (rank === 1) { to = node; known = true; }
+  }
+  // Ranks 0 and 1 are always somebody at the table; whichever of the two is
+  // missing from the opponents is you.
+  if (!known) {
+    token.hidden = true;
+    return;
+  }
+  const a = spotOf(from);
+  const b = spotOf(to);
+
+  const width = el.opponents.offsetWidth;
+  const height = el.opponents.offsetHeight;
+  if (width === 0 || height === 0) {
+    token.hidden = true;
+    return;
+  }
+  const port = parseFloat(getComputedStyle(el.opponents).getPropertyValue('--port')) || 54;
+  const x = ((a[0] + b[0]) / 2 / 100) * width;
+  const y = ((a[1] + b[1]) / 2 / 100) * height + port * 0.5;
+
+  token.hidden = false;
+  // The glyph is drawn with borders, not set as a character: neither VT323 nor
+  // Press Start 2P carries U+25B8, and a tofu box walking the counter would be
+  // worse than no marker at all. The same reason the turn triangle is drawn.
+  token.dataset.dir = view.direction === -1 ? '-1' : '1';
+  // The turn-around is the whole reverse, so it says so for one beat.
+  if (ui.dirJustFlipped) {
+    restartAnimation(token, 'is-turning', 'token-turn');
+    clearTimeout(ui.tokenTurnTimer);
+    ui.tokenTurnTimer = setTimeout(() => token.classList.remove('is-turning'), 260);
+  }
+  token.style.setProperty('--tx', `${x.toFixed(1)}px`);
+  token.style.setProperty('--ty', `${y.toFixed(1)}px`);
 }
 
 function placeSeats(order, ranks, view) {
   const mode = seatingMode();
   el.opponents.dataset.mode = mode;
   const count = order.length;
-  const { belt } = seatingFurniture();
+  const { belt, token } = seatingFurniture();
   belt.dataset.dir = view.direction === -1 ? '-1' : '1';
+  placeToken(token, order, ranks, view);
 
   if (mode === 'queue') {
     // A queue is only a queue if left-to-right IS the order of play, so the

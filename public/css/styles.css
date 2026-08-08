@@ -1093,6 +1093,64 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .opponents[data-mode="queue"] .seat.is-next { border-color: rgba(255, 225, 77, .5); }
 .opponents[data-mode="queue"] .seat.is-target { border-color: var(--sauce); }
 
+/* --- 2A/7 · the handoff and the reverse -----------------------------------
+   The handoff happens hundreds of times a round, so the rule is that almost
+   nothing moves: the ring fades off the old seat and onto the new one, and the
+   token walks one gap. The counter, the oven, the pit and every other seat
+   hold perfectly still.
+
+   The token rides the counter halfway between the chef playing and the chef
+   next. It is placed by transform in pixels the client measures off the felt,
+   not by left/top, because a layout property is the one thing that never
+   animates here. */
+.counter-token {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: calc(30px * var(--k, 1));
+  height: calc(26px * var(--k, 1));
+  background: var(--void);
+  border: var(--bd-thin) solid var(--cheese);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .6);
+  pointer-events: none;
+  transform: translate(var(--tx, 0px), var(--ty, 0px)) translate(-50%, -50%);
+  /* One gap, four visible frames, no glide. */
+  transition: transform 240ms steps(4, end);
+}
+
+.counter-token[hidden] { display: none; }
+
+/* The chevron is drawn with borders. Neither VT323 nor Press Start 2P carries
+   U+25B8 and a tofu box walking the counter is worse than no marker at all —
+   the same reason the shipped turn marker is drawn rather than typed. */
+.counter-token::before {
+  content: "";
+  display: block;
+  border: calc(6px * var(--k, 1)) solid transparent;
+  border-right-width: 0;
+  border-left-color: var(--cheese);
+}
+
+.counter-token[data-dir="-1"]::before {
+  border: calc(6px * var(--k, 1)) solid transparent;
+  border-left-width: 0;
+  border-right-color: var(--cheese);
+}
+
+/* The reverse is the token turning around and walking the other way. The turn
+   is one hard step in sauce, not a spin. */
+.counter-token.is-turning {
+  animation: token-turn 200ms steps(2, end);
+}
+
+@keyframes token-turn {
+  0%, 50% { border-color: var(--sauce); }
+  100% { border-color: var(--cheese); }
+}
+
 /* The conveyor belt under the strip, scrolling in the direction of play. It is
    an overflowing tread moved by a transform rather than a scrolled background
    position, because nothing in this cabinet animates a layout property. */
@@ -3070,14 +3128,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat__stamp.is-on { opacity: 1; }
 
 /* --- F - flip the pie ---------------------------------------------------- */
-/* The seat order reverses on the spot. Killing the transition for one frame is
-   what makes it a swap rather than a slide. */
-.opponents.is-hard-swap .seat {
-  transition: none !important;
-  animation: none !important;
-}
+/* The seats used to reverse on the spot and the hard swap was what kept that
+   from being a slide. Both are gone: a real table does not re-seat itself when
+   play turns around, so the seating holds and the token turns around instead
+   (see .counter-token.is-turning).
 
-/* The rail, not a glyph: the whole chevron group flashes, and because the
+   The rail, not a glyph: the whole chevron group flashes, and because the
    chevrons draw in currentColor the flash reads on all five at once. */
 .marquee__dir.is-flipping { animation: dir-flash 480ms steps(1, end) both; }
 
