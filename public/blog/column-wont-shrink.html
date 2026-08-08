@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="A bare 1fr grid track is minmax(auto, 1fr) and can never shrink below its content, so one wide chip widens a whole column. minmax(0, 1fr) makes the columns equal and the content give way - and grid-auto-rows: 1fr does the same for heights.">
+<title>The column that would not shrink — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 03 &middot; CSS</p>
+  <h1 class="post__title">The column that would not shrink</h1>
+
+  <p class="post__lede"><code>1fr</code> does not mean &ldquo;one equal share&rdquo;. It means &ldquo;one equal share, but never narrower than what is inside you&rdquo; &mdash; and that second half is where your layout goes.</p>
+
+  <p>Lay four seats out in a row with <code>repeat(4, 1fr)</code> and you get four equal columns. Then one player types a long nickname, picks up a HOST badge, and their column is suddenly wider than the other three. Your CSS did not change. Your data did.</p>
+
+  <h2>Why a fraction is not a fraction</h2>
+
+  <p><code>1fr</code> is shorthand. What you actually wrote was <code>minmax(auto, 1fr)</code>, and that <code>auto</code> is a <em>minimum</em>: the track may never be narrower than its content&rsquo;s min-content size &mdash; roughly, the widest thing in there that cannot be broken up, like an unbreakable word or a chip with padding on it.</p>
+
+  <p>So the moment one cell&rsquo;s content is wider than its fair share, that track stops being a fair share. It becomes &ldquo;whatever this content demands&rdquo;, and the other three columns divide whatever is left.</p>
+
+  <p><strong><code>1fr</code> only distributes the space the content is willing to give up.</strong> Usually the content is not willing.</p>
+
+  <h2>Say the minimum out loud</h2>
+
+  <div class="snippet snippet--pair">
+    <div class="snippet__box snippet__box--wrong">
+      <p class="snippet__label">One chip resizes the row</p>
+      <pre><code>grid-template-columns:
+  repeat(4, 1fr);
+/* = minmax(auto, 1fr) */</code></pre>
+    </div>
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">Four equal columns</p>
+      <pre><code>grid-template-columns:
+  repeat(4, minmax(0, 1fr));</code></pre>
+    </div>
+  </div>
+
+  <p><code>minmax(0, 1fr)</code> states the minimum, and states that it is zero. Now the track really is an equal share and the <em>content</em> is what has to give way: text wraps, a long name gets an ellipsis, an overflowing strip scrolls inside its own box. That is what you wanted all along. You just had to say who yields.</p>
+
+  <p>There is a bonus here that catches people out separately: <code>overflow: hidden</code> and <code>text-overflow: ellipsis</code> inside a grid child do nothing at all while the track is being sized to the content they were supposed to clip. Fix the track and the clipping starts working, as if by magic. It was never magic.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 236" role="img" aria-label="Two trays of four seats. With a bare 1fr the seat holding a wide nickname chip is far wider than the other three. With minmax of 0 and 1fr all four seats are the same width and the chip is truncated instead.">
+      <title>The same four seats under 1fr and under minmax(0, 1fr)</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#ff2e6b">repeat(4, 1fr)</text>
+      <g stroke="#2a3355" stroke-width="2" fill="#080a12">
+        <rect x="6" y="24" width="58" height="52"/>
+        <rect x="68" y="24" width="152" height="52"/>
+        <rect x="224" y="24" width="52" height="52"/>
+        <rect x="280" y="24" width="54" height="52"/>
+      </g>
+      <g fill="#2a3355">
+        <rect x="18" y="32" width="16" height="16"/><rect x="80" y="32" width="16" height="16"/>
+        <rect x="236" y="32" width="16" height="16"/><rect x="292" y="32" width="16" height="16"/>
+      </g>
+      <rect x="76" y="56" width="136" height="14" fill="#ffe14d"/>
+      <text x="80" y="68" font-family="'VT323', monospace" font-size="14" fill="#0d0f1a">NONNA PINA &middot; HOST</text>
+      <g fill="#2a3355">
+        <rect x="14" y="56" width="30" height="14"/><rect x="232" y="56" width="30" height="14"/><rect x="288" y="56" width="30" height="14"/>
+      </g>
+      <text x="6" y="94" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">The chip cannot break, so the track</text>
+      <text x="6" y="112" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">will not shrink. The rest share what is left.</text>
+
+      <text x="6" y="148" font-family="'Press Start 2P', monospace" font-size="13" fill="#3ddc7f">repeat(4, minmax(0, 1fr))</text>
+      <g stroke="#2a3355" stroke-width="2" fill="#080a12">
+        <rect x="6" y="158" width="78" height="52"/>
+        <rect x="90" y="158" width="78" height="52"/>
+        <rect x="174" y="158" width="78" height="52"/>
+        <rect x="258" y="158" width="76" height="52"/>
+      </g>
+      <g fill="#2a3355">
+        <rect x="18" y="166" width="16" height="16"/><rect x="102" y="166" width="16" height="16"/>
+        <rect x="186" y="166" width="16" height="16"/><rect x="270" y="166" width="16" height="16"/>
+      </g>
+      <rect x="98" y="190" width="62" height="14" fill="#ffe14d"/>
+      <text x="101" y="202" font-family="'VT323', monospace" font-size="14" fill="#0d0f1a">NONNA P&hellip;</text>
+      <g fill="#2a3355">
+        <rect x="14" y="190" width="30" height="14"/><rect x="182" y="190" width="30" height="14"/><rect x="266" y="190" width="30" height="14"/>
+      </g>
+      <text x="6" y="228" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">Equal columns. The content gives way instead.</text>
+    </svg>
+    <figcaption>Same markup, same chip. The only difference is which one was told it may shrink.</figcaption>
+  </figure>
+
+  <h2>The same rule, one axis over</h2>
+
+  <p>Our lobby lays eight seats out in a tray. It read as two rows of different-sized tiles &mdash; but only once somebody actually sat down.</p>
+
+  <p>The tiles had a <code>min-height</code>, and a seated chef (avatar, name, a HOST or CPU badge) grew past it. A grid row is as tall as its tallest tenant, so <strong>only the tiles sharing that row</strong> stretched. The tray was sizing itself item by item.</p>
+
+  <p>We nearly raised the <code>min-height</code> until it covered the tallest case. That works, right up until the next thing that grows a seat.</p>
+
+  <div class="snippet">
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">The tray owns the height</p>
+      <pre><code>.seat-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 1fr;   /* not min-height on the tile */
+}</code></pre>
+    </div>
+  </div>
+
+  <p>One line. Now a nickname chip grows <em>every</em> seat together, or none of them. The module owns the height; the item does not.</p>
+
+  <p>Both halves are the same decision. Somebody has to yield &mdash; the container or the content &mdash; and if you do not say which, the content wins by default and takes the layout with it.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">Reach for <code>minmax(0, 1fr)</code> when the columns should be equal, and <code>grid-auto-rows: 1fr</code> when the module should own the height &mdash; never the item.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="fallback-never-fires.html"><span class="pager__dir">&larr; PREV</span>The fallback that never fires</a></span>
+  <span class="pager__up"><a href="index.html">All six posts</a></span>
+  <span class="pager__next"><a href="two-pizzas-at-once.html"><span class="pager__dir">NEXT &rarr;</span>Two pizzas at once</a></span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="A CSS var() fallback fires when a custom property is missing, not when its value is unusable. How calc() over none goes invalid at computed-value time and silently lands on auto, and the length-valued twin that fixes it.">
+<title>The fallback that never fires — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 02 &middot; CSS</p>
+  <h1 class="post__title">The fallback that never fires</h1>
+
+  <p class="post__lede">A <code>var()</code> fallback rescues a custom property that was never set. It does nothing for one that is set to something unusable &mdash; and CSS will not tell you which case you are in.</p>
+
+  <p>ZA! draws a cabinet around the playfield: a panel down each side, like the sides of an arcade machine. How wide those panels are is one line of arithmetic &mdash; whatever is left over once the playfield has taken its share, split in two.</p>
+
+  <p>The playfield&rsquo;s share is a knob called <code>--play-max</code>, and at the time it was uncapped. We wrote &ldquo;uncapped&rdquo; the way it reads in English: <code>none</code>.</p>
+
+  <div class="snippet">
+    <div class="snippet__box snippet__box--wrong">
+      <p class="snippet__label">Panels came out `auto`</p>
+      <pre><code>--play-max: none;
+--panel-w: max(0, (100vw - var(--play-max)) / 2);</code></pre>
+    </div>
+  </div>
+
+  <p>The panels computed to <code>width: auto</code> instead of zero, and a popover underneath measured itself against the wrong number. We assumed the <code>var()</code> fallback had us covered. Covering exactly this is what fallbacks are for.</p>
+
+  <h2>Two traps in one line</h2>
+
+  <p><strong>First: <code>none</code> is not a length.</strong> <code>calc()</code> and <code>max()</code> do arithmetic on lengths, and <code>100vw - none</code> is not arithmetic. The declaration becomes invalid &mdash; but not while the file is being parsed. It happens at <em>computed-value time</em>, once the variable has been substituted in, which is far too late for anything to warn you. The property falls back to its initial value, which for <code>width</code> is <code>auto</code>, and the page renders happily.</p>
+
+  <p><strong>Second, and this is the real lesson: a <code>var()</code> fallback only fires when the property is missing.</strong> Writing <code>var(--play-max, 100vw)</code> means &ldquo;if nobody has set <code>--play-max</code>, use <code>100vw</code>&rdquo;. Somebody had set it. It was <code>none</code>. As far as <code>var()</code> is concerned nothing is wrong: there is a value and it is substituting it, exactly as asked. The breakage happens one step later, in arithmetic that <code>var()</code> knows nothing about.</p>
+
+  <p>Custom properties are almost untyped &mdash; a variable holds a run of text, and whether that text makes sense is only discovered where it lands. The fallback guards the wrong question.</p>
+
+  <p>(A third, smaller lie in the same line: <code>max(0, &hellip;)</code> next to a length needs <code>0px</code>. A bare <code>0</code> is a number, not a length.)</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 310" role="img" aria-label="Flow chart of var() resolution. If the property is not set, the fallback is used and everything renders as intended. If it is set to an unusable value such as none, the fallback is skipped, the value is substituted anyway, the arithmetic becomes invalid at computed-value time, and the property silently lands on auto.">
+      <title>How var() decides, and the branch that surprises people</title>
+
+      <rect x="6" y="6" width="328" height="34" fill="#080a12" stroke="#7de2ff" stroke-width="2"/>
+      <text x="170" y="29" text-anchor="middle" font-family="'VT323', monospace" font-size="18" fill="#e8ecff">var(--play-max, 100vw)</text>
+      <path d="M170 40 L170 54" stroke="#7de2ff" stroke-width="2"/>
+
+      <rect x="6" y="54" width="328" height="34" fill="#080a12" stroke="#7de2ff" stroke-width="2"/>
+      <text x="170" y="77" text-anchor="middle" font-family="'VT323', monospace" font-size="18" fill="#e8ecff">Is --play-max declared?</text>
+
+      <path d="M170 88 L170 96 M60 96 L280 96 M60 96 L60 108 M280 96 L280 108" stroke="#7de2ff" stroke-width="2" fill="none"/>
+
+      <rect x="6" y="108" width="152" height="62" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+      <text x="14" y="128" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">NO &mdash; missing.</text>
+      <text x="14" y="146" font-family="'VT323', monospace" font-size="17" fill="#e8ecff">Fallback wins.</text>
+      <text x="14" y="164" font-family="'VT323', monospace" font-size="17" fill="#e8ecff">100vw is used.</text>
+      <text x="14" y="192" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">Renders as intended.</text>
+
+      <rect x="182" y="108" width="152" height="62" fill="#080a12" stroke="#ffe14d" stroke-width="2"/>
+      <text x="190" y="128" font-family="'VT323', monospace" font-size="17" fill="#ffe14d">YES &mdash; it is none.</text>
+      <text x="190" y="146" font-family="'VT323', monospace" font-size="17" fill="#e8ecff">Fallback skipped.</text>
+      <text x="190" y="164" font-family="'VT323', monospace" font-size="17" fill="#e8ecff">none substituted.</text>
+
+      <path d="M258 170 L258 186" stroke="#ff2e6b" stroke-width="2"/>
+      <rect x="182" y="186" width="152" height="44" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="190" y="206" font-family="'VT323', monospace" font-size="17" fill="#e8ecff">max(0, 100vw - none)</text>
+      <text x="190" y="224" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">is not arithmetic.</text>
+
+      <path d="M258 230 L258 246" stroke="#ff2e6b" stroke-width="2"/>
+      <rect x="182" y="246" width="152" height="58" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="190" y="266" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">Invalid at computed-</text>
+      <text x="190" y="284" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">value time. width:</text>
+      <text x="190" y="300" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">auto. No error.</text>
+    </svg>
+    <figcaption>The yellow branch is the one nobody plans for: present, unusable, and silent.</figcaption>
+  </figure>
+
+  <h2>The fix: a length-valued twin</h2>
+
+  <p>Keep the knob as the statement of intent, and give the arithmetic its own variable that is guaranteed to be a real length. The arithmetic never reads the knob directly.</p>
+
+  <div class="snippet">
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">The twin</p>
+      <pre><code>--play-max: 1900px;                       /* intent */
+--play-cap: min(100vw, var(--play-max));  /* always a length */
+--panel-w:  max(0px, (100vw - var(--play-cap)) / 2);</code></pre>
+    </div>
+  </div>
+
+  <p>While the playfield is uncapped, <code>--play-cap</code> simply <em>is</em> <code>100vw</code>, so the leftover is zero and the panels disappear the way they should. Nothing downstream ever touches a value that might not be a length.</p>
+
+  <p>The other half of the pattern is a sentence, written in a comment right beside the code: <strong>panel-w &times; 2 + play-cap == 100vw</strong>, on both sides of the cap. That is an invariant &mdash; a thing that must stay true. It costs one line, it is checkable by hand, and it is what tells the next person whether the change they are about to make is allowed.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">A present-but-unusable custom property never falls back. Gate arithmetic behind a length-valued twin, and write the invariant down next to it.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="frozen-arcade.html"><span class="pager__dir">&larr; PREV</span>The frozen arcade</a></span>
+  <span class="pager__up"><a href="index.html">All six posts</a></span>
+  <span class="pager__next"><a href="column-wont-shrink.html"><span class="pager__dir">NEXT &rarr;</span>The column that would not shrink</a></span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

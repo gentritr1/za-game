@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="A hidden browser tab pauses CSS animations and throttles requestAnimationFrame away, so a profiler pointed at it reports a number that measures nothing. How to reconcile sample counts and read animation state instead of screenshotting it.">
+<title>The frozen arcade — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 01 &middot; Instruments</p>
+  <h1 class="post__title">The frozen arcade</h1>
+
+  <p class="post__lede">A browser tab you cannot see stops running your animations &mdash; and every tool you point at it will still hand you a number.</p>
+
+  <p>We put a probe on the deal cascade, the animation that flicks seven cards out to your hand, and asked it how evenly the frames were arriving. It answered: a 95th percentile of 1969&nbsp;milliseconds.</p>
+
+  <p>That is a catastrophic number. It also has the shape of a real one &mdash; a percentile, over a real window, taken from a real page. We were most of the way to optimising the deal before anyone questioned it.</p>
+
+  <h2>What was actually happening</h2>
+
+  <p>The page was running in a browser pane that was hidden. Browsers treat a hidden tab as a tab nobody is watching: CSS animations pause, and <code>requestAnimationFrame</code> &mdash; the callback that fires once per drawn frame &mdash; stops firing almost entirely. That is a battery feature working correctly.</p>
+
+  <p>So the probe did not sample a slow deal. It sampled almost nothing. Over that window, at that frame rate, it should have collected <strong>223 frames. It collected 5.</strong> The 1969&nbsp;ms was simply the gap between two of those five samples, minutes apart.</p>
+
+  <p>That is not a measurement with a bad result. It is a broken instrument that outputs a number, which is far more dangerous, because a number invites you to act on it.</p>
+
+  <p>The same freeze produced a second ghost the same week: dialogs screenshotted blank. Frame, border, nothing inside. Their contents were sitting at the entry animation&rsquo;s <code>opacity: 0</code>, and the animation meant to bring them up never advanced a step.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 214" role="img" aria-label="Two timelines over the same window. The visible tab shows twenty evenly spaced frame ticks. The hidden tab shows five ticks with long empty gaps, and one gap is marked as the source of the 1969 millisecond p95.">
+      <title>The same window, sampled in a visible tab and in a hidden tab</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#3ddc7f">VISIBLE TAB</text>
+      <rect x="6" y="22" width="328" height="30" fill="#080a12" stroke="#2a3355" stroke-width="2"/>
+      <g fill="#3ddc7f">
+        <rect x="14" y="28" width="4" height="18"/><rect x="30" y="28" width="4" height="18"/>
+        <rect x="46" y="28" width="4" height="18"/><rect x="62" y="28" width="4" height="18"/>
+        <rect x="78" y="28" width="4" height="18"/><rect x="94" y="28" width="4" height="18"/>
+        <rect x="110" y="28" width="4" height="18"/><rect x="126" y="28" width="4" height="18"/>
+        <rect x="142" y="28" width="4" height="18"/><rect x="158" y="28" width="4" height="18"/>
+        <rect x="174" y="28" width="4" height="18"/><rect x="190" y="28" width="4" height="18"/>
+        <rect x="206" y="28" width="4" height="18"/><rect x="222" y="28" width="4" height="18"/>
+        <rect x="238" y="28" width="4" height="18"/><rect x="254" y="28" width="4" height="18"/>
+        <rect x="270" y="28" width="4" height="18"/><rect x="286" y="28" width="4" height="18"/>
+        <rect x="302" y="28" width="4" height="18"/><rect x="318" y="28" width="4" height="18"/>
+      </g>
+      <rect class="anim anim-sweep--fast" x="14" y="24" width="3" height="26" fill="#ffe14d"/>
+      <text x="6" y="70" font-family="'VT323', monospace" font-size="18" fill="#96a3c9">223 frames &mdash; what the window predicted</text>
+
+      <text x="6" y="104" font-family="'Press Start 2P', monospace" font-size="13" fill="#ff2e6b">HIDDEN TAB</text>
+      <rect x="6" y="112" width="328" height="30" fill="#080a12" stroke="#2a3355" stroke-width="2"/>
+      <g fill="#ff2e6b">
+        <rect x="14" y="118" width="4" height="18"/><rect x="94" y="118" width="4" height="18"/>
+        <rect x="174" y="118" width="4" height="18"/><rect x="254" y="118" width="4" height="18"/>
+        <rect x="318" y="118" width="4" height="18"/>
+      </g>
+      <rect class="anim anim-sweep--slow" x="14" y="114" width="3" height="26" fill="#ffe14d"/>
+
+      <g stroke="#ffe14d" stroke-width="2" fill="none">
+        <path d="M98 152 L98 160 L174 160 L174 152"/>
+      </g>
+      <text x="6" y="182" font-family="'VT323', monospace" font-size="18" fill="#ffe14d">5 frames &mdash; and the &ldquo;p95 of 1969ms&rdquo;</text>
+      <text x="6" y="202" font-family="'VT323', monospace" font-size="18" fill="#ffe14d">is just the width of that gap.</text>
+    </svg>
+    <figcaption>Same window, same page, same probe &mdash; only the tab&rsquo;s visibility changed. Both markers cross in the same time; the top one stops twenty times, the bottom one stops five.</figcaption>
+  </figure>
+
+  <h2>Reconcile the count before you quote the percentile</h2>
+
+  <p>Do one division first: how long was the window, multiplied by how many samples per second you expected. If that says 223 and your array holds 5, stop &mdash; nothing computed from that array means anything, however plausible it looks.</p>
+
+  <p>Then print the reconciliation next to the number, so the next reader can check it without re-deriving it. A percentile over an unverified sample count is not a measurement.</p>
+
+  <h2>Do not photograph motion &mdash; ask it</h2>
+
+  <p>A screenshot of something moving tells you what one instant looked like, and in a frozen tab that instant is the first one, forever. Ask the browser for the state instead:</p>
+
+  <ul>
+    <li><code>getComputedStyle(el)</code> &mdash; what is actually on screen right now.</li>
+    <li><code>el.getAnimations()</code> &mdash; what is running, and how far through it is.</li>
+    <li><code>anim.finish()</code> or setting <code>anim.currentTime</code> &mdash; move the animation where you want it, <em>then</em> look.</li>
+  </ul>
+
+  <div class="snippet snippet--pair">
+    <div class="snippet__box snippet__box--wrong">
+      <p class="snippet__label">Proves nothing</p>
+      <pre><code>await screenshot();
+expect(ring).toBeVisible();</code></pre>
+    </div>
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">Proves it</p>
+      <pre><code>ring.getAnimations()
+    .forEach((a) =&gt; a.finish());
+expect(getComputedStyle(ring)
+  .opacity).toBe('1');</code></pre>
+    </div>
+  </div>
+
+  <p>There is one more edge here, and we hit it from both sides. <strong>A transition sampled at <code>currentTime</code> 0 reads its start value.</strong> A focus ring that fades in perfectly and a focus ring that never lights are identical at time zero. Somebody nearly &ldquo;fixed&rdquo; correct code on that evidence; finishing the animation through the Web Animations API showed the end state had been right the whole time.</p>
+
+  <p>The general shape: <strong>verify in the environment that produced the bug, not in a friendlier one.</strong> If the thing you are testing only misbehaves in a hidden pane, a visible pane is not a test.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">Reconcile sample count against window &times; expected rate before quoting any percentile &mdash; and never verify motion with a picture of motion.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__empty">You are at the front of the zine.</span>
+  <span class="pager__up"><a href="index.html">All six posts</a></span>
+  <span class="pager__next"><a href="fallback-never-fires.html"><span class="pager__dir">NEXT &rarr;</span>The fallback that never fires</a></span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

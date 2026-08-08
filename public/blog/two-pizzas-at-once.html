@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="Fading one transparent frame in over another shows both at once. Why a two-frame loop must counter-phase, and why steps(1, end) is what turns a cross-fade into a flipbook.">
+<title>Two pizzas at once — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 04 &middot; CSS</p>
+  <h1 class="post__title">Two pizzas at once</h1>
+
+  <p class="post__lede">Fade a transparent picture in over another transparent picture and the player sees both &mdash; which is not what a two-frame loop is supposed to look like.</p>
+
+  <p>Each side panel of the ZA! cabinet has an art window with a mural in it: a chef tossing dough. It runs as a two-frame loop, the way an arcade attract screen does. Frame A, frame B, back to A, forever.</p>
+
+  <p>The murals started out opaque, and the loop was one animation on one element: frame B&rsquo;s opacity goes on, then off. Frame A sits underneath and is simply always lit &mdash; when B is up it covers A, and when B is down you see A again. Correct, cheap, shipped.</p>
+
+  <p>Then the murals were redrawn as transparent vinyl, so the cabinet&rsquo;s checkerboard could read through them. Same code. Same timings. And now half of every cycle showed two discs of dough at once, each visible through the other.</p>
+
+  <h2>Only one frame was animated</h2>
+
+  <p>That was the whole bug, and it was invisible while the art was opaque. &ldquo;B covers A&rdquo; is not something CSS enforces; it is something <em>opacity</em> was doing for us, as a side effect of the pixels. The instant B gained transparency, A kept being fully lit underneath and showed through every transparent pixel of B.</p>
+
+  <p>It gets worse if the frame <em>fades</em> rather than flips: halfway through you have one frame at 100% and another at 50%, stacked. That is a double exposure. But even a hard flip is wrong here, because the frame underneath was never told to leave.</p>
+
+  <p>The model you actually want is blunt: <strong>exactly one frame on screen at any instant.</strong> Which means both frames must be animated, on the same clock, with mirrored keyframes &mdash; A hides at precisely the moment B shows. That is counter-phasing.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 236" role="img" aria-label="Two art windows running the same two-frame loop. On the left only frame B is animated, so for half of every cycle both dough discs are visible at once - six toppings instead of three. On the right the frames counter-phase and exactly one disc is ever visible. Below each window, opacity tracks for frame A and frame B show the overlap on the left and none on the right.">
+      <title>A two-frame loop, fading versus counter-phased</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#ff2e6b">B ONLY</text>
+      <text x="176" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#3ddc7f">A AND B</text>
+
+      <!-- left window: frame A never hides -->
+      <rect x="6" y="20" width="158" height="100" fill="#080a12" stroke="#2a3355" stroke-width="3" stroke-dasharray="6 5"/>
+      <g stroke="#ffe14d" stroke-width="3" fill="none">
+        <circle cx="85" cy="70" r="34"/>
+      </g>
+      <g fill="#ff2e6b">
+        <circle cx="85" cy="52" r="5"/><circle cx="100" cy="78" r="5"/><circle cx="70" cy="78" r="5"/>
+      </g>
+      <g class="anim-frame-b anim-frame-b--stuck" fill="#7de2ff">
+        <circle cx="85" cy="88" r="5"/><circle cx="70" cy="62" r="5"/><circle cx="100" cy="62" r="5"/>
+      </g>
+
+      <!-- right window: the frames counter-phase -->
+      <rect x="176" y="20" width="158" height="100" fill="#080a12" stroke="#2a3355" stroke-width="3" stroke-dasharray="6 5"/>
+      <g stroke="#ffe14d" stroke-width="3" fill="none">
+        <circle cx="255" cy="70" r="34"/>
+      </g>
+      <g class="anim-frame-a" fill="#ff2e6b">
+        <circle cx="255" cy="52" r="5"/><circle cx="270" cy="78" r="5"/><circle cx="240" cy="78" r="5"/>
+      </g>
+      <g class="anim-frame-b" fill="#7de2ff">
+        <circle cx="255" cy="88" r="5"/><circle cx="240" cy="62" r="5"/><circle cx="270" cy="62" r="5"/>
+      </g>
+
+      <text x="6" y="140" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">opacity across one 1800ms cycle</text>
+
+      <!-- opacity tracks -->
+      <text x="6" y="157" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">A</text>
+      <text x="6" y="177" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">B</text>
+      <text x="176" y="157" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">A</text>
+      <text x="176" y="177" font-family="'VT323', monospace" font-size="16" fill="#96a3c9">B</text>
+
+      <g stroke="#2a3355" stroke-width="1" fill="none">
+        <rect x="20" y="146" width="134" height="12"/><rect x="20" y="166" width="134" height="12"/>
+        <rect x="190" y="146" width="134" height="12"/><rect x="190" y="166" width="134" height="12"/>
+      </g>
+      <rect x="20" y="146" width="134" height="12" fill="#ff2e6b"/>
+      <rect x="87" y="166" width="67" height="12" fill="#7de2ff"/>
+      <rect x="190" y="146" width="67" height="12" fill="#ff2e6b"/>
+      <rect x="257" y="166" width="67" height="12" fill="#7de2ff"/>
+
+      <rect x="87" y="142" width="67" height="40" fill="none" stroke="#ffe14d" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="87" y="196" font-family="'VT323', monospace" font-size="16" fill="#ffe14d">both lit</text>
+
+      <text x="6" y="220" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">Left: A never hides, so both discs show.</text>
+      <text x="6" y="234" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">Right: A hides as B shows. One, ever.</text>
+    </svg>
+    <figcaption>Both windows are running live, on the same 1800ms loop the game uses. Count the toppings on the left.</figcaption>
+  </figure>
+
+  <div class="snippet snippet--pair">
+    <div class="snippet__box snippet__box--wrong">
+      <p class="snippet__label">A rides along, always lit</p>
+      <pre><code>.frame-a { opacity: 1; }
+.frame-b { animation: flip-b 1800ms
+           steps(1, end) infinite; }</code></pre>
+    </div>
+    <div class="snippet__box snippet__box--right">
+      <p class="snippet__label">Mirrored keyframes</p>
+      <pre><code>@keyframes flip-a {
+  0% {opacity:1} 50%,100% {opacity:0} }
+@keyframes flip-b {
+  0% {opacity:0} 50%,100% {opacity:1} }</code></pre>
+    </div>
+  </div>
+
+  <h2>The easing is doing real work</h2>
+
+  <p><code>steps(1, end)</code> is what makes this a flipbook rather than a fade. Under a step easing each interval holds its own start value and then jumps at the end of it: opacity is 1 or it is 0, and never 0.4 on the way. A bulb is lit or it is not.</p>
+
+  <p>That also removes a whole class of near-miss. With a smooth easing the two frames are only correct if the browser evaluates both at exactly the same moment; with <code>steps(1, end)</code> there is no in-between value for them to disagree about.</p>
+
+  <p>Ours run on a 1800&nbsp;ms cycle &mdash; 900&nbsp;ms a frame &mdash; and the right-hand panel starts 450&nbsp;ms late, so the two windows do not tick in unison and the cabinet does not pulse at you.</p>
+
+  <p>The generalisation is worth more than the fix: <strong>an opacity change is only a swap when what is on top is opaque.</strong> The instant a layer gains transparency, every &ldquo;it covers the one below&rdquo; assumption in your animation quietly stops being true, and nothing errors.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">Transparent frames in a two-frame loop must counter-phase &mdash; and <code>steps(1, end)</code> is the easing that keeps a flipbook a flipbook.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="column-wont-shrink.html"><span class="pager__dir">&larr; PREV</span>The column that would not shrink</a></span>
+  <span class="pager__up"><a href="index.html">All six posts</a></span>
+  <span class="pager__next"><a href="measure-the-kitchen.html"><span class="pager__dir">NEXT &rarr;</span>Measure the kitchen, not the recipe</a></span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>
