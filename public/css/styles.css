@@ -1413,10 +1413,22 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 /* Three states of presence and only three: live, idle, gone. NEXT is not a
    fourth brightness — it is a shape, and step 3 draws it. */
+/* The presence change snaps. Step 7 of the seating handoff is explicit that on
+   an ordinary turn change "the counter, the oven, the pit and every other seat
+   hold perfectly still" — the ring cross-fade and the token walk are the whole
+   event. `filter` is a paint property on that hot path, and every idle seat was
+   running one on every handoff, hundreds of times a round.
+
+   `transition: none` is spelled out rather than deleted on purpose. The
+   reduced-motion block below forces `transition-duration: 140ms !important` on
+   every element; with the declaration merely removed, `transition-property`
+   falls back to its initial `all` and that cap turns the snap back into a
+   cross-fade under reduced motion. Setting the property to `none` is the part
+   that holds. */
 .seat .avatar__image {
   opacity: .62;
   filter: saturate(.55);
-  transition: opacity var(--d-fast) var(--ease-step), filter var(--d-fast) var(--ease-step);
+  transition: none;
 }
 
 .seat.is-live .avatar__image { opacity: 1; filter: saturate(1); }
@@ -1440,7 +1452,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   background: var(--cabinet);
   color: var(--text-mute);
   border: 2px solid var(--bezel);
-  transition: background-color var(--d-fast) var(--ease-step), color var(--d-fast) var(--ease-step);
+  /* Snaps, for the reason above, and spelled out for the same reason. The plate
+     is filled or outlined; no spec asks for a fade between the two. */
+  transition: none;
 }
 
 .seat.is-live .seat__name {
