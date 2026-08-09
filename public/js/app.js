@@ -1694,6 +1694,10 @@ function openRoster(snapshot) {
   // Outside `#app`, like the other two dialogs: what it covers is what goes
   // inert behind it, and it cannot cover the lobby from inside the lobby panel.
   if (!roster.panel.isConnected) document.body.append(roster.panel);
+  // The button that opened it is where focus goes back to when it closes —
+  // named here rather than read off `document.activeElement`, because this is
+  // the only thing that opens the screen and it is marked
+  // `aria-haspopup="dialog"` for saying so.
   ui.hireReturn = el.btnAddBot;
 
   fillRoster(snapshot);
