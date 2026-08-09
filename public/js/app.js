@@ -27,6 +27,7 @@ const el = {
   shell: document.querySelector('.shell'),
   screens: Array.from(document.querySelectorAll('.screen')),
   gameScreen: document.querySelector('.screen--game'),
+  table: document.querySelector('.table'),
   // home
   formCreate: $('form-create'),
   formJoin: $('form-join'),
@@ -256,10 +257,39 @@ const ui = {
   turnMoment: null, // which of the marquee's three moments is showing
   prevDeclared: new Map(), // playerId -> declaredZa last snapshot
   shoutNode: null,
+  // ---- measurements cached against `layoutToken()`. Each holds the token it
+  // was taken under; none is ever cleared by hand.
+  paintedScreen: '', // the room actually in the DOM, set only by `paintScreen`
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const wantsMotion = () => !reduceMotion.matches;
+
+/**
+ * ONE TOKEN FOR EVERY CACHED MEASUREMENT.
+ *
+ * Every number cached against this is a pure function of two things: the size
+ * of the viewport, and which room is painted. So rather than remember to
+ * invalidate each cache from each place that could disturb it, every cache
+ * carries the token it was measured under and re-measures the instant the token
+ * differs. A stale read stops being something to be careful about and becomes
+ * something that cannot be expressed: there is no path that changes the
+ * viewport or the room without changing the token, and no cache is trusted
+ * across a change in it. The pit's rib rectangles went stale once precisely
+ * because their invalidation was a list of remembered events.
+ *
+ * `innerWidth` and `innerHeight` are viewport properties; reading them does not
+ * flush layout, so the check itself costs nothing it is trying to save.
+ *
+ * `paintedScreen`, not `ui.screen`, on purpose. `showScreen` claims `ui.screen`
+ * the moment a room change starts, while the shutter is still down and the old
+ * room is still the one in the DOM; measuring in that window and stamping it
+ * with the new room's token is exactly how a cache would go stale. Only
+ * `paintScreen` — the one place the DOM actually swaps — moves this.
+ */
+function layoutToken() {
+  return `${window.innerWidth}x${window.innerHeight}|${ui.paintedScreen}`;
+}
 
 // ------------------------------------------------------------------ motion --
 // Durations and curves live in the stylesheet. They are read once here so the
@@ -613,6 +643,10 @@ function announce(text) {
 
 function paintScreen(name) {
   ui.screen = name;
+  // The room is now the one in the DOM, so every measurement cached against the
+  // old room is stale from this line on. Moving the token is the whole
+  // invalidation — see `layoutToken`.
+  ui.paintedScreen = name;
   for (const screen of el.screens) {
     const active = screen.dataset.screen === name;
     screen.classList.toggle('is-active', active);
@@ -4372,6 +4406,25 @@ function playShout() {
  * which means the client reads the live cap instead of restating `1900` as a
  * second copy that can silently drift.
  */
+/*
+ * DELIBERATELY NOT CACHED. This read stays on every snapshot, and the reason is
+ * worth keeping next to it.
+ *
+ * `--panel-w` looks like a pure function of the viewport, which is what makes
+ * it look cacheable. It is not: it also depends on `is-capped`, and `is-capped`
+ * is set by `syncCabinet` FROM the number this function returns. Any cache over
+ * it is therefore self-referential -- if it ever stores the reading taken in
+ * the instant before the class settles, the stored value keeps the class where
+ * it is, the key never moves again, and the cabinet is wrong until reload.
+ *
+ * Both keys were tried on the probe and both failed, in opposite directions:
+ * keyed on the viewport, 2400 -> 1200 -> 2400 lost the side panels for good;
+ * keyed on viewport plus the shell's class list, 1200 kept panels that should
+ * have dropped, because a value that holds the class steady also holds its own
+ * key steady. The uncached read is self-correcting precisely because it is
+ * unconditional. One `getComputedStyle` a snapshot is the price of that, and it
+ * is a fair one -- a correct thrash beats a fast lie.
+ */
 function panelWidth() {
   if (!el.shell) return 0;
   const raw = getComputedStyle(el.shell).getPropertyValue('--panel-w').trim();
@@ -4646,7 +4699,9 @@ function paintPlaque(snapshot) {
  * total" means at the table: two links of +2 is +4, not "2".
  */
 function syncChain() {
-  const table = document.querySelector('.table');
+  // `.table` ships in index.html and is never replaced, so it is resolved once
+  // at load with its siblings rather than re-queried on every snapshot.
+  const table = el.table;
   if (!table) return;
   const live = ui.chain >= 1 && panelWidth() > 0;
   table.classList.toggle('is-chaining', live);
