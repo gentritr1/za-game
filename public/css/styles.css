@@ -4644,7 +4644,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .za-burst { display: none !important; }
 
   /* 1A · the mural holds on frame A. The bulb never flips, and the window is
-     still a mural in a dashed frame — nothing was carried by the flip alone. */
+     still a mural on the cabinet's checker — nothing was carried by the flip
+     alone. Opacity only, exactly as in motion: A lit, B dark, one frame on the
+     panel at any instant and no fill or frame under either. */
   .cab-art__img--a {
     animation: none !important;
     opacity: 1 !important;
@@ -5800,7 +5802,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* ---- the art windows ---- */
 /* `--panel-w` wide and 4:3 tall, which is the `panel-w * 1.33` the art was cut
    to. The negative inline margin is how it reaches the cabinet's edges through
-   the panel's own padding. */
+   the panel's own padding.
+
+   No fill and no frame: the vinyl is transparent and the window is a hole in
+   nothing, so the panel's own checker runs straight under the mural and the
+   art reads as painted ON the cabinet side rather than hung in a box. */
 .cab-art {
   position: relative;
   flex: none;
@@ -5815,6 +5821,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   display: grid;
   place-items: center;
   overflow: hidden;
+}
+
+/* The one state that still gets chrome. A mural that never arrived leaves an
+   empty hole in the checker with nothing to say it was ever meant to hold
+   anything, so the handoff's placeholder comes back for that window alone:
+   cabinet fill, dashed window, and the SIDE ART note it was drawn around.
+   `border-box` is on everything here, so the border costs no layout — the
+   capped 340px box is the same size framed or bare. */
+.cab-art.is-broken {
   background: var(--cabinet);
   border: var(--bd-thin) dashed var(--bezel);
 }
@@ -5865,14 +5880,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   100% { opacity: 0; }
 }
 
-/* Uncovered only when a mural fails to load: the dashed window over cabinet is
-   the shipping placeholder from the handoff, not a broken-image box. */
+/* Only when a mural fails to load. The murals are transparent vinyl, so a note
+   sitting under them is not covered by them — it reads straight through the
+   dough. It is drawn only for the state it describes. */
 .cab-art__note {
+  display: none;
   font-family: var(--font-display);
   font-size: 12px;
   letter-spacing: .04em;
   color: var(--ui-cyan);
 }
+
+.cab-art.is-broken .cab-art__note { display: block; }
 
 /* --- what the cabinet does when something happens ------------------------- */
 /* All three are additive and all three are transform and opacity: nothing under
