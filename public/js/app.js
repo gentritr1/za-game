@@ -182,6 +182,7 @@ const ui = {
   playedById: null, // whoever's hand shrank, including you
   // Effect state. All of it is client-side and none of it is a game rule.
   prevTopKind: null,
+  prevTopping: null, // 11 · the topping the oven last rang for
   chain: 0, // consecutive +2/+4 tops, the visual ladder of README 4A
   anchovyCount: 0, // anchovies this round, for the 6C escalation
   callouts: new Map(), // playerId -> { node, mine }
@@ -215,6 +216,7 @@ const ui = {
   chainTotal: 0, // cards the current run has forced, for the running total
   chainNode: null,
   chainTotalNode: null,
+  turnMoment: null, // which of the marquee's three moments is showing
   prevDeclared: new Map(), // playerId -> declaredZa last snapshot
   shoutNode: null,
 };
@@ -651,6 +653,9 @@ function resetRoundEffects() {
   // clearing would make the first snapshot of the round look like a shout.
   ui.prevDeclared.clear();
   ui.prevTopKind = null;
+  // The first card of a round IS a topping change — there was no topping
+  // before it — so the oven rings once as the round opens.
+  ui.prevTopping = null;
   ui.anchovyCount = 0;
   ui.shoutArmedAt = 0;
   // A new round always runs to the left again. Without this a round that ended
@@ -1079,7 +1084,12 @@ function renderTurnBanner(snapshot, view, yourTurn) {
   const callout = view.status === 'playing' && (view.calloutTargets || []).length > 0;
   el.turnBanner.classList.toggle('is-callout', callout);
   el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
-  setTurnText(turnLabel(view, yourTurn, callout));
+  // Which of the strip's three moments is on. A change of MOMENT is news; a
+  // change of name inside the waiting moment is the roll-call.
+  const moment = callout ? 'callout' : yourTurn ? 'you' : 'waiting';
+  const changed = ui.turnMoment !== null && ui.turnMoment !== moment;
+  ui.turnMoment = moment;
+  setTurnText(turnLabel(view, yourTurn, callout), changed);
 }
 
 function turnLabel(view, yourTurn, callout) {
@@ -1093,22 +1103,27 @@ function turnLabel(view, yourTurn, callout) {
 }
 
 /**
- * Swaps the turn label. The new text drops in over 180ms so the change is felt
- * and not only read. A second turn change cancels the first one instead of
- * stacking on top of it.
+ * Swaps the turn label.
+ *
+ * It used to drop the new text in over 180ms on EVERY turn. Most turns only
+ * change a name — "Vito is eyeing the pile…" for "Carmela is eyeing the pile…"
+ * — which is the roll-call, not news, and it was riding along on the same
+ * frame as the marquee's fill, the rail's ping and the seat inverting. One
+ * dominant signal per handoff: the roll-call snaps, and the swap animates only
+ * when the strip actually changes moment (waiting / yours / call-out).
+ *
+ * Opacity only, no rise. The handoff prompt has the three moments differing in
+ * "fill, border and text colour" with the row never reflowing, and warns that
+ * the call-out moment "must not also be the only moment that moves" — so all
+ * three punctuate the same way or none of them do.
  */
-function setTurnText(text) {
+function setTurnText(text, punctuate) {
   if (el.turnText.textContent === text) return;
   el.turnText.textContent = text;
-  if (!wantsMotion() || typeof el.turnText.animate !== 'function') return;
+  if (!punctuate || !wantsMotion() || typeof el.turnText.animate !== 'function') return;
+  // A second moment change cancels the first rather than stacking on it.
   for (const running of el.turnText.getAnimations()) running.cancel();
-  el.turnText.animate(
-    [
-      { opacity: 0, transform: 'translateY(-5px)' },
-      { opacity: 1, transform: 'none' },
-    ],
-    { duration: 180, easing: EASE_OUT }
-  );
+  el.turnText.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: EASE_OUT });
 }
 
 /**
@@ -1554,6 +1569,13 @@ function renderPiles(view, yourTurn) {
     holder.style.setProperty('--tilt', `${((seed % 81) / 10 - 4).toFixed(1)}deg`);
     holder.style.setProperty('--enter-spin', `${(Math.floor(seed / 7) % 13) - 6}deg`);
     if (view.currentTopping) holder.dataset.topping = view.currentTopping;
+    // 11 · the oven only rings when the ring's colour is the news — a wild
+    // being named, or a suit change. A card landing on its own kind already
+    // has its landing, and a second 500ms cue on top of it said nothing.
+    if (landed && view.currentTopping && view.currentTopping !== ui.prevTopping) {
+      holder.classList.add('is-recolour');
+    }
+    if (landed) ui.prevTopping = view.currentTopping || null;
     if (top) holder.append(renderCard(top, { size: 'pile' }));
     el.discardSlot.replaceChildren(holder);
 
@@ -3254,10 +3276,32 @@ function cardBack() {
 }
 
 // ------------------------------------------------------------- popovers ----
-function closePopovers() {
-  hide(el.picker);
-  hide(el.calloutPop);
-  if (ui.roster) hide(ui.roster.panel);
+/**
+ * `instant` is the Escape key.
+ *
+ * Escape is not a decision, it is a retraction — the answer to "get this off
+ * my screen", and the player has usually already looked past it. Riding the
+ * 130ms exit for that is the popover arguing. A pointer close keeps the
+ * animation: there the popover is answering a choice, and the movement is what
+ * ties the choice to the thing that closed.
+ *
+ * The snap is done with a class and a forced reflow rather than a frame hop,
+ * so it lands synchronously — rAF does not run in a hidden document, and a
+ * close that waits for a frame that never comes is a popover that never goes.
+ */
+function closePopovers(instant) {
+  const panels = [el.picker, el.calloutPop, ui.roster ? ui.roster.panel : null];
+  for (const panel of panels) {
+    if (!panel) continue;
+    if (instant) {
+      panel.classList.add('is-snapping');
+      panel.classList.remove('is-open');
+      void panel.offsetWidth;   // commit the closed state with no transition
+      panel.classList.remove('is-snapping');
+    } else {
+      hide(panel);
+    }
+  }
   ui.pendingWild = null;
 }
 
@@ -3875,7 +3919,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closePopovers();
+  if (event.key === 'Escape') closePopovers(true);
   if (event.key !== 'Tab' || !el.overlay.classList.contains('is-open')) return;
 
   const controls = Array.from(el.dialog.querySelectorAll('button:not([disabled]):not([hidden])'))

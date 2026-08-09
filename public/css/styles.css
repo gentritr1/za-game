@@ -1164,16 +1164,26 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: #fff;
 }
 
-.seat__badge--caught.is-shown { animation: soft-pulse 1.1s var(--ease-in-out) 240ms infinite; }
+/* 10 · the FORGOT! badge no longer pulses.
+   A seat inside a call-out window already carries three cues the handoff asks
+   for by name — the dashed sauce keyline, the name buzzing at 700ms, and the
+   3.0s bar draining in five countable steps — plus the marquee flooding sauce
+   above it. A fourth loop breathing on the badge was the only one of the five
+   nobody specified, and the two that carry the window are the two that are
+   time-bounded: they say "now, and not for long". The badge keeps its entry
+   pop and its tomato fill, which is loud without moving.
+
+   The `badge-breathe` rule below is left exactly as it was, but note what the
+   runtime actually does with it: every seat is built inside `.opponents`, and
+   the chef-column rules in BOTH width branches already set `animation: none`
+   on `.opponents .seat__badge`. So the ZA! badge does not breathe today
+   either — that was true before this change and is not something to fix from
+   here. Recorded so the next reader does not go looking for a breath that the
+   column has been suppressing all along. */
 
 @keyframes badge-breathe {
   0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
   50% { transform: translateX(-50%) scale(1.045); opacity: .88; }
-}
-
-@keyframes soft-pulse {
-  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
-  50% { transform: translateX(-50%) scale(1.07); opacity: .8; }
 }
 
 /* centre of the table: the two piles ------------------------------------- */
@@ -1326,7 +1336,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   100% { opacity: 1; transform: none; }
 }
 
-/* The landing rings the oven once in the colour of the topping now in play. */
+/* 11 · the ring rings when the TOPPING changes, not on every landing.
+   It fired on all of them: a 500ms ring on top of the card's own slam, several
+   times a round, saying nothing the landing had not already said. The one
+   thing the ring carries that the landing does not is its colour — so it now
+   fires exactly when that colour is news, which is a wild being named or a
+   suit change. A card landing on its own kind gets the landing, which is what
+   the handoff specifies for it anyway. */
 .discard-holder::after {
   content: "";
   position: absolute;
@@ -1335,6 +1351,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   border: 3px solid var(--pulse, var(--cheese));
   opacity: 0;
   pointer-events: none;
+}
+
+.discard-holder.is-recolour::after {
   animation: oven-ring 500ms var(--ease-step) 60ms both;
 }
 
@@ -1459,15 +1478,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .log__list::-webkit-scrollbar { width: 5px; }
 .log__list::-webkit-scrollbar-thumb { background: rgba(150, 163, 201, .35); border-radius: 0; }
 
+/* 2 · shortened. On the desktop board the log is a standing column and a new
+   line arriving at the bottom is worth a beat — but 220ms and a 7px rise is a
+   beat per message, and messages are the one thing here that never stop
+   coming. 160ms and 4px still reads as "that one is new" without the column
+   moving under the eye. The phone ticker drops it entirely; see below. */
 .log__entry {
   color: var(--text-dim);
   opacity: 1;
   transform: none;
-  transition: opacity var(--d-mid) var(--ease-out), transform var(--d-mid) var(--ease-out);
+  transition: opacity var(--d-fast) var(--ease-out), transform var(--d-fast) var(--ease-out);
 }
 
 @starting-style {
-  .log__entry { opacity: 0; transform: translateY(7px); }
+  .log__entry { opacity: 0; transform: translateY(4px); }
 }
 
 .log__entry:last-child { color: var(--mozzarella); font-weight: 600; }
@@ -1925,6 +1949,24 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand .card.is-playable { outline-color: var(--cheese); }
 
+/* 12 · the card lets go faster than it takes the press. Measured before this
+   rule: press 150ms down, 220ms back — the one control in the cabinet where
+   the release was SLOWER than the press, and it is the one the player hits
+   most. The card's base transform has to stay at --d-mid because the same
+   property carries it between the rails, so the release gets its own line.
+   Not while hovering: releasing a press under a mouse returns the card to the
+   hover lift, which is a different and smaller move, and the hover rule
+   already owns it. Not while entering, so the deal-in keeps its stagger.
+
+   `:not(.is-pressed)` is not decoration: without it this rule out-specifies
+   the pressed rule and takes the press down to 130ms as well, which is a
+   quieter way of failing the same check. Release is the transition into the
+   UNpressed style, so excluding the pressed state is what leaves 150ms down
+   and 130ms back. */
+.hand .card.is-playable:not(.is-entering):not(:hover):not(.is-pressed) {
+  transition-duration: var(--d-exit), var(--d-mid);
+}
+
 /* The ring above is an outline, so it would otherwise swallow the focus ring
    the whole cabinet uses. Keyboard focus takes the outline back in cyan — the
    one colour the cheese ring never uses — and this is how a keyboard reaches
@@ -2023,6 +2065,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transition-duration: var(--d-mid), var(--d-mid), 0s;
   transition-timing-function: var(--ease-out), var(--ease-pop), linear;
 }
+
+/* 7 · Escape closes on the spot. Escape is not a decision, it is a
+   retraction — the player has already looked past the popover, and riding the
+   130ms exit for that is the popover arguing. Set for one forced reflow while
+   `.is-open` comes off, then removed again, so a pointer close still animates
+   and nothing can be stranded without its transition. */
+.popover.is-snapping,
+.popover.is-snapping.is-open { transition: none !important; }
 
 .popover__title {
   font-size: 16px;
@@ -2876,6 +2926,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   }
   .seat__avatar { width: 22px; height: 22px; }
   .seat__badge { font-size: 12px; }
+
+  /* 2 · the ticker does not animate its entries. On the board the log is a
+     column you can glance down; here it is two lines above the hand, and they
+     ARE the status readout — the last thing that should happen to a line
+     telling you what just happened is that it arrives sideways and translucent
+     while you are trying to read it. It appears, finished, on the spot. */
+  .log__entry { transition: none; }
 
   /* The log tightens to a two-line ticker above the hand. */
   .log {
