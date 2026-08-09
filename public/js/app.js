@@ -4646,7 +4646,9 @@ function rcCard(card, options = {}) {
 /** The real card back, at demo size. */
 function rcBack(className) {
   const back = rcCard(null, { faceDown: true });
-  if (className) back.classList.add(className);
+  // `classList.add` refuses a token with a space in it, and more than one of
+  // these backs wants two classes.
+  if (className) back.classList.add(...className.split(' '));
   return back;
 }
 
@@ -4798,6 +4800,48 @@ function demoDraw() {
   return stage;
 }
 
+/**
+ * 5 · A hand runs down and the ZA! button comes alive. It lights at two cards,
+ * not at one, because that is where the server lets the button through — and
+ * the second card leaves after it, so the page shows the whole window and not
+ * just its far end.
+ */
+function demoZa() {
+  const stage = rcStage('deck__demo--row');
+  const hand = rcEl('span', 'deck__hand');
+  const first = rcCard({ id: 'rc-z1', suit: 'anchovy', kind: 'number', value: 2 });
+  first.classList.add('deck__spent', 'deck__spent--a');
+  const second = rcCard({ id: 'rc-z2', suit: 'cheese', kind: 'number', value: 7 });
+  second.classList.add('deck__spent', 'deck__spent--b');
+  const last = rcCard({ id: 'rc-z3', suit: 'pepperoni', kind: 'number', value: 1 });
+  hand.append(first, second, last);
+  // Two copies of the one button, stacked, and only the lit one's opacity
+  // moves: a light that comes on is not a light that slides.
+  const za = rcEl('span', 'deck__za');
+  za.append(rcEl('b', 'deck__za-off', 'ZA!'), rcEl('b', 'deck__za-on', 'ZA!'));
+  stage.append(hand, za);
+  return stage;
+}
+
+/**
+ * 6 · A chef sitting on one card who never shouted. The seat goes sauce, and
+ * two cards land back in that hand.
+ */
+function demoCaught() {
+  const stage = rcStage('deck__demo--row');
+  // Three card backs in a row would be three of the same thing. The seat is
+  // named, so the hand the cards are landing in is the one thing on the page
+  // that cannot be mistaken for the cards landing in it.
+  const seat = rcEl('span', 'deck__seat');
+  seat.append(rcPlate('CHEF'), rcBack());
+  const penalty = rcEl('span', 'deck__hand deck__hand--pair');
+  const one = rcBack('deck__pen deck__pen--a');
+  const two = rcBack('deck__pen deck__pen--b');
+  penalty.append(one, two);
+  stage.append(seat, rcArrow('l', 'deck__ar--beat-b'), penalty);
+  return stage;
+}
+
 // -------------------------------------------------------------- the pages --
 /**
  * Eight pages in the order a player needs them. `sr` is the whole rule, in
@@ -4843,6 +4887,25 @@ const RULE_PAGES = [
     // card alone · 379-381 playCard refuses every other card · 514-523
     // passTurn, which is legal only after a draw.
     demo: demoDraw,
+  },
+  {
+    h: 'Shout ZA!',
+    line: 'Two cards or fewer, on anybody\'s turn.',
+    sr: 'The ZA! button is legal the moment you are down to two cards or fewer, and you may hit it on anybody\'s turn, not only your own. Put down your last card and the round is yours: the win is counted before the card takes effect, so a plus four that empties your hand still wins and the chef beside you keeps a clean hand.',
+    // game.js:540-556 declareZa refuses a hand longer than two and is not
+    // gated on whose turn it is · 633-635 viewFor hands the client the same
+    // test · 398-401 the length-0 win returns before applyCardEffect().
+    demo: demoZa,
+  },
+  {
+    h: 'Caught quiet',
+    line: 'Silent at one card? Two cards back.',
+    sr: 'Lay down your second-to-last card without shouting and any other chef can call you out: two cards back in your hand. The window closes when the turn really leaves your seat and comes back — at a table of two a Burnt Slice brings it straight back, so you are still catchable — and picking up cards for any reason cancels a shout you already made.',
+    // game.js:403-406 the seat is marked vulnerable only when the shout did
+    // not come · 47 CALLOUT_PENALTY = 2 · 559-578 callOut · 311-322
+    // advanceTurn clears the window only on a real change of seat · 291-295
+    // dealTo cancels declaredZa and vulnerable above one card.
+    demo: demoCaught,
   },
 ];
 

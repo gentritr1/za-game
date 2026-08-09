@@ -3312,6 +3312,135 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .deck__ar--beat-a { animation: deck-beat-a 3600ms var(--ease-step) infinite; }
 .deck__ar--beat-b { animation: deck-beat-b 3600ms var(--ease-step) infinite; }
 
+/* --- 5 · the shout --------------------------------------------------------- */
+/* A hand is cards overlapping, the way one is held. Three of them plus the
+   button is a lot of row, so the scene runs a little under the deck's size. */
+.deck__hand {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.deck__hand .card + .card { margin-left: calc(var(--demo-card) * -0.42); }
+
+/* A card that has been played is not gone from the picture — it is faint. A
+   gap where a card was says nothing; a ghost says "that one went down". */
+@keyframes deck-spend {
+  0%, 14%   { opacity: 1; transform: translate3d(0, 0, 0); }
+  24%, 92%  { opacity: .16; transform: translate3d(0, -10px, 0); }
+  100%      { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.deck__spent--a { animation: deck-spend 4200ms var(--ease-step) infinite; }
+
+/* The second card goes after the button is already legal, which is the point:
+   the window opens at two and stays open at one. */
+.deck__spent--b {
+  animation: deck-spend 4200ms var(--ease-step) infinite;
+  animation-delay: 1000ms;
+}
+
+/* One button, printed twice and stacked. The lit copy fades up over the dark
+   one, so a light coming on costs an opacity and nothing else. */
+.deck__za {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+.deck__za-off,
+.deck__za-on {
+  grid-area: 1 / 1;
+  padding: var(--s2) var(--s3);
+  border: var(--bd-thin) solid var(--bezel);
+  font-weight: normal;
+}
+
+.deck__za-off { color: var(--text-mute); }
+
+.deck__za-on {
+  background: var(--cheese);
+  border-color: var(--cheese);
+  box-shadow: 4px 4px 0 var(--sauce-deep);
+  color: var(--void);
+  opacity: 0;
+}
+
+@keyframes deck-light {
+  0%, 20%   { opacity: 0; }
+  30%, 92%  { opacity: 1; }
+  100%      { opacity: 0; }
+}
+
+.deck__za-on { animation: deck-light 4200ms var(--ease-step) infinite; }
+
+/* --- 6 · caught quiet ------------------------------------------------------ */
+/* The seat: a bezel box around the one card that chef has left. The sauce ring
+   is a pseudo-element over it, so being caught costs an opacity and never a
+   repaint of the border. */
+.deck__seat {
+  position: relative;
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: var(--s2);
+  background: var(--console);
+  box-shadow: inset 0 0 0 var(--bd-thin) var(--bezel);
+}
+
+/* A named box. VT323 is exempt from the Press Start 2P floor and holds a clean
+   stroke well under it, which is the only reason a label fits here at all. */
+.deck__plate {
+  display: block;
+  padding: 1px var(--s2);
+  background: var(--cabinet);
+  box-shadow: inset 0 0 0 2px var(--bezel);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: .08em;
+  color: var(--ui-cyan);
+}
+
+.deck__seat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 var(--bd-thick) var(--sauce);
+  opacity: 0;
+  pointer-events: none;
+  animation: deck-blame 4200ms var(--ease-step) infinite;
+}
+
+@keyframes deck-blame {
+  0%, 18%   { opacity: 0; }
+  28%, 92%  { opacity: 1; }
+  100%      { opacity: 0; }
+}
+
+/* The two cards the call-out costs, flying back into that hand. They come in
+   from off the right and stop against the seat rather than on top of it: a
+   card that lands square on the seat buries the very hand it is landing in,
+   and the page would be three identical backs in a heap. */
+@keyframes deck-penalty {
+  0%, 34%   { opacity: 0; transform: translate3d(calc(var(--demo-card) * 0.5), 0, 0); }
+  46%, 92%  { opacity: 1; transform: translate3d(calc(var(--demo-card) * -0.72), 0, 0); }
+  100%      { opacity: 0; transform: translate3d(calc(var(--demo-card) * 0.5), 0, 0); }
+}
+
+.deck__pen {
+  opacity: 0;
+  animation: deck-penalty 4200ms var(--ease-step) infinite;
+}
+
+.deck__pen--b { animation-delay: 220ms; }
+
 /* --- flipping ------------------------------------------------------------- */
 .deck__nav {
   display: flex;
@@ -3413,6 +3542,26 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   .deck__ar--beat-a,
   .deck__ar--beat-b { animation: none; opacity: 1; }
+
+  /* Page 5 parks on the hand already spent down and the button already lit:
+     the two facts of the page in one frame. */
+  .deck__spent--a,
+  .deck__spent--b {
+    animation: none;
+    opacity: .16;
+    transform: translate3d(0, -10px, 0);
+  }
+
+  .deck__za-on { animation: none; opacity: 1; }
+
+  /* Page 6 parks after the call-out: seat in sauce, both cards landed. */
+  .deck__seat::after { animation: none; opacity: 1; }
+
+  .deck__pen {
+    animation: none;
+    opacity: 1;
+    transform: translate3d(calc(var(--demo-card) * -0.72), 0, 0);
+  }
 
   .deck__step { transition: none; }
 }
