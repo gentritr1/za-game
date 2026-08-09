@@ -5013,14 +5013,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .seat[data-count="1"] .seat__count,
 .seat[data-count="2"] .seat__count { color: var(--cheese); }
 
+/* One card gets two cooperating cues, not three. The seating spec names the
+   pulse as the primary — "a 640 ms steps(2, end) pulse" on the standing sliver
+   — and the sauce fill as its partner: the hatch, the keyline and the box
+   beneath "filled sauce". Both of those stay exactly as specified.
+
+   The numeral's own buzz was the third, and it was the one nothing asked for.
+   It ran at 500ms against the sliver's 640ms, so the two loops drifted in and
+   out of phase forever and the seat never settled; and a 1px shove on an 11px
+   Press Start glyph blurs the very count it was there to sell. The numeral
+   holds still and keeps its void-on-sauce fill, which is a cue that costs no
+   motion at all. */
 .seat[data-hand="one"] .seat__count {
   color: var(--void);
-  animation: count-buzz 500ms steps(2, end) infinite;
-}
-
-@keyframes count-buzz {
-  0%, 100% { transform: translate(-50%, 50%) translateX(-1px); }
-  50% { transform: translate(-50%, 50%) translateX(1px); }
 }
 
 /* With the box dropped the numeral has nothing to be printed on, so it becomes
@@ -5386,8 +5391,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     animation: none !important;
     opacity: 1 !important;
   }
-
-  .seat[data-hand="one"] .seat__count { animation: none !important; }
 
   /* The slide and the re-forming swap both stop being travel. */
   .opponents[data-mode="queue"] .seat__body,
