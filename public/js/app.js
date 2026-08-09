@@ -1142,6 +1142,9 @@ function renderAvatar(node, person) {
 
 // ================================================================= LOBBY ===
 function renderLobby(snapshot) {
+  // The hire screen is one press away from here, and its stage is the only
+  // place the second frames are ever shown at full size. Warm them now.
+  preloadRegulars();
   const rows = new DocumentFragment();
   for (const seat of snapshot.seats) {
     const row = document.createElement('li');
@@ -1390,9 +1393,41 @@ function buildRoster() {
 }
 
 /**
- * Puts one regular on the stage. Everything else the screen shows about them
- * hangs off this in the steps below; for now it is the portrait and the
- * ANYBODY box.
+ * Both frames of all six, decoded before anyone opens the screen.
+ *
+ * The first flip of an uncached frame B is a blank window for one beat — the
+ * `steps(1, end)` swap gives the browser no time to fetch anything, so an
+ * un-decoded second frame reads as the chef vanishing. One pass on lobby mount
+ * costs nothing and the whole screen is warm from then on. The images are kept
+ * rather than dropped on the floor: a discarded `new Image()` is collectable,
+ * and with it the decode this is here to buy.
+ */
+const preloadedRegulars = [];
+function preloadRegulars() {
+  if (preloadedRegulars.length) return;
+  for (const regular of REGULARS) {
+    const a = new Image();
+    a.src = regularArt(regular.id);
+    preloadedRegulars.push(a);
+    if (!regular.idleFrame) continue;
+    const b = new Image();
+    b.src = regularArtB(regular.id);
+    preloadedRegulars.push(b);
+  }
+}
+
+/**
+ * Puts one regular on the stage.
+ *
+ * The flip is the same rule the 48px tile carried — 1000ms, `steps(1, end)`,
+ * opacity only — moved to the size it was drawn for. It stays the only motion
+ * on this screen: nothing crossfades, nothing scales, and the filmstrip below
+ * never animates at all.
+ *
+ * Switching regular restarts it. Without the restart the incoming chef
+ * inherits the outgoing chef's phase and opens mid-gesture — Vito arrives with
+ * the card already in his jacket — so the animation is torn down, the reflow
+ * forced, and the rule handed back. Every chef opens on frame A.
  */
 function hireSelect(n) {
   const roster = ui.roster;
@@ -1400,7 +1435,18 @@ function hireSelect(n) {
   if (!entry) return;
   roster.active = n;
   roster.stage.dataset.any = String(Boolean(entry.isAny));
-  if (!entry.isAny) roster.frameA.src = regularArt(entry.id);
+  if (!entry.isAny) {
+    roster.frameA.src = regularArt(entry.id);
+    const b = roster.frameB;
+    b.style.animation = 'none';
+    void b.offsetWidth;
+    // A regular without a second frame simply gets a stage that does not flip.
+    // `idleFrame` is the flag for the file existing; a missing one would flash
+    // a broken-image box on the beat.
+    b.hidden = !entry.idleFrame;
+    if (entry.idleFrame) b.src = regularArtB(entry.id);
+    b.style.animation = '';
+  }
 }
 
 /** True while the hire screen is up. */

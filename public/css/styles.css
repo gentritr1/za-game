@@ -2795,6 +2795,24 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .stage[data-any="true"] .stage__frame { display: none; }
 
+/* The flip, unchanged from the tile it came off: 1000ms, steps(1, end),
+   opacity only, one hard swap and nothing between. It is the only motion on
+   this screen — the filmstrip below never animates, and nothing here
+   crossfades, scales or slides.
+
+   Under reduced motion the flip does not run and frame B is held for a pointer
+   that is on the stage, because a swap is a state, not a journey. */
+.stage__frame--b {
+  opacity: 0;
+  animation: za-idle 1000ms steps(1, end) infinite;
+}
+
+@keyframes za-idle {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
 .stage__any {
   display: none;
   position: absolute;
@@ -4772,13 +4790,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      forced the old animation name back on would resurrect the deleted lie
      the moment anyone reintroduced keyframes under that name. */
 
-  /* The roster's idle frames stop flipping; the hover still answers with
-     frame B held steady. A swap is a state, not a journey. */
-  .roster-tile:hover .roster-tile__portrait--b,
-  .roster-tile:focus-visible .roster-tile__portrait--b {
-    animation: none !important;
-    opacity: 1;
-  }
+  /* The stage stops flipping; the pointer still answers with frame B held
+     steady. A swap is a state, not a journey. */
+  .stage__frame--b { animation: none !important; }
+
+  .stage:hover .stage__frame--b { opacity: 1; }
 }
 
 /* ==========================================================================
