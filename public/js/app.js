@@ -3823,11 +3823,21 @@ function commitPlay(card, topping, slot) {
   // when the server's next snapshot lands. So the landing place is booked here
   // by position in the rail and spent at the end of `renderHand`.
   const at = ui.nearRow.findIndex((entry) => entry.card && entry.card.id === card.id);
+
+  // The card only leaves once the message is actually out. `send` returns false
+  // for a move that was dropped — the gate is holding an earlier move, or the
+  // socket is down — and a dropped move brings no snapshot, so nothing would
+  // ever come to re-lay this rail. Dressing the card first meant a refused play
+  // left `is-leaving` on a card that is still in the hand: `dressCard` puts
+  // `disabled` back on the next render but never touches the class, so the card
+  // stayed at `opacity: 0` with `pointer-events: none` — a hole in the hand for
+  // the rest of the round. Nothing is spent on a move that did not happen.
+  if (!send({ type: 'play', cardId: card.id, topping: topping || undefined })) return;
+
   bookFocus({ kind: 'play', at: at < 0 ? 0 : at });
   flyToDiscard(node);
   node.classList.add('is-leaving');
   node.disabled = true;
-  send({ type: 'play', cardId: card.id, topping: topping || undefined });
 }
 
 /**
