@@ -1313,7 +1313,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   left: 0;
   width: calc(100% + 40px);
   background: repeating-linear-gradient(90deg, var(--bezel) 0 22px, var(--console) 22px 40px);
-  animation: belt-run 900ms steps(4, end) infinite;
+  /* Calmed, not removed. The belt is the queue's direction carrier -- the
+     seating spec builds 2B as "a conveyor belt underneath scrolls in the
+     direction of play" -- so it keeps its travel, its 40px cycle, its four
+     hard steps and both directions. Only the period changes, 900ms to 1400ms,
+     which drops the tread from 4.4 visible steps a second to 2.9. It still
+     plainly runs, and it stops competing with the strip it sits under. The
+     spec fixes no period for it; under reduced motion it still stops dead. */
+  animation: belt-run 1400ms steps(4, end) infinite;
 }
 
 .counter-belt[data-dir="-1"] .counter-belt__tread { animation-name: belt-run-back; }
