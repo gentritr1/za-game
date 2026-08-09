@@ -4342,6 +4342,17 @@ function paintFame(host, snapshot) {
     .filter((seat) => Number(seat.wins) >= 1)
     .sort((a, b) => Number(b.wins) - Number(a.wins))
     .slice(0, 4);
+
+  // The panels repaint on every snapshot — hundreds of times a round — and the
+  // wall of fame changes only when somebody wins. It was rebuilding fourteen
+  // identical elements each time. The signature is exactly the data the rows
+  // render, so an unchanged wall costs one string compare instead. A panel that
+  // was dropped and rebuilt comes back with a fresh host and no signature, so
+  // it always paints: the skip can never leave a new panel empty.
+  const sig = JSON.stringify(winners.map((seat) => [seat.name, seat.wins]));
+  if (host.dataset.sig === sig) return;
+  host.dataset.sig = sig;
+
   if (!winners.length) {
     host.replaceChildren();
     return;
@@ -4385,6 +4396,16 @@ function specialWord() {
 function paintSpecial(host, snapshot) {
   const view = snapshot.game;
   const meta = view && view.currentTopping ? TOPPING_META[view.currentTopping] : null;
+
+  // Same skip as the wall of fame, and for a sharper reason: this board rebuilt
+  // an <img> with a fresh src on every snapshot, so the sprite was re-resolved
+  // hundreds of times a round for a topping that had not changed. The word is
+  // part of the signature because the clock is allowed to flip TODAY'S to
+  // TONIGHT'S mid-round, and that flip must still repaint the board.
+  const sig = meta ? `${meta.slug}|${specialWord()}` : '';
+  if (host.dataset.sig === sig) return;
+  host.dataset.sig = sig;
+
   if (!meta) {
     host.replaceChildren();
     return;
