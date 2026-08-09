@@ -2770,6 +2770,39 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hire__back:hover { color: var(--cheese); }
 }
 
+/* The row the stage stands in. It is always here — hiding the row under 720
+   would hide the stage between the chevrons with it; only the chevrons go. */
+.arrows {
+  display: flex;
+  align-items: center;
+  gap: 34px;
+}
+
+.arrows__step {
+  display: none;
+  padding: 10px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--bezel);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrows__step:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+.hire__hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 19px;
+  letter-spacing: .06em;
+  text-align: center;
+}
+
 /* The stage. 192px of content inside a 4px cheese border is 200px on the
    outside, and 200 fits a 320px phone with 60px to spare — which is the whole
    argument for this arrangement over the other two that were drawn. */
@@ -2839,6 +2872,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     font-size: 16px;
   }
   .stage { box-shadow: 8px 8px 0 rgba(0, 0, 0, .55); }
+  .arrows__step { display: block; }
+  .hire__hint { font-size: 21px; }
   .hire__name { font-size: 18px; }
   .hire__tell { font-size: 21px; min-height: 2.7em; padding: 10px 14px; }
   .hire__go {
@@ -2998,6 +3033,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 @media (hover: hover) and (pointer: fine) {
   .strip__tile:hover { border-color: var(--text-dim); }
   .strip__tile[aria-current="true"]:hover { border-color: var(--cheese); }
+  .arrows__step:hover { color: var(--cheese); }
 }
 
 .hire__name {

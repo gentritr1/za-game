@@ -1356,6 +1356,15 @@ function buildRoster() {
   // roster tile gave them, a movement 24 source pixels wide was six pixels of
   // screen and the flip looked like the tile blinking. Never scaled up, and
   // never scaled down anywhere but the filmstrip.
+  // The chevrons flank the stage and do for a mouse what the arrow keys do for
+  // a keyboard. They are hidden under 720, where there is no width for them and
+  // the filmstrip is already a thumb's reach away — the row itself stays, or
+  // hiding the chevrons would hide the stage standing between them.
+  const arrows = document.createElement('div');
+  arrows.className = 'arrows';
+  const prev = hireChevron('◀', -1, 'Previous regular');
+  const next = hireChevron('▶', 1, 'Next regular');
+
   const stage = document.createElement('div');
   stage.className = 'stage';
   const frameA = document.createElement('img');
@@ -1373,6 +1382,7 @@ function buildRoster() {
   any.setAttribute('aria-hidden', 'true');
   any.textContent = '?';
   stage.append(frameA, frameB, any);
+  arrows.append(prev, stage, next);
 
   const name = document.createElement('p');
   name.className = 'hire__name';
@@ -1394,15 +1404,56 @@ function buildRoster() {
   const strip = document.createElement('div');
   strip.className = 'strip';
 
-  panel.append(back, title, stage, name, tell, go, strip);
+  const hint = document.createElement('p');
+  hint.className = 'hire__hint';
+
+  panel.append(back, title, arrows, name, tell, go, strip, hint);
+
+  // Left and Right move the selection and take focus with them, so the tile
+  // the arrows land on is the tile Enter presses. Scoped to the panel: the
+  // table has its own opinions about arrow keys.
+  panel.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    hireStep(event.key === 'ArrowRight' ? 1 : -1);
+  });
+
   ui.roster = {
-    panel, strip, tell, stage, frameA, frameB, name, go,
+    panel, strip, tell, stage, frameA, frameB, name, go, hint,
     entries: REGULARS.concat([ANYBODY]),
     tiles: [],
     seated: new Set(),
     active: 0,
+    // The tile an explicit act has already put on the stage. A press on THIS
+    // one commits; a press on any other one only considers it.
+    armed: -1,
   };
   return ui.roster;
+}
+
+function hireChevron(glyph, step, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'arrows__step';
+  button.textContent = glyph;
+  button.setAttribute('aria-label', label);
+  button.addEventListener('click', () => hireStep(step));
+  return button;
+}
+
+/** Moves the selection by one and takes focus with it. */
+function hireStep(step) {
+  const roster = ui.roster;
+  const count = roster.entries.length;
+  const n = (roster.active + step + count) % count;
+  hireSelect(n);
+  roster.armed = n;
+  roster.tiles[n].focus({ preventScroll: true });
+}
+
+/** True when this pointer cannot hover — where the two-tap rule applies. */
+function coarsePointer() {
+  return window.matchMedia('(pointer: coarse)').matches;
 }
 
 /** True when this entry is already at the table. ANYBODY never is. */
@@ -1579,10 +1630,34 @@ function stripTile(entry, n) {
 
   tile.append(win, name);
 
-  // Focus previews, so tabbing through the strip gets exactly what hovering
-  // gets. A seated regular still previews: the tell is the tutorial.
-  tile.addEventListener('focus', () => hireSelect(n));
-  tile.addEventListener('click', () => hireSelect(n));
+  // A hover previews — and only a real one. The guard on `pointerType` is what
+  // makes the two-tap rule work: a tap synthesises a `pointerenter` alongside
+  // it, and without the guard that enter would arm the tile the tap is about
+  // to press, so the first tap would hire.
+  tile.addEventListener('pointerenter', (event) => {
+    if (event.pointerType !== 'mouse') return;
+    hireSelect(n);
+    ui.roster.armed = n;
+  });
+
+  // Focus previews too, so tabbing through the strip gets exactly what
+  // hovering gets, and Enter presses what you are looking at. It only ARMS on
+  // a pointer that can hover: a tap focuses the tile as well as clicking it,
+  // and arming here would be the same first-tap-hires bug by another door.
+  // A seated regular still previews — the tell is the tutorial.
+  tile.addEventListener('focus', () => {
+    hireSelect(n);
+    if (!coarsePointer()) ui.roster.armed = n;
+  });
+
+  tile.addEventListener('click', () => {
+    if (ui.roster.armed === n) {
+      hireSelected();
+      return;
+    }
+    hireSelect(n);
+    ui.roster.armed = n;
+  });
   return tile;
 }
 
@@ -1623,6 +1698,10 @@ function openRoster(snapshot) {
 
   fillRoster(snapshot);
   hireSelect(0);
+  roster.armed = -1;
+  roster.hint.textContent = coarsePointer()
+    ? 'TAP TO PREVIEW · TAP AGAIN TO HIRE'
+    : '◀ ▶ OR HOVER · ENTER TO HIRE';
   show(roster.panel);
   syncAppInert();
   // The first tile, seated or not. The screen is never in a state with nobody
