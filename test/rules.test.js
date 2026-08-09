@@ -6,6 +6,7 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const game = require('../server/game');
@@ -955,6 +956,49 @@ test('one move makes a struck player an ordinary player again', () => {
     const budget = room.idleDueAt - Date.now();
     assert.ok(budget > 1000 + 50, `back to the full clock, got ${budget}ms`);
   });
+});
+
+// ------------------------------------------------- the client's own freeze ---
+/**
+ * A source-level guard, not a runtime one: there is no DOM here, and adding one
+ * would cost a dependency this project does not have. It exists because the bug
+ * it catches was invisible to every runtime check we had.
+ *
+ * `syncDesynced` disables the action controls while the connection is out and
+ * then returns early on the way back, trusting the next snapshot to re-enable
+ * them. That trust has to be earned control by control. ZA! and the dough pile
+ * are re-derived every snapshot; PASS and CALL OUT were only ever assigned
+ * `.hidden`, so nothing turned them back on — and because `connect()` opens
+ * every page load in `connecting`, the freeze ran on the ordinary boot path and
+ * both stayed dead for the entire session. A player told to "play it or pass"
+ * could not pass.
+ *
+ * So: anything that freeze switches off must be switched back on somewhere else.
+ */
+test('every control the desync freeze disables has an owner that turns it back on', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  const start = src.indexOf('function syncDesynced(');
+  assert.ok(start > 0, 'syncDesynced is still the freeze');
+
+  const after = src.indexOf('\nfunction ', start + 10);
+  const body = src.slice(start, after > 0 ? after : src.length);
+  const list = body.match(/for \(const button of \[([^\]]+)\]\)\s*\{\s*if \(button\) button\.disabled = true;/);
+  assert.ok(list, 'the freeze still switches off a list of controls');
+
+  const frozen = list[1].split(',').map((s) => s.trim()).filter(Boolean);
+  assert.ok(frozen.length >= 4, `expected the four action controls, got ${frozen.join(',')}`);
+
+  // Everything except the freeze itself. An owner has to live somewhere else:
+  // the freeze re-enabling its own list would just be the early return again.
+  const rest = src.slice(0, start) + src.slice(start + body.length);
+  for (const name of frozen) {
+    const owner = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.disabled\\s*=`);
+    assert.ok(
+      owner.test(rest),
+      `${name} is switched off by the desync freeze and nothing outside it ever assigns `
+      + `.disabled — this is exactly how PASS and CALL OUT died on every boot`
+    );
+  }
 });
 
 // ------------------------------------------------------- the file server -----

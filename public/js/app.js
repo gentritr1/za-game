@@ -439,7 +439,13 @@ function syncDesynced() {
   for (const button of [el.btnNextRound, el.btnToLobby]) {
     if (button) button.disabled = stale;
   }
-  if (!stale) return; // the `state` that unfroze us re-enables the rest
+  // Leaving: `renderActionBar` and `renderPiles` state the `disabled` of all
+  // four controls below outright, on every snapshot, so the one that unfreezes
+  // us hands each of them back. This return once meant "somebody else will
+  // sort it out", and for PASS and CALL OUT nobody did — they stayed dead for
+  // the whole session. Do not disable anything here that is not re-derived
+  // there.
+  if (!stale) return;
   // The connection is the bigger fact and it freezes everything the gate was
   // holding. Hand the board over rather than leaving two locks on it: the move
   // in the air belongs to a round this client may no longer be in, and the
@@ -3084,11 +3090,30 @@ function renderActionBar(snapshot, view, yourTurn) {
     ui.shoutArmedAt = 0;
   }
 
+  // EVERY control on this bar has its `disabled` set here, on every snapshot,
+  // both ways. That is the rule, and it is not decoration.
+  //
+  // `syncDesynced` disables all four of these while the connection is out, and
+  // then returns early on the way back, on the understanding that "the `state`
+  // that unfroze us re-enables the rest". That was only ever true of the
+  // controls something re-enables. ZA! and the dough pile are re-derived from
+  // `canDeclareZa` and `canDraw` every snapshot; PASS and CALL OUT were only
+  // ever assigned `.hidden`, so nothing on earth turned them back on. Since
+  // `connect()` starts every page load in `connecting`, the freeze ran on the
+  // ordinary boot path and both buttons were dead for the whole session: the
+  // marquee read "Your turn — play it or pass", the button sat there 109x44,
+  // and pressing it put nothing on the wire. CALL OUT survived only because an
+  // opponent's seat is a second door to the same handler. PASS has no door.
+  //
+  // So: no control here may depend on being revived by somebody else's early
+  // return. `hidden` says whether the move exists; `disabled` says whether it
+  // can be made; both are stated outright from the snapshot.
   el.btnZa.disabled = !view.canDeclareZa;
   el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2));
 
   const targets = view.calloutTargets || [];
   el.btnCallout.hidden = !live || targets.length === 0;
+  el.btnCallout.disabled = !live || targets.length === 0;
   if (targets.length === 1) {
     const target = view.players.find((p) => p.id === targets[0]);
     el.btnCalloutText.textContent = `Call out ${target ? target.name : 'them'}`;
@@ -3097,6 +3122,7 @@ function renderActionBar(snapshot, view, yourTurn) {
   }
 
   el.btnPass.hidden = !view.canPass;
+  el.btnPass.disabled = !view.canPass;
 
   el.handHint.textContent = handHint(view, yourTurn, me);
 }
