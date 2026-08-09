@@ -37,6 +37,9 @@
   /* type */
   --font:         "VT323", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-display: "Press Start 2P", var(--font);
+  /* Copied from the game's :root, same as every token above. Flourishes only:
+     a dish name on a recipe card, and nothing else in the zine. */
+  --font-script:  "Kaushan Script", cursive;
 
   /* spacing scale */
   --s1: 4px;
@@ -253,6 +256,44 @@ a { color: var(--ui-cyan); }
   background: var(--console);
 }
 
+/* ------------------------------------------------------------------ wings -- */
+/* The zine has two wings on one contents page: the dev notes, and the recipes.
+   Same card, same grid — only the header rule and the accent colour change, so
+   the reader learns one object and reads both halves with it. */
+.wing + .wing { margin-top: var(--s8); }
+
+.wing__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  /* space-between, not margin-left:auto — when the note wraps to its own line
+     on a phone it lands at the start of that line instead of stranded right. */
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+  border-bottom: var(--bd-thick) solid var(--bezel);
+  padding-bottom: var(--s2);
+  margin-bottom: var(--s6);
+}
+
+.wing__title {
+  font-family: var(--font-display);
+  /* Floor 13px, a point clear of the 12px Press Start 2P legibility floor. */
+  font-size: clamp(13px, 3.6vw, 18px);
+  line-height: 1.4;
+  color: var(--cheese);
+  letter-spacing: .04em;
+}
+
+.wing__note {
+  font-size: 19px;
+  color: var(--text-mute);
+}
+
+/* The recipes wing wears sauce where the dev notes wear cyan. */
+.wing--recipes .wing__title { color: var(--sauce-hi); }
+.wing--recipes .wing__head { border-bottom-color: var(--sauce); }
+.wing--recipes .card__no { color: var(--sauce-hi); }
+
 /* ------------------------------------------------------------------- post -- */
 .post { padding-block: var(--s8) var(--s6); }
 
@@ -440,6 +481,229 @@ code {
   color: var(--cheese-hi);
 }
 
+/* =========================================================== the recipes == */
+/* NONNA'S RECIPES is the zine's second wing, not a second design language:
+   every value below comes off the tokens at the top of this file. The only
+   new face is --font-script, and it appears exactly once per page, on the
+   dish name, the way a nonna wrote it and typed nothing else. */
+
+/* A recipe page carries a diagram, a card and an art slot in the height a dev
+   note spends on prose, so its figures sit closer together than a post's. */
+.diagram--recipe { margin-block: var(--s4); }
+
+/* The story is a memory, so it is set like the lede it replaces — but a notch
+   smaller, because a recipe page carries a card and an art slot under it. */
+.recipe__story {
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--cheese-hi);
+  border-left: var(--bd-thick) solid var(--sauce);
+  padding-left: var(--s3);
+  max-width: var(--measure);
+  margin-bottom: var(--s4);
+}
+
+.recipe__by {
+  display: block;
+  margin-top: var(--s2);
+  font-size: 19px;
+  color: var(--text-mute);
+}
+
+/* ------------------------------------------------------------ index card -- */
+.index-card {
+  margin-block: var(--s4);
+  max-width: var(--measure);
+  border: var(--bd-thick) solid var(--cheese);
+  background: var(--cabinet);
+  box-shadow: var(--sh-panel);
+}
+
+.index-card__head {
+  border-bottom: var(--bd-thin) solid var(--sauce);
+  background: var(--cabinet-hi);
+  padding: var(--s3) var(--s4);
+}
+
+.index-card__dish {
+  font-family: var(--font-script);
+  font-size: clamp(30px, 8.4vw, 40px);
+  line-height: 1.15;
+  color: var(--cheese);
+  overflow-wrap: anywhere;
+}
+
+.index-card__sub {
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: .06em;
+  color: var(--text-mute);
+  margin-top: var(--s2);
+}
+
+/* The red margin rule every kitchen index card has, drawn once at 20px and
+   never crossing type: the body's padding starts a clear 12px past it. */
+.index-card__body {
+  padding: var(--s4) var(--s3) var(--s4) var(--s6);
+  /* VT323 one notch down from the body size: a recipe card is a scan, not a
+     paragraph, and the extra characters per line keep every ingredient and
+     nearly every step on ONE line at 375px. */
+  font-size: 19px;
+  background:
+    linear-gradient(var(--sauce), var(--sauce)) 10px 0 / 2px 100% no-repeat,
+    var(--cabinet);
+}
+
+.index-card h2 {
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: .06em;
+  color: var(--ui-cyan);
+  margin-bottom: var(--s2);
+}
+
+.index-card h2 + * { margin-top: 0; }
+
+.ing {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--s6);
+}
+
+/* The card sits inside .post, so the zine's list bullet and its 24px indent
+   reach in here. Reset both — an ingredient line wants every pixel of width,
+   and the cheese quantity column is already the accent the bullet would be. */
+.ing li {
+  display: flex;
+  gap: var(--s3);
+  border-bottom: 1px dashed var(--bezel);
+  padding: 1px 0;
+  margin-bottom: 0;
+}
+
+.ing li::before { content: none; }
+
+/* The quantity column, so the eye can run down it the way a cook does. */
+.ing b {
+  font-weight: normal;
+  color: var(--cheese);
+  flex: none;
+  min-width: 8ch;
+}
+
+.steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 0;
+}
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: var(--s6);
+  margin-bottom: var(--s2);
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 3px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--sauce-hi);
+}
+
+/* -------------------------------------------------------------- art slot -- */
+/* The photograph is not taken yet. Rather than leave a hole, the slot is
+   built as a menu board waiting for its polaroid: fixed 4:3, checkered like
+   the masthead, corner brackets, a plate that says what belongs here. An
+   <img> dropped inside covers it exactly and nothing on the page reflows. */
+.art-slot {
+  margin-block: var(--s4);
+  max-width: var(--measure);
+}
+
+.art-slot__frame {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border: var(--bd-thin) dashed var(--bezel);
+  background: var(--console) var(--checker);
+  display: grid;
+  place-items: center;
+}
+
+.art-slot__frame::before,
+.art-slot__frame::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: var(--bd-thin) solid var(--cheese);
+}
+
+.art-slot__frame::before {
+  top: 6px;
+  left: 6px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.art-slot__frame::after {
+  bottom: 6px;
+  right: 6px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.art-slot__frame img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The art is cabinet vinyl, so it animates the way the cabinet's own murals
+   do: two frames and one hard bulb-flip, steps(1, end), opacity only,
+   nothing in between. Frame B sits over frame A and is either on or off;
+   the prints are opaque, so when B is off A is simply there — no
+   counter-phase needed, unlike the transparent murals. Same 1800ms period
+   as the cabinet windows. */
+.art-slot__frame img.art-slot__frame-b {
+  opacity: 0;
+  animation: art-slot-flip 1800ms steps(1, end) infinite;
+}
+
+@keyframes art-slot-flip {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.art-slot__plate {
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: .08em;
+  color: var(--void);
+  background: var(--cheese);
+  padding: var(--s1) var(--s2);
+  text-align: center;
+}
+
+.art-slot__cap {
+  margin-top: var(--s2);
+  font-size: 19px;
+  color: var(--text-dim);
+  border-left: var(--bd-thin) solid var(--bezel);
+  padding-left: var(--s3);
+}
+
 /* ------------------------------------------------------------------ pager -- */
 .pager {
   border-top: var(--bd-thin) dashed var(--bezel);
@@ -557,6 +821,251 @@ code {
 }
 .anim-walk { animation: zine-walk 5600ms steps(1, end) infinite; }
 
+/* No. 09 — two markers on ONE clock, at one scale, over four turns of the same
+   absent player. The first wait is identical in both rows on purpose: that is
+   the doubt we still pay for. Everything after it is the post.
+   Geometry, in the diagram's own units: 1 second = 1.6px, so 45s = 72px and
+   12s = 19px. Top row 4 x 72 = 288px of travel; bottom row 72 + 3 x 19 = 129px.
+   Game time runs over the first 90% of the cycle and the last 10% is a hold,
+   so the slow marker is actually SEEN arriving before the loop restarts. */
+@keyframes zine-wait-slow {
+  0%    { transform: translateX(0); }
+  22.5% { transform: translateX(72px); }
+  45%   { transform: translateX(144px); }
+  67.5% { transform: translateX(216px); }
+  90%   { transform: translateX(288px); }
+  100%  { transform: translateX(288px); }
+}
+@keyframes zine-wait-fast {
+  0%    { transform: translateX(0); }
+  22.5% { transform: translateX(72px); }
+  28.5% { transform: translateX(91px); }
+  34.5% { transform: translateX(110px); }
+  40.5% { transform: translateX(129px); }
+  100%  { transform: translateX(129px); }
+}
+/* 8000ms puts the shared 45s wait on the game's own 1800ms grid. steps(1, end)
+   because a turn being taken off you is an event, not a slide — the marker
+   sits still for the whole wait and then jumps, which is what waiting is. */
+.anim-wait--slow { animation: zine-wait-slow 8000ms steps(1, end) infinite; }
+.anim-wait--fast { animation: zine-wait-fast 8000ms steps(1, end) infinite; }
+
+/* No. 10 — three chefs travel and the fourth does not, because the fourth was
+   never put back where it came from. The sliders glide (many small steps, so
+   it still reads as pixel movement rather than a smooth ramp); chef 4 has no
+   animation at all and is drawn at its destination in the markup. The contrast
+   IS the bug. 188px is the gap between the dashed origin and the new seat in
+   that diagram; it moves if the drawing moves. */
+@keyframes zine-seat-slide {
+  0%,   15%  { transform: translateX(0); }
+  45%,  65%  { transform: translateX(188px); }
+  95%,  100% { transform: translateX(0); }
+}
+/* Out and back rather than a jump-cut reset: the return leg is another
+   re-sort, so the loop never shows a frame the mechanism would not produce. */
+.anim-seat-slide { animation: zine-seat-slide 6400ms steps(16, end) infinite; }
+
+/* -------------------------------------------------------- recipe motion -- */
+/* Same dialect as the diagrams above and as the game itself: transform and
+   opacity only, `steps()` because a thing has happened or it has not, and
+   every cycle a multiple of the game's 1800ms grid. Each recipe gets exactly
+   one moving thing, and that thing is the part of the recipe you cannot
+   photograph — the waiting. Drawn from plain divs and hard borders, the way
+   .pizza-box is drawn; no sprites, no JavaScript.
+   Each animation also states something true about the regular who wrote the
+   card, taken off their row in server/bot.js. */
+
+/* -- Nonna Pina's pot. Three bubbles on a 3600ms cycle, 1200ms apart, so the
+      pot shows one bubble at a time and never boils. Her row is the calmest
+      of the six (notice 0.40, avoidAttacks) and the sauce keeps her hours:
+      four hard frames in 3.6 seconds is a simmer, not a rolling boil. */
+.pot {
+  position: relative;
+  width: 168px;
+  height: 140px;
+  margin: 0 auto;
+}
+
+.pot__body {
+  position: absolute;
+  left: 12px;
+  bottom: 0;
+  width: 144px;
+  height: 84px;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+  box-shadow: var(--sh-card);
+}
+
+/* Two ears, because a pot this size is carried with both hands. */
+.pot__body::before,
+.pot__body::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  width: 12px;
+  height: 20px;
+  background: var(--bezel);
+}
+.pot__body::before { left: -15px; }
+.pot__body::after  { right: -15px; }
+
+.pot__rim {
+  position: absolute;
+  left: 0;
+  bottom: 78px;
+  width: 168px;
+  height: 12px;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+}
+
+/* Filled nearly to the rim, with a band of dark pot wall left above it. An
+   inch of sauce in the bottom is not a pot anybody put on at seven. */
+.pot__sauce {
+  position: absolute;
+  left: 20px;
+  bottom: 8px;
+  width: 128px;
+  height: 62px;
+  background: var(--sauce);
+}
+
+.pot__bub {
+  position: absolute;
+  bottom: 92px;
+  width: 8px;
+  height: 8px;
+  background: var(--sauce-hi);
+  opacity: 0;
+  animation: za-simmer 3600ms steps(1, end) infinite;
+}
+
+/* steps(1, end) holds each interval at its own start value, so this is four
+   hard frames — off, low, high, off — and never a glide. The visible span is
+   exactly 1200ms (25% to 58.33% of 3600ms): each bubble goes out on the beat
+   the next one starts, so the caption's "one bubble at a time" is arithmetic,
+   not hope. At the old 25-75% span, two adjacent bubbles overlapped for
+   600ms of every cycle. */
+@keyframes za-simmer {
+  0%      { opacity: 0; transform: translateY(0); }
+  25%     { opacity: 1; transform: translateY(0); }
+  41.67%  { opacity: 1; transform: translateY(-12px); }
+  58.33%  { opacity: 0; transform: translateY(-12px); }
+  100%    { opacity: 0; transform: translateY(0); }
+}
+
+.pot__bub--1 { left: 44px;  animation-delay: 0ms; }
+.pot__bub--2 { left: 80px;  animation-delay: 1200ms; }
+.pot__bub--3 { left: 116px; animation-delay: 2400ms; }
+
+/* -- Big Paulie's dough. The mural's two-frame flip, borrowed exactly: flat
+      and risen, 1800ms each, nothing in between, because dough does not rise
+      while you watch it — you leave and it is done. Paulie is the slowest of
+      the six regulars (pause 1900-2500ms), and this is the only animation in
+      the zine whose two frames are the same length: proofing is waiting.
+      The dashed ghost is always drawn, so the still page still tells you
+      where the dough started. */
+.proof {
+  position: relative;
+  width: 200px;
+  height: 118px;
+  margin: 0 auto;
+}
+
+.proof__bowl {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200px;
+  height: 26px;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+  box-shadow: var(--sh-card);
+}
+
+/* The height it started at, drawn as a line WIDER than the dough so both ends
+   stay visible when the risen frame is up. A box the same width as the dough
+   would be covered by it exactly, which teaches nothing. */
+.proof__ghost {
+  position: absolute;
+  left: 8px;
+  bottom: 40px;
+  width: 184px;
+  height: 0;
+  border-top: var(--bd-thin) dashed var(--bezel);
+}
+
+.proof__dough {
+  position: absolute;
+  left: 40px;
+  bottom: 22px;
+  width: 120px;
+  background: var(--cheese);
+  border: var(--bd-thin) solid var(--cheese-deep);
+}
+
+.proof__dough--a { height: 18px; animation: za-proof-a 3600ms steps(1, end) infinite; }
+.proof__dough--b { height: 62px; opacity: 0; animation: za-proof-b 3600ms steps(1, end) infinite; }
+
+@keyframes za-proof-a {
+  0%   { opacity: 1; }
+  50%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes za-proof-b {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* -- Vito's tray. Nine squares go out; eight of them dim in turn, 400ms
+      apart, and the ninth has no animation at all. The absence is the
+      picture — the same trick No. 10 uses for the chef who never travelled.
+      His row says hoardWildsUntil: 3 and his line is "I'm saving it." */
+.tray {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  width: 216px;
+  padding: 6px;
+  margin: 0 auto;
+  background: var(--cabinet-hi);
+  border: var(--bd-thin) solid var(--bezel);
+  box-shadow: var(--sh-card);
+}
+
+.tray__sq {
+  aspect-ratio: 1 / 1;
+  background: var(--sauce);
+  border: var(--bd-thin) solid var(--cheese);
+  /* The cycle must outlast the last square's fade: square eight dims at
+     2800 + 1680 = 4480ms, and the first square does not relight until 5600,
+     so for 1120ms the tray holds the picture the page is about — eight gone,
+     one kept. At the old 3600ms cycle the first square was already full
+     again before the eighth went out, and the all-but-one frame never
+     existed. */
+  animation: za-tray-take 5600ms steps(1, end) infinite;
+}
+
+@keyframes za-tray-take {
+  0%,  29%  { opacity: 1; }
+  30%, 100% { opacity: .16; }
+}
+
+.tray__sq:nth-child(1) { animation-delay: 0ms; }
+.tray__sq:nth-child(2) { animation-delay: 400ms; }
+.tray__sq:nth-child(3) { animation-delay: 800ms; }
+.tray__sq:nth-child(4) { animation-delay: 1200ms; }
+.tray__sq:nth-child(5) { animation-delay: 1600ms; }
+.tray__sq:nth-child(6) { animation-delay: 2000ms; }
+.tray__sq:nth-child(7) { animation-delay: 2400ms; }
+.tray__sq:nth-child(8) { animation-delay: 2800ms; }
+
+/* No animation, no delay, no exception. */
+.tray__sq--kept { animation: none; opacity: 1; }
+
 /* --------------------------------------------------------------- a11y -- */
 :focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
@@ -578,4 +1087,41 @@ code {
   /* No. 06: the token stays at the seat it starts on. The shape of the
      seating is what carries the turn order; the token only confirms it. */
   .anim-walk { animation: none !important; }
+
+  /* No. 09: park both markers at the END of their own row — the one frame
+     where the finding is a picture rather than an event. One marker is off
+     the right-hand edge of four full waits; the other stopped less than half
+     way along, on the same clock. */
+  .anim-wait--slow { animation: none !important; transform: translateX(288px); }
+  .anim-wait--fast { animation: none !important; transform: translateX(129px); }
+
+  /* NONNA'S RECIPES. Same rule as the diagrams: park on the frame that states
+     the fact, never stop somewhere arbitrary.
+
+     The vinyl art parks on frame A, exactly as the cabinet murals do. */
+  .art-slot__frame-b { animation: none !important; opacity: 0 !important; }
+
+  /* The pot holds all three bubbles at once, each at a different height — the
+     picture a simmer makes if you photograph it instead of watching it. */
+  .pot__bub { animation: none !important; opacity: 1 !important; }
+  .pot__bub--1 { transform: translateY(-12px); }
+  .pot__bub--2 { transform: translateY(-6px); }
+  .pot__bub--3 { transform: translateY(0); }
+
+  /* The dough parks RISEN, not flat: the dashed ghost beside it is already
+     drawn at the flat height, so one frame carries both ends of the night.
+     Parking on flat would show a lump in a bowl and teach nothing. */
+  .proof__dough--a { animation: none !important; opacity: 0 !important; }
+  .proof__dough--b { animation: none !important; opacity: 1 !important; }
+
+  /* The tray parks at the end of service: eight squares gone, one still
+     there. That is the whole card. */
+  .tray__sq { animation: none !important; opacity: .16 !important; }
+  .tray__sq--kept { opacity: 1 !important; }
+
+  /* No. 10: park the sliders at their STARTING seats, not their destinations.
+     That is the instant the animation begins — three chefs still at home and
+     the fourth already arrived — which is precisely the bug. Parking them at
+     the destination would put all four in a row and show nothing. */
+  .anim-seat-slide { animation: none !important; transform: translateX(0); }
 }

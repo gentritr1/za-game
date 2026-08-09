@@ -6,10 +6,11 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const game = require('../server/game');
-const { Room, RoomManager } = require('../server/rooms');
+const { Room, RoomManager, TIMINGS } = require('../server/rooms');
 const { createStaticHandler } = require('../server/static');
 
 let passed = 0;
@@ -570,6 +571,54 @@ test('a player who leaves mid-round closes the round and credits the win', () =>
   assert.strictEqual(seats[0].wins, 1);
 });
 
+test('the deal moves round the table instead of parking on the host', () => {
+  const { room, seats } = table(['Ana', 'Bo', 'Cy', 'Di']);
+  const starters = [];
+  for (let round = 0; round < 5; round++) {
+    assert.ok(room.startRound().ok);
+    starters.push(room.game.players[room.game.turnIndex].id);
+    room.phase = 'roundOver';
+  }
+
+  // The whole bug: every one of these used to be Ana.
+  assert.strictEqual(
+    new Set(starters.slice(0, 4)).size, 4,
+    `four rounds must open at four different seats, got ${starters.slice(0, 4).join(',')}`
+  );
+  assert.deepStrictEqual(
+    starters,
+    [seats[0].id, seats[1].id, seats[2].id, seats[3].id, seats[0].id],
+    'and it passes one seat at a time, wrapping back round'
+  );
+});
+
+test('the deal keeps moving when the chef who dealt last walks out', () => {
+  const { room, seats } = table(['Ana', 'Bo', 'Cy', 'Di']);
+  assert.ok(room.startRound().ok);
+  assert.strictEqual(room.game.players[room.game.turnIndex].id, seats[0].id);
+  room.phase = 'roundOver';
+
+  // Ana dealt and then left. The rotation cannot point at her any more, and
+  // it must not collapse back onto whoever is now listed first.
+  room.removeSeat(seats[0].id);
+  room.phase = 'roundOver';
+  assert.ok(room.startRound().ok);
+  const after = room.game.players[room.game.turnIndex].id;
+  assert.ok(
+    room.seats.some((s) => s.id === after),
+    'the round opens at a seat that is actually at the table'
+  );
+  assert.notStrictEqual(after, seats[0].id, 'and never at the seat that left');
+
+  // It is still rotating, not stuck: the next round moves on again.
+  room.phase = 'roundOver';
+  assert.ok(room.startRound().ok);
+  assert.notStrictEqual(
+    room.game.players[room.game.turnIndex].id, after,
+    'the round after that opens somewhere new again'
+  );
+});
+
 test('a player inside the reconnect grace period stays in the next round', () => {
   const { room, seats } = table(['Ana', 'Bo']);
   assert.ok(room.startRound().ok);
@@ -672,6 +721,294 @@ test('a free name still joins without a token, and a taken name is still refused
   manager.stop();
   assert.strictEqual(twice.ok, false, 'not even the token opens a seat somebody sits in');
   assert.match(twice.error, /already at the table/i);
+});
+
+// ------------------------------------------- the table must not stall -------
+/**
+ * These three are policies, not rules, and every one of them is a clock. None
+ * of them sleeps: `TIMINGS` is the mutable copy of the constants that the room
+ * manager reads at run time, so a case shrinks the field it is about, drives
+ * `tick()` by hand with a `now` it chooses, and puts the field back.
+ *
+ * Driving `tickRoom(room, now)` directly is the point — it is the same method
+ * the real 250ms interval calls, with the same argument, so what is under test
+ * is the shipped timer path and not a reimplementation of it.
+ */
+function withTimings(overrides, fn) {
+  const saved = { ...TIMINGS };
+  Object.assign(TIMINGS, overrides);
+  try {
+    return fn();
+  } finally {
+    Object.assign(TIMINGS, saved);
+  }
+}
+
+test('an empty room outlives the seat grace it still owes', () => {
+  // The shipped numbers were the bug: 60s room, 120s seat. A solo player who
+  // dropped came back inside their grace to "No table has that code."
+  withTimings({ emptyRoomTtl: 1000, reconnectGrace: 5000 }, () => {
+    const manager = new RoomManager();
+    manager.stop(); // no background interval; this case drives the clock itself
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    room.addSeat({ name: 'Bot', isBot: true });
+    assert.ok(room.startRound().ok);
+
+    const t0 = Date.now();
+    created.seat.connected = false;
+    created.seat.socket = null;
+    created.seat.disconnectedAt = t0;
+    room.emptySince = t0;
+
+    // Past the room TTL, well inside her grace: the table has to still be there.
+    manager.tickRoom(room, t0 + 2000);
+    assert.strictEqual(manager.getRoom(room.code), room, 'the room outlives its own TTL');
+    assert.ok(
+      manager.joinRoom(room.code, 'Ana', {}, created.seat.token).ok,
+      'and she can actually take her seat back'
+    );
+
+    // Now let the grace itself run out on a fresh drop.
+    const t1 = Date.now();
+    const seat = room.findSeat(created.seat.id);
+    seat.connected = false;
+    seat.socket = null;
+    seat.disconnectedAt = t1;
+    room.emptySince = t1;
+    manager.tickRoom(room, t1 + 6000);
+    assert.strictEqual(manager.getRoom(room.code), null, 'once nothing is owed, it goes');
+  });
+});
+
+test('a host who drops hands the oven to the longest-seated connected human', () => {
+  const manager = new RoomManager();
+  manager.stop();
+  const created = manager.createRoom('Ana', {});
+  const room = created.room;
+  const bo = manager.joinRoom(room.code, 'Bo', {});
+  const cy = manager.joinRoom(room.code, 'Cy', {});
+  assert.strictEqual(room.hostId, created.seat.id, 'the founder starts as host');
+  assert.ok(room.startRound().ok, 'in a running round the seats survive a drop');
+
+  manager.handleDisconnect(room, created.seat);
+
+  assert.strictEqual(room.hostId, bo.seat.id, 'Bo sat down first, so Bo takes it');
+  // The snapshot is what the client reads; the field has to move there too.
+  assert.strictEqual(room.snapshotFor(bo.seat.id).hostId, bo.seat.id);
+  assert.strictEqual(room.snapshotFor(bo.seat.id).isHost, true);
+  assert.strictEqual(room.snapshotFor(cy.seat.id).isHost, false);
+
+  // Ana comes back inside her grace. She does NOT get the oven back: whatever
+  // the acting host has done since, the answer is the same one.
+  const back = manager.joinRoom(room.code, 'Ana', {}, created.seat.token);
+  assert.strictEqual(back.ok, true);
+  assert.strictEqual(room.hostId, bo.seat.id, 'the returning host is a regular player now');
+  assert.strictEqual(room.snapshotFor(created.seat.id).isHost, false);
+});
+
+test('a host who drops alone keeps the table, and the first one back takes it', () => {
+  const manager = new RoomManager();
+  manager.stop();
+  const created = manager.createRoom('Ana', {});
+  const room = created.room;
+  const bo = manager.joinRoom(room.code, 'Bo', {});
+  assert.ok(room.startRound().ok);
+
+  manager.handleDisconnect(room, bo.seat);
+  manager.handleDisconnect(room, created.seat);
+  assert.strictEqual(room.hostId, created.seat.id, 'nobody to elect, so nothing moves');
+
+  const boBack = manager.joinRoom(room.code, 'Bo', {}, bo.seat.token);
+  assert.strictEqual(boBack.ok, true);
+  assert.strictEqual(room.hostId, bo.seat.id, 'a hostless table is not left hostless');
+});
+
+test('a connected player who stops moving loses the turn to the clock', () => {
+  withTimings({ idleTurn: 1000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    // Put Ana on turn, connected, with nothing wrong with her socket.
+    const current = game.currentPlayer(room.game);
+    const seat = room.findSeat(current.id);
+    assert.strictEqual(seat.connected, true, 'this is the connected case, not the away one');
+    room.scheduleTimers(true);
+    assert.ok(room.idleDueAt > 0, 'a connected human on turn is on a clock at all');
+    assert.strictEqual(room.awayDueAt, 0, 'and it is not the away clock');
+
+    const serialBefore = room.game.turnSerial;
+    const leftAtStart = room.snapshotFor(seat.id).turnIdleMsLeft;
+    assert.ok(leftAtStart > 0 && leftAtStart <= 1000, `snapshot carries the time left (${leftAtStart})`);
+
+    // Not yet.
+    manager.tickRoom(room, Date.now() + 500);
+    assert.strictEqual(room.game.turnSerial, serialBefore, 'half way through, nothing happens');
+
+    // Past the deadline: the same draw-and-pass the away path plays.
+    manager.tickRoom(room, Date.now() + 1500);
+    assert.notStrictEqual(room.game.turnSerial, serialBefore, 'the table moved on');
+    assert.match(
+      room.game.log[room.game.log.length - 1].text,
+      /took too long/i,
+      'and said so in the log'
+    );
+  });
+});
+
+test('any action winds the idle clock back up', () => {
+  withTimings({ idleTurn: 1000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+    room.scheduleTimers(true);
+
+    const first = room.idleDueAt;
+    assert.ok(first > 0);
+    // A call-out does not change the turn, so `scheduleTimers` correctly
+    // declines to re-arm — this is exactly the gap `touchIdleTimer` fills.
+    room.idleDueAt = Date.now() - 1; // pretend most of the clock has run down
+    room.touchIdleTimer();
+    assert.ok(room.idleDueAt > Date.now() + 500, 'the clock is full again');
+  });
+});
+
+test('the second turn in a row costs the table the short clock, not the full one', () => {
+  withTimings({ idleTurn: 4000, idleStruck: 1000, idleWarn: 10000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    const seat = room.findSeat(game.currentPlayer(room.game).id);
+    room.scheduleTimers(true);
+    assert.strictEqual(seat.idleStrikes, 0, 'everybody starts with the benefit of the doubt');
+
+    // First expiry: they were given, and have now spent, the full 4s.
+    const t0 = Date.now();
+    manager.tickRoom(room, t0 + 4500);
+    assert.strictEqual(seat.idleStrikes, 1, 'the doubt has been answered once');
+
+    // Bring the same seat back on turn and re-arm exactly as a turn change does.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const budget = room.idleDueAt - Date.now();
+    assert.ok(
+      budget <= 1000 + 50 && budget > 0,
+      `a struck seat waits out the short clock, got ${budget}ms (full price would be ~4000)`
+    );
+
+    // And the warning came down with it: ten seconds of warning on a one
+    // second turn is not a warning.
+    const warn = room.snapshotFor(seat.id).turnIdleWarnMs;
+    assert.strictEqual(warn, 500, `the warning is half the clock in play, got ${warn}`);
+
+    // It really does fire early: half of the OLD clock is already past the new one.
+    const serial = room.game.turnSerial;
+    manager.tickRoom(room, Date.now() + 2000);
+    assert.notStrictEqual(room.game.turnSerial, serial, 'the table moved on at the short clock');
+    assert.strictEqual(seat.idleStrikes, 2, 'and it stays struck while they stay away');
+  });
+});
+
+test('one move makes a struck player an ordinary player again', () => {
+  withTimings({ idleTurn: 4000, idleStruck: 1000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    const seat = room.findSeat(game.currentPlayer(room.game).id);
+    room.scheduleTimers(true);
+    manager.tickRoom(room, Date.now() + 4500);
+    assert.strictEqual(seat.idleStrikes, 1);
+    assert.strictEqual(
+      room.snapshotFor(seat.id).seats.find((s) => s.id === seat.id).idleSkipped, true,
+      'and the table can see it'
+    );
+
+    // They come back and do something — anything. `draw` is the cheapest move
+    // that always exists, and it goes through the real action path.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const acted = manager.applyAction(room, seat.id, { type: 'draw' });
+    assert.ok(acted.ok, `the action itself must land: ${acted.error || ''}`);
+    assert.strictEqual(seat.idleStrikes, 0, 'one move is the whole proof they are here');
+    assert.strictEqual(
+      room.snapshotFor(seat.id).seats.find((s) => s.id === seat.id).idleSkipped, false,
+      'and the table stops flagging them'
+    );
+
+    // Their next turn is back at full price.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const budget = room.idleDueAt - Date.now();
+    assert.ok(budget > 1000 + 50, `back to the full clock, got ${budget}ms`);
+  });
+});
+
+// ------------------------------------------------- the client's own freeze ---
+/**
+ * A source-level guard, not a runtime one: there is no DOM here, and adding one
+ * would cost a dependency this project does not have. It exists because the bug
+ * it catches was invisible to every runtime check we had.
+ *
+ * `syncDesynced` disables the action controls while the connection is out and
+ * then returns early on the way back, trusting the next snapshot to re-enable
+ * them. That trust has to be earned control by control. ZA! and the dough pile
+ * are re-derived every snapshot; PASS and CALL OUT were only ever assigned
+ * `.hidden`, so nothing turned them back on — and because `connect()` opens
+ * every page load in `connecting`, the freeze ran on the ordinary boot path and
+ * both stayed dead for the entire session. A player told to "play it or pass"
+ * could not pass.
+ *
+ * So: anything that freeze switches off must be switched back on somewhere else.
+ */
+test('every control the desync freeze disables has an owner that turns it back on', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  const start = src.indexOf('function syncDesynced(');
+  assert.ok(start > 0, 'syncDesynced is still the freeze');
+
+  const after = src.indexOf('\nfunction ', start + 10);
+  const body = src.slice(start, after > 0 ? after : src.length);
+  const list = body.match(/for \(const button of \[([^\]]+)\]\)\s*\{\s*if \(button\) button\.disabled = true;/);
+  assert.ok(list, 'the freeze still switches off a list of controls');
+
+  const frozen = list[1].split(',').map((s) => s.trim()).filter(Boolean);
+  assert.ok(frozen.length >= 4, `expected the four action controls, got ${frozen.join(',')}`);
+
+  // Everything except the freeze itself. An owner has to live somewhere else:
+  // the freeze re-enabling its own list would just be the early return again.
+  const rest = src.slice(0, start) + src.slice(start + body.length);
+  for (const name of frozen) {
+    // An assignment of `true` is another way of switching the control OFF, so
+    // it cannot be the owner that switches it back on. Everything else counts:
+    // the real owners are written `= !view.canPass`, not `= false`, and
+    // demanding the literal `false` would fail the code that actually fixed
+    // this.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Collect the right-hand sides rather than trying to exclude `true` inside
+    // the pattern: `\s*` backtracks, so a lookahead placed after it happily
+    // matches at the space and the assertion silently stops asserting.
+    const assigns = [...rest.matchAll(new RegExp(`${escaped}\\.disabled\\s*=\\s*([^;]+);`, 'g'))];
+    const owner = assigns.some((m) => m[1].trim() !== 'true');
+    assert.ok(
+      owner,
+      `${name} is switched off by the desync freeze and nothing outside it ever assigns `
+      + `.disabled — this is exactly how PASS and CALL OUT died on every boot`
+    );
+  }
 });
 
 // ------------------------------------------------------- the file server -----

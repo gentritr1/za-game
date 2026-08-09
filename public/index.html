@@ -55,8 +55,10 @@
       <p class="hint">2 to 8 players. Nobody around? Hire a chef bot in the lobby.</p>
       <!-- The zine is static, lives under public/blog/, and is linked by file:
            the static handler serves files only and has no directory index. -->
-      <p class="hint"><a class="hint" href="blog/index.html"
-         style="color: var(--ui-cyan); text-decoration: none; border-bottom: 2px solid var(--bezel);"
+      <p class="hint"><button class="quiet-link" id="btn-rules-home" type="button">HOUSE RULES</button>
+         <span aria-hidden="true"> · </span>
+         <a class="hint" href="blog/index.html"
+         style="color: var(--ui-cyan); text-decoration: none; border-bottom: 2px solid var(--bezel-live);"
          >READ THE ZINE</a></p>
     </div>
   </section>
@@ -72,6 +74,7 @@
           <span class="code-chip__done" aria-hidden="true">Copied</span>
         </button>
         <p class="hint">Tap the code to copy it, then send it round so your friends can sit down.</p>
+        <p class="hint"><button class="quiet-link" id="btn-rules-lobby" type="button">HOUSE RULES</button></p>
       </header>
 
       <ul class="seat-list" id="seat-list"></ul>
@@ -109,7 +112,22 @@
            and a static arrow takes over under prefers-reduced-motion. -->
       <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
         <span class="marquee__mark" aria-hidden="true">ZA!</span>
-        <span class="turn-label" id="turn-text">Waiting…</span>
+        <!-- The label and the countdown are ONE grid item, not two. The strip
+             is a three-track grid, and below 520px the chevron chase is the
+             third of those tracks — so a countdown standing on its own became
+             a fourth child, wrapped to a second row, and grew the strip by
+             23px the moment the digits appeared. Sharing the label's line
+             keeps the marquee at three children whether the clock is running
+             or not. -->
+        <span class="marquee__line">
+          <span class="turn-label" id="turn-text">Waiting…</span>
+          <!-- The last ten seconds of a turn. The digits are aria-hidden because
+               a polite live region that changes every second is a siren, not a
+               warning; the one sentence in #turn-warn is what gets announced,
+               once, when the window opens. -->
+          <span class="turn-count" id="turn-count" aria-hidden="true"></span>
+        </span>
+        <span class="sr-only" id="turn-warn"></span>
         <span class="marquee__dir" id="dir-chase" aria-hidden="true">
           <span class="za-chev">▸</span>
           <span class="za-chev">▸</span>
@@ -183,9 +201,12 @@
           <span class="code-chip__done" aria-hidden="true">Copied</span>
         </button>
 
+        <!-- Two presses in the game, one in the lobby. The label is its own
+             node because the screw head lives in the button too, and writing
+             the button would wipe the head out of the DOM. -->
         <button class="screw screw--leave" id="btn-leave-game" type="button">
           <span class="screw__head" aria-hidden="true"></span>
-          <span class="screw__label">Leave</span>
+          <span class="screw__label" id="btn-leave-game-label">Leave</span>
         </button>
       </div>
     </footer>
@@ -223,6 +244,24 @@
       <button class="btn btn--ghost" id="btn-to-lobby" type="button">Back to the parlour</button>
     </div>
     <p class="hint" id="round-wait"></p>
+  </div>
+</div>
+
+<!-- ============================ HOUSE RULES ============================ -->
+<!-- A sibling of the round-over dialog, and outside #app for the same reason:
+     an open modal makes #app inert, and a dialog inside an inert subtree can
+     be neither read nor reached. The body is filled once by app.js — the five
+     action-card frames have to come from renderCard(), which is the only place
+     in the client allowed to build card markup. -->
+<div class="overlay" id="overlay-rules" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+  <div class="dialog dialog--rules" id="rules-dialog" tabindex="-1">
+    <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
+    <!-- The scroll lives here, not on the dialog: the dialog stays clipped in
+         both axes, so nothing can ever scroll sideways. `tabindex` is what
+         lets a keyboard reach the scroll on an engine that does not focus
+         scrollers by itself. -->
+    <div class="rules" id="rules-body" tabindex="0"></div>
+    <button class="btn btn--primary btn--block" id="btn-rules-close" type="button">Close</button>
   </div>
 </div>
 

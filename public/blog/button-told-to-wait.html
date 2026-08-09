@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="Four controls were switched off while the game connected. Two got switched back on by accident, two never did - and one of the dead ones had a second way in, which hid the bug for weeks.">
+<title>The button that was told to wait — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="/">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <a class="masthead__mark" href="index.html">THE ZINE</a>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 07 &middot; Ownership</p>
+  <h1 class="post__title">The button that was told to wait</h1>
+
+  <p class="post__lede">The game said it was your turn, the PASS button sat there looking pressable, and pressing it did nothing whatsoever &mdash; from the first second of every game we ever played.</p>
+
+  <p>Every time somebody opens ZA!, the game phones the kitchen. For that first instant it knows nothing yet, so it politely switches four things off: PASS, CALL OUT, ZA!, and the pile you draw from. That is the right instinct. Nothing should be pressable while the game is still saying hello.</p>
+
+  <p>Then the line connects, and all four should come back on.</p>
+
+  <p>Two of them did. Two of them never did, ever, not once.</p>
+
+  <h2>So who turns it back on?</h2>
+
+  <p>The screen redraws itself constantly &mdash; every card played, every turn passed. And each time it redraws, it works out from scratch whether you are allowed to shout ZA! and whether you are allowed to draw, then sets those two controls to match. So yes, the connecting screen switched them off. And the very next redraw switched them straight back on, without anyone planning it. They healed by accident.</p>
+
+  <p>PASS and CALL OUT were built differently. The redraw only ever decided whether to <em>show</em> them or <em>hide</em> them. It never once said whether they could be pressed. So the &ldquo;still connecting&rdquo; switch flicked them off, and after that nothing in the entire game ever flicked them back.</p>
+
+  <p>That is the whole trap. The code that switched them off was written in the belief that somebody else would switch them back on. Nobody had ever agreed to.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 268" role="img" aria-label="A table of four controls. All four are switched off at boot. ZA! and the draw pile are set again by every redraw, so they come back on. PASS and CALL OUT have nobody setting them, so they stay off. Below, a second drawing shows two ways to call a chef out: the dead button, crossed through, and clicking a chef, which still works.">
+      <title>Four controls switched off, and only two of them switched back on</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#ffe14d">THE FIRST FRAME</text>
+
+      <text x="6" y="36" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">control</text>
+      <text x="104" y="36" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">at boot</text>
+      <text x="164" y="36" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">on redraw</text>
+      <text x="272" y="36" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">result</text>
+
+      <!-- row 1: ZA! -->
+      <text x="6" y="60" font-family="'VT323', monospace" font-size="18" fill="#e8ecff">ZA!</text>
+      <rect x="104" y="42" width="44" height="24" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="112" y="60" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">off</text>
+      <path d="M156 54 L252 54 M244 49 L252 54 L244 59" stroke="#3ddc7f" stroke-width="2" fill="none"/>
+      <text x="164" y="50" font-family="'VT323', monospace" font-size="16" fill="#3ddc7f">set again</text>
+      <rect x="268" y="42" width="46" height="24" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+      <text x="278" y="60" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">ON</text>
+
+      <!-- row 2: draw pile -->
+      <text x="6" y="96" font-family="'VT323', monospace" font-size="18" fill="#e8ecff">DRAW PILE</text>
+      <rect x="104" y="78" width="44" height="24" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="112" y="96" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">off</text>
+      <path d="M156 90 L252 90 M244 85 L252 90 L244 95" stroke="#3ddc7f" stroke-width="2" fill="none"/>
+      <text x="164" y="86" font-family="'VT323', monospace" font-size="16" fill="#3ddc7f">set again</text>
+      <rect x="268" y="78" width="46" height="24" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+      <text x="278" y="96" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">ON</text>
+
+      <!-- row 3: PASS -->
+      <text x="6" y="132" font-family="'VT323', monospace" font-size="18" fill="#e8ecff">PASS</text>
+      <rect x="104" y="114" width="44" height="24" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="112" y="132" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">off</text>
+      <path d="M156 126 L252 126" stroke="#2a3355" stroke-width="2" stroke-dasharray="5 5" fill="none"/>
+      <text x="164" y="122" font-family="'VT323', monospace" font-size="16" fill="#ff2e6b">nobody</text>
+      <rect x="268" y="114" width="46" height="24" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="276" y="132" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">OFF</text>
+
+      <!-- row 4: CALL OUT -->
+      <text x="6" y="168" font-family="'VT323', monospace" font-size="18" fill="#e8ecff">CALL OUT</text>
+      <rect x="104" y="150" width="44" height="24" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="112" y="168" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">off</text>
+      <path d="M156 162 L252 162" stroke="#2a3355" stroke-width="2" stroke-dasharray="5 5" fill="none"/>
+      <text x="164" y="158" font-family="'VT323', monospace" font-size="16" fill="#ff2e6b">nobody</text>
+      <rect x="268" y="150" width="46" height="24" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="276" y="168" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">OFF</text>
+
+      <line x1="6" y1="186" x2="334" y2="186" stroke="#2a3355" stroke-width="2" stroke-dasharray="6 5"/>
+
+      <text x="6" y="206" font-family="'VT323', monospace" font-size="18" fill="#ffe14d">&hellip;but CALL OUT had a second door.</text>
+
+      <rect x="6" y="214" width="122" height="22" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="14" y="231" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">the button</text>
+      <path d="M104 216 L124 234 M124 216 L104 234" stroke="#ff2e6b" stroke-width="3"/>
+
+      <rect x="6" y="242" width="122" height="22" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+      <text x="14" y="259" font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">click a chef</text>
+
+      <path d="M128 225 L154 225" stroke="#ff2e6b" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+      <path d="M128 253 L160 253 L160 241 L178 241 M170 236 L178 241 L170 246" stroke="#3ddc7f" stroke-width="2" fill="none"/>
+      <rect x="186" y="228" width="128" height="26" fill="#080a12" stroke="#ffe14d" stroke-width="2"/>
+      <text x="194" y="246" font-family="'VT323', monospace" font-size="17" fill="#ffe14d">calls them out</text>
+    </svg>
+    <figcaption>Same switch, two different owners &mdash; which means no owner. The bottom half is why nobody noticed for weeks.</figcaption>
+  </figure>
+
+  <h2>We watched it happen</h2>
+
+  <p>This is not a theory about the code. We sat down at a real table, with a real deal, on our own turn. The sign across the top of the screen read <strong>&ldquo;Your turn &mdash; play it or pass&rdquo;</strong>. The button was right there, full size, looking exactly like every working button in the game. We pressed it and not a single message left the building. The only way to end that turn was to sit still and let the clock run out.</p>
+
+  <h2>The spare entrance</h2>
+
+  <p>Here is the part that kept this hidden for weeks. You can also call a chef out by clicking on them where they sit &mdash; the button is not the only way in. So calling out kept working beautifully. Anyone who used the chef never learned the button was dead, and anyone who tried the button assumed they had simply been too slow.</p>
+
+  <p>PASS has no second door. That is the only reason we ever found this at all.</p>
+
+  <p>The fix is dull, which is usually the sign of a good one. On every redraw the game now states, out loud, for all four controls: whether the move exists, and whether it can be made. Nothing sits waiting to be rescued by somebody else.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">If two pieces of code share one switch, neither of them owns it &mdash; give every switch exactly one owner. And a spare entrance will happily hide a locked front door.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="roster-not-a-queue.html"><span class="pager__dir">&larr; PREV</span>A roster is not a queue</a></span>
+  <span class="pager__up"><a href="index.html">All ten posts</a></span>
+  <span class="pager__next"><a href="bar-promised-three-seconds.html"><span class="pager__dir">NEXT &rarr;</span>The bar that promised three seconds</a></span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>
