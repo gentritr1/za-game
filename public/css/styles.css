@@ -4695,6 +4695,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      the target's turn, not three seconds. No override here: a rule that
      forced the old animation name back on would resurrect the deleted lie
      the moment anyone reintroduced keyframes under that name. */
+
+  /* The roster's idle frames stop flipping; the hover still answers with
+     frame B held steady. A swap is a state, not a journey. */
+  .roster-tile:hover .roster-tile__portrait--b,
+  .roster-tile:focus-visible .roster-tile__portrait--b {
+    animation: none !important;
+    opacity: 1;
+  }
 }
 
 /* ==========================================================================
@@ -5425,6 +5433,28 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: 100%;
   object-fit: cover;
   image-rendering: pixelated;
+}
+
+/* A regular with a second frame comes alive under consideration: hovering or
+   keyboard-focusing the tile flips their portrait on the cabinet's own
+   two-frame grammar — steps(1, end), opacity only, one hard swap and nothing
+   between. At rest the idle frame is fully off, so a roster of stills stays a
+   roster of stills. Under reduced motion the flip does not run; the pointer
+   still gets frame B as a plain held state, because a swap is a state, not a
+   journey. */
+.roster-tile__portrait--b {
+  opacity: 0;
+}
+
+.roster-tile:hover .roster-tile__portrait--b,
+.roster-tile:focus-visible .roster-tile__portrait--b {
+  animation: roster-idle 1000ms steps(1, end) infinite;
+}
+
+@keyframes roster-idle {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
 }
 
 /* ------------------------------------------------- lobby: player select -- */

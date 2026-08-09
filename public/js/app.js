@@ -111,42 +111,52 @@ const el = {
  * line the player reads before they pick, and it describes the bias the server
  * actually applies.
  */
+// `idleFrame: true` marks a regular whose portrait has a second frame at
+// `assets/regulars/<id>-b.png`; the roster tile flips to it under hover and
+// keyboard focus. Only flag a regular whose file exists — a missing frame
+// would flash a broken-image box mid-flip.
 const REGULARS = [
   {
     id: 'vito',
     name: 'Vito',
     line: "I'm saving it.",
     tell: 'Vito hoards his wilds until he is down to three cards. Then out they come, together.',
+    idleFrame: true,
   },
   {
     id: 'carmela',
     name: 'Carmela',
     line: 'I saw that.',
     tell: 'Carmela catches almost everything. Forget to shout in front of her and it is already too late.',
+    idleFrame: true,
   },
   {
     id: 'paulie',
     name: 'Big Paulie',
     line: '...eh.',
     tell: 'Big Paulie takes his time, and he always reaches for the +2 first.',
+    idleFrame: true,
   },
   {
     id: 'pina',
     name: 'Nonna Pina',
     line: 'Eat, eat.',
     tell: 'Nonna Pina will not attack you if she has anything else to play. Right up until she wins.',
+    idleFrame: true,
   },
   {
     id: 'dominic',
     name: 'Dominic',
     line: 'Bada-bing.',
     tell: 'Dominic plays his highest number, every time. No plan, occasionally devastating.',
+    idleFrame: true,
   },
   {
     id: 'ray',
     name: 'Ray',
     line: 'later',
     tell: 'Ray moves before you have finished reading the card. He is not looking at your hand.',
+    idleFrame: true,
   },
 ];
 
@@ -1320,6 +1330,17 @@ function rosterTile(regular, seated) {
     face.alt = '';
     face.draggable = false;
     window_.append(face);
+    // The idle frame stacks over the portrait and stays at opacity 0 until
+    // the tile is hovered or focused; the flip itself is CSS. Only built for
+    // regulars flagged as owning the asset.
+    if (regular.idleFrame) {
+      const faceB = document.createElement('img');
+      faceB.className = 'roster-tile__portrait roster-tile__portrait--b';
+      faceB.src = `assets/regulars/${regular.id}-b.png`;
+      faceB.alt = '';
+      faceB.draggable = false;
+      window_.append(faceB);
+    }
   }
 
   const name = document.createElement('span');
