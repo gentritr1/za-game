@@ -597,9 +597,25 @@ function closeRoundOverlay() {
   const returnTarget = ui.roundFocusReturn;
   ui.roundFocusReturn = null;
   requestAnimationFrame(() => {
-    if (returnTarget && returnTarget.isConnected && !returnTarget.closest('[inert]')) {
+    // `closePopovers` guards this handback with three things; this one had two.
+    // The missing one is `offsetParent`: connected and not inert still admits a
+    // control the last snapshot has since hidden — `#btn-pass` and
+    // `#btn-callout` are `display: none` whenever they do not apply — and
+    // `focus()` on a display:none element does nothing at all.
+    //
+    // The unconditional `return` under it was the other half. It spent the
+    // handback whether or not the handback happened, so the btnLeaveGame
+    // fallback below could never run: focus was left on <body> exactly when the
+    // dialog that had been holding it went away. Returning only once focus has
+    // actually landed also covers what `offsetParent` cannot see — a screen
+    // leaves on `visibility`, not `display`, so a control on the screen we just
+    // came from still reports an offsetParent and still refuses focus.
+    if (
+      returnTarget && returnTarget.isConnected && !returnTarget.closest('[inert]')
+      && returnTarget.offsetParent !== null
+    ) {
       returnTarget.focus({ preventScroll: true });
-      return;
+      if (returnTarget.contains(document.activeElement)) return;
     }
     const fallback = ui.screen === 'game' ? el.btnLeaveGame : el.btnLeaveLobby;
     if (fallback && !fallback.hidden) fallback.focus({ preventScroll: true });
