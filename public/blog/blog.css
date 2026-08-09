@@ -668,6 +668,23 @@ code {
   object-fit: cover;
 }
 
+/* The art is cabinet vinyl, so it animates the way the cabinet's own murals
+   do: two frames and one hard bulb-flip, steps(1, end), opacity only,
+   nothing in between. Frame B sits over frame A and is either on or off;
+   the prints are opaque, so when B is off A is simply there — no
+   counter-phase needed, unlike the transparent murals. Same 1800ms period
+   as the cabinet windows. */
+.art-slot__frame img.art-slot__frame-b {
+  opacity: 0;
+  animation: art-slot-flip 1800ms steps(1, end) infinite;
+}
+
+@keyframes art-slot-flip {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
 .art-slot__plate {
   font-family: var(--font-display);
   font-size: 12px;
@@ -1071,7 +1088,10 @@ code {
   /* NONNA'S RECIPES. Same rule as the diagrams: park on the frame that states
      the fact, never stop somewhere arbitrary.
 
-     The pot holds all three bubbles at once, each at a different height — the
+     The vinyl art parks on frame A, exactly as the cabinet murals do. */
+  .art-slot__frame-b { animation: none !important; opacity: 0 !important; }
+
+  /* The pot holds all three bubbles at once, each at a different height — the
      picture a simmer makes if you photograph it instead of watching it. */
   .pot__bub { animation: none !important; opacity: 1 !important; }
   .pot__bub--1 { transform: translateY(-12px); }
