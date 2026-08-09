@@ -3626,6 +3626,25 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transition: transform var(--d-press) var(--ease-step);
 }
 
+/* THE TAP TARGET IS NOT THE BOX. On a short window the step draws at 38px to
+   buy back vertical room (see the max-height rule below), and 38px is under
+   the kit's 44px floor — measured at 320x256, where a thumb landing 3px off
+   the keyline hit nothing at all. So the target is a centred pad rather than a
+   bigger button: a pseudo-element takes no part in layout, so it cannot push
+   the nav row or undo the room the 38px step was bought for, and `max()`
+   leaves the full-size step exactly as it is. Nothing here draws. */
+.deck__step { position: relative; }
+
+.deck__step::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
 .deck__step:hover { border-color: var(--ui-cyan); }
 .deck__step:active { transform: translate(2px, 2px); }
 
@@ -3670,10 +3689,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      control that decides what the player is looking at is on screen before
      they scroll at all. Only here: everywhere else the row reads better where
      it belongs, under the rule it flips. */
+  /* The 3px band is the step's tap pad, not spacing. `.rules` is the scroll
+     container, and a scroller clips its descendants — so with the row flush to
+     the top and side edges the pad hung outside the clip and the pointer went
+     straight through it (measured at 320x256: all four probes at 22px from
+     centre missed). Three pixels of room inside the scroller is what the pad
+     costs; the step keeps the 38px plate this block bought. */
   .deck__nav {
     order: -1;
-    padding-top: 0;
-    padding-bottom: var(--s2);
+    padding: 3px 3px var(--s2);
     border-top: 0;
     border-bottom: var(--bd-thin) solid var(--bezel);
   }
