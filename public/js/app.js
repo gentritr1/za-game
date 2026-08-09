@@ -390,6 +390,10 @@ function handleMessage(message, connectionContext = {}) {
   switch (message.type) {
     case 'joined':
       net.remember(message.youName, message.roomCode, message.token);
+      // Sitting down anywhere other than the linked table retires the link, so
+      // the next reload offers this seat back instead of that address. See
+      // `openingMove`.
+      noteJoined(message.roomCode);
       if (message.reconnected) toast('Welcome back. Your seat is still warm.');
       break;
     case 'state':
@@ -5090,14 +5094,91 @@ function boot() {
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;
 
-  const code = new URLSearchParams(location.search).get('code');
-  if (code) el.inputCode.value = code.toUpperCase();
+  const opening = openingMove();
+  if (opening.prefill) el.inputCode.value = opening.prefill;
+  // Arm the seat BEFORE the socket opens: `connect()`'s open handler is what
+  // actually sends the `joinRoom`, and it only sends one if there are
+  // credentials to send. Nothing else about the reconnect changes.
+  const rejoining = opening.seat ? net.restore(opening.seat) : false;
 
-  el.inputName.focus({ preventScroll: true });
+  // A rejoin in flight is about to take the screen away; stealing focus into
+  // a field on the way out is how a reader ends up announcing the home form
+  // it is already leaving.
+  if (!rejoining) el.inputName.focus({ preventScroll: true });
   // 14 · from here on a screen change is worth covering. The first paint is
   // not: there is no previous room to hide.
   ui.booted = true;
   net.connect();
+}
+
+// ------------------------------------------------------ 10b · coming back ----
+/**
+ * What a fresh page load should do about the room this tab was in.
+ *
+ * A reload used to be a small amnesia: the seat token survived in
+ * `sessionStorage`, but nothing read it, so the player landed Home while the
+ * server still held their seat — and the code field was filled from a `?code=`
+ * that could be several tables out of date.
+ *
+ * The precedence, most specific first:
+ *
+ *   1. An invite link this tab has NOT yet acted past. Following somebody's
+ *      link is an explicit instruction and it beats a remembered seat. If we
+ *      also hold a token for that table it is a rejoin; otherwise it is just
+ *      the prefill, as before.
+ *   2. The seat this tab most recently held. Reload, come back to the table.
+ *   3. Nothing. Home, with an EMPTY code field.
+ *
+ * The whole difficulty is telling 1 from 3, because the app never rewrites
+ * the address bar: `?code=OVEN-8180` is still sitting there long after the
+ * player gave up on that table and created another. So a join to any OTHER
+ * room marks the link consumed (see `noteJoined`), and a consumed link is
+ * inert — no rejoin, and no prefill either, which is what stops a dead room
+ * from being offered back to the player.
+ *
+ * A remembered seat the server refuses is NOT handled here: it takes the
+ * existing `rejoinRefused` path, which clears the board and lands Home.
+ */
+const URL_CODE_USED = 'za.url.used';
+
+function urlCode() {
+  try {
+    return (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase();
+  } catch {
+    return '';
+  }
+}
+
+function openingMove() {
+  const code = urlCode();
+  let used = '';
+  try {
+    used = sessionStorage.getItem(URL_CODE_USED) || '';
+  } catch {
+    /* private window: the link simply never counts as consumed */
+  }
+
+  if (code && code !== used) {
+    // 1 · a link this tab has not moved on from.
+    return { prefill: code, seat: net.seatFor(code) };
+  }
+  // 2 · the seat we were in. 3 · or nothing, and no stale code with it.
+  return { prefill: '', seat: net.lastSeat() };
+}
+
+/**
+ * Records that this tab has moved on from the invite link in the address bar.
+ * Only a join to a DIFFERENT table consumes it: joining the linked room is
+ * the link working, and a reload should still find it.
+ */
+function noteJoined(roomCode) {
+  const code = urlCode();
+  if (!code || code === String(roomCode || '').toUpperCase()) return;
+  try {
+    sessionStorage.setItem(URL_CODE_USED, code);
+  } catch {
+    /* nothing to keep it in */
+  }
 }
 
 // ------------------------------------------------ 11 · special of the day ----
