@@ -699,6 +699,13 @@ function announce(text) {
 }
 
 function paintScreen(name) {
+  // The hire screen belongs to the lobby, and it is the one thing here that a
+  // screen change does not take with it. As a popover it hung inside the lobby
+  // panel and went quiet when the lobby did; on `document.body` it does not —
+  // leaving the room left it standing over Home with `#app` inert behind it,
+  // which is a room nobody can get out of. No restore: the screen change books
+  // its own landing in `landOnScreen`.
+  if (name !== 'lobby') closeHire({ restoreFocus: false });
   ui.screen = name;
   // The room is now the one in the DOM, so every measurement cached against the
   // old room is stale from this line on. Moving the token is the whole
