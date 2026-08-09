@@ -2709,56 +2709,65 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .popover__rows { display: grid; gap: var(--s2); }
 
-/* ------------------------------------------------------------ the roster -- */
-/* The hire panel is the same popover treatment, but it belongs to the lobby
-   panel rather than to a card, so it centres itself on the screen. */
-.popover--roster {
+/* -------------------------------------------------------- the hire screen -- */
+/* The hire roster is a screen state, not a panel: it covers the lobby rather
+   than floating over it.
+
+   Everything the popover needed to survive a short window is gone with it —
+   the `max-height` cap, `overflow-y`, `overscroll-behavior`, the scrollbar
+   rules and the sticky Cancel all existed because a 646px card does not fit a
+   560px landscape phone. A screen that IS the window has no such problem, so
+   the fix is a deletion. The scale entrance goes too: this arrives, it does not
+   grow out of the button. */
+.hire {
   position: fixed;
-  left: 50%;
-  top: 50%;
-  bottom: auto;
-  width: min(620px, calc(100vw - var(--s6)));
-  /* The panel is as tall as the parlour has regulars, and a landscape phone is
-     560px of window: uncapped it ran 646px, hanging 43px off the top and
-     taking Cancel 23px past the bottom edge. Cap it to the window and let it
-     take its own scrollbar — the tiles keep their full 110px rather than being
-     squeezed into whatever a capped grid row would leave them. */
-  max-height: calc(100dvh - var(--s6));
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  inset: 0;
   z-index: 22;
-  transform: translate(-50%, -50%) scale(.96);
-  transform-origin: 50% 50%;
-  scrollbar-width: thin;
-  scrollbar-color: var(--bezel) transparent;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s4);
+  background: var(--void);
 }
 
-/* Cancel is how you get out, so it does not scroll away from you. It sits on
-   the panel's bottom padding edge with the cabinet fill behind it — the button
-   itself is `--btn-bg: transparent`, and a transparent way out with chef
-   portraits sliding under it is not a way out. */
-.popover--roster > .btn--quiet {
-  position: sticky;
-  bottom: calc(-1 * var(--s4));
-  z-index: 1;
-  margin-bottom: calc(-1 * var(--s4));
-  padding-bottom: calc(var(--s2) + var(--s4));
-  background: var(--cabinet);
+.hire.is-open { display: flex; }
+
+/* Cancel was a button under the tiles. A screen is backed out of: the arrow
+   sits in the corner, at the 44px hit box a thumb needs even though the glyph
+   is 12px of Press Start 2P. */
+.hire__back {
+  position: absolute;
+  top: var(--s3);
+  left: var(--s3);
+  min-height: 44px;
+  padding: 0 var(--s2);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-mute);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.popover--roster::-webkit-scrollbar { width: 6px; }
-.popover--roster::-webkit-scrollbar-track { background: var(--console); }
-.popover--roster::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 0; }
+.hire__back:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
-.popover--roster.is-open { transform: translate(-50%, -50%) scale(1); }
-
-/* The cabinet fill needs the sign colour, not the ink colour, behind it. */
-.popover--roster .popover__title {
+.hire__title {
+  margin: 0;
   color: var(--cheese);
   font-family: var(--font-display);
   font-size: 12px;
   line-height: 1.5;
   letter-spacing: .04em;
+  text-align: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hire__back:hover { color: var(--cheese); }
 }
 
 .roster {
@@ -4481,11 +4490,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   /* A popover is `position: absolute` inside the game screen, and the game
      screen is now a scroll container — so the picker would scroll away from
-     the hand it belongs to. Pin it to the viewport instead, the way the hire
-     roster already is, and cap it so it can never be taller than the window.
-     Scoped to the game screen on purpose: the roster is the lobby's, it is
-     already fixed and centred, and a `bottom` here would pin its foot 12px off
-     the window and squeeze it to whatever `top: 50%` left. */
+     the hand it belongs to. Pin it to the viewport instead and cap it so it
+     can never be taller than the window. Scoped to the game screen on purpose:
+     the two popovers left are the table's, and the hire screen is the lobby's
+     and no longer a popover at all. */
   .screen--game > .popover {
     position: fixed;
     bottom: var(--s3);
@@ -4610,7 +4618,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .discard-holder::after { animation: none !important; }
 
   .popover, .popover.is-open { transform: translateX(-50%) !important; }
-  .popover--roster, .popover--roster.is-open { transform: translate(-50%, -50%) !important; }
   .receipt { transform: none !important; }
   .toast, .toast.is-open,
   .conn-banner, .conn-banner.is-open { transform: translateX(-50%) !important; }

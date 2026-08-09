@@ -564,20 +564,30 @@ function show(node) { node.classList.add('is-open'); }
 function hide(node) { node.classList.remove('is-open'); }
 
 /**
- * There are two modals now, and only one `#app` to hide behind them. A modal
+ * There are three modals now, and only one `#app` to hide behind them. A modal
  * lives outside `#app` and makes it inert; whoever closes last is the one that
  * gives the app back, so the flag is derived from what is open rather than
  * written by each dialog in turn.
  */
 function syncAppInert() {
   el.app.inert =
-    el.overlay.classList.contains('is-open') || el.rulesOverlay.classList.contains('is-open');
+    el.overlay.classList.contains('is-open')
+    || el.rulesOverlay.classList.contains('is-open')
+    || hireOpen();
 }
 
-/** The dialog that owns the tab order right now. Null when neither is open. */
+/**
+ * The dialog that owns the tab order right now. Null when none is open.
+ *
+ * The order is the stacking order: the rules sit over everything, the
+ * round-over receipt is the news, and the hire screen is the lobby's — it is
+ * closed by both of the others before either opens, so it never has to argue
+ * with them for the trap.
+ */
 function openModal() {
   if (el.rulesOverlay.classList.contains('is-open')) return el.rulesDialog;
   if (el.overlay.classList.contains('is-open')) return el.dialog;
+  if (hireOpen()) return ui.roster.panel;
   return null;
 }
 
@@ -712,8 +722,11 @@ function paintScreen(name) {
 function landOnScreen(name) {
   if (!ui.booted) return;
   // The round-over dialog owns focus for as long as it is up, and hands it back
-  // itself. A screen repaint underneath it must not reach in and take it.
-  if (el.overlay.classList.contains('is-open')) return;
+  // itself. A screen repaint underneath it must not reach in and take it. The
+  // hire screen is the same deal: it survives a lobby snapshot now, so the
+  // repaint that snapshot causes must not pull focus out of it and into a
+  // lobby that is inert anyway.
+  if (el.overlay.classList.contains('is-open') || hireOpen()) return;
   const screen = el.screens.find((node) => node.dataset.screen === name);
   if (screen) screen.focus({ preventScroll: true });
 }
@@ -916,9 +929,17 @@ function applySnapshot(snapshot) {
   if (snapshot.phase === 'lobby') {
     // No restore: the room itself is changing, and `landOnScreen` has a better
     // answer than a card on a screen that is about to go inert.
-    closePopovers({ restoreFocus: false });
+    //
+    // `keepHire` is the one exception on this line. Every other caller of
+    // `closePopovers` is a state change that takes the player somewhere else;
+    // this one fires on every lobby snapshot, including the ones that arrive
+    // *because* somebody else hired a chef. Closing the hire screen for those
+    // threw the player out of the screen they were reading. It refreshes
+    // instead, so a chef who just sat down goes grey in place.
+    closePopovers({ restoreFocus: false, keepHire: true });
     closeRoundOverlay();
     renderLobby(snapshot);
+    refreshRoster(snapshot);
     showScreen('lobby');
     resetGameView();
     return;
@@ -1278,21 +1299,43 @@ function buildPolaroid(seat) {
   return card;
 }
 
-// ------------------------------------------------------- the hire roster ----
+// ------------------------------------------------------- the hire screen ----
 /**
- * The panel behind "Hire a chef bot". It is built once, from here, and reuses
- * the popover treatment the topping picker and the call-out list already use.
+ * "Hire a chef bot" is a screen state, not a panel.
+ *
+ * It was a popover: a 620px card floating over the lobby, capped to the window
+ * with its own scrollbar because six regulars plus a Cancel ran 646px and a
+ * landscape phone is 560px of window. A screen state has none of those
+ * problems — it covers the lobby instead of fitting inside it, so the cap, the
+ * scrollbar rules and the sticky Cancel all go.
+ *
+ * Covering the lobby is also a promise about focus: this is `aria-modal`, so it
+ * joins the two dialogs that already exist here (the round-over receipt and the
+ * HOUSE RULES deck) rather than inventing a third mechanism. `syncAppInert`
+ * makes `#app` inert behind it and `openModal` hands it the tab trap.
  */
 function buildRoster() {
   const panel = document.createElement('div');
-  panel.className = 'popover popover--roster';
+  panel.className = 'hire';
   panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-modal', 'false');
+  panel.setAttribute('aria-modal', 'true');
   panel.setAttribute('aria-label', 'Hire a chef bot');
+  // The trap falls back to focusing the dialog itself when it holds no
+  // focusable control, which needs a tabindex to land on.
+  panel.tabIndex = -1;
+
+  // Cancel was a full-width button under the tiles, where it belonged to the
+  // panel. A screen is backed out of, not dismissed, so the way out is a BACK
+  // arrow in the corner the player already looks at to leave a room.
+  const back = document.createElement('button');
+  back.className = 'hire__back';
+  back.type = 'button';
+  back.textContent = '◀ BACK';
+  back.addEventListener('click', () => closeHire());
 
   const title = document.createElement('p');
-  title.className = 'popover__title';
-  title.textContent = "Who's coming in?";
+  title.className = 'hire__title';
+  title.textContent = "WHO'S COMING IN?";
 
   const grid = document.createElement('div');
   grid.className = 'roster';
@@ -1302,15 +1345,40 @@ function buildRoster() {
   tell.setAttribute('role', 'status');
   tell.textContent = ANYBODY_TELL;
 
-  const cancel = document.createElement('button');
-  cancel.className = 'btn btn--quiet btn--sm btn--block';
-  cancel.type = 'button';
-  cancel.textContent = 'Cancel';
-  cancel.addEventListener('click', closePopovers);
-
-  panel.append(title, grid, tell, cancel);
+  panel.append(back, title, grid, tell);
   ui.roster = { panel, grid, tell };
   return ui.roster;
+}
+
+/** True while the hire screen is up. */
+function hireOpen() {
+  return Boolean(ui.roster && ui.roster.panel.classList.contains('is-open'));
+}
+
+/**
+ * Backs out of the hire screen and gives focus back to the button that opened
+ * it.
+ *
+ * Same conditional handback as `closePopovers`: focus only goes back when it
+ * would otherwise be stranded inside the screen that is going away. The
+ * handback is synchronous rather than a frame late — `syncAppInert` writes the
+ * `inert` property directly, so the lobby is focusable again on the next line,
+ * and `requestAnimationFrame` does not run in a hidden document at all.
+ */
+function closeHire(options = {}) {
+  if (options === true) options = { instant: true };
+  const { restoreFocus = true } = options;
+  if (!hireOpen()) return;
+  const active = document.activeElement;
+  const stranded = active instanceof HTMLElement && ui.roster.panel.contains(active);
+  hide(ui.roster.panel);
+  syncAppInert();
+  const target = ui.hireReturn;
+  ui.hireReturn = null;
+  if (!restoreFocus || !stranded) return;
+  if (target && target.isConnected && !target.closest('[inert]') && target.offsetParent !== null) {
+    target.focus({ preventScroll: true });
+  }
 }
 
 /** One tile. `regular` is null for the ANYBODY tile. */
@@ -1372,23 +1440,21 @@ function rosterTile(regular, seated) {
       toast(`${regular.name} is already at the table.`);
       return;
     }
-    closePopovers();
+    closeHire();
     send(regular ? { type: 'addBot', regularId: regular.id } : { type: 'addBot' });
   });
   return tile;
 }
 
-function openRoster(snapshot) {
-  openedPopover(el.btnAddBot);
-  const roster = ui.roster || buildRoster();
-  if (!roster.panel.isConnected) {
-    const host = el.btnAddBot.closest('.panel') || el.btnAddBot.parentElement;
-    host.append(roster.panel);
-  }
+/** Who is already at the table, by lowercased name — the seated set. */
+function seatedRegulars(snapshot) {
+  return new Set(snapshot.seats.filter((s) => s.isBot).map((s) => s.name.toLowerCase()));
+}
 
-  const seated = new Set(
-    snapshot.seats.filter((s) => s.isBot).map((s) => s.name.toLowerCase())
-  );
+/** Fills the screen from a snapshot. Called on open and on every lobby snapshot. */
+function fillRoster(snapshot) {
+  const roster = ui.roster;
+  const seated = seatedRegulars(snapshot);
   const tiles = new DocumentFragment();
   for (const regular of REGULARS) {
     tiles.append(rosterTile(regular, seated.has(regular.name.toLowerCase())));
@@ -1396,8 +1462,29 @@ function openRoster(snapshot) {
   tiles.append(rosterTile(null, false));
   roster.grid.replaceChildren(tiles);
   roster.tell.textContent = ANYBODY_TELL;
+}
 
+/**
+ * The lobby can re-render underneath this screen — a snapshot arrives, or the
+ * other player hires somebody. The screen used to be closed by that snapshot;
+ * now it stays and re-reads the seated set in place, so a chef who has just sat
+ * down goes grey under the cursor rather than the whole screen disappearing.
+ */
+function refreshRoster(snapshot) {
+  if (!hireOpen()) return;
+  fillRoster(snapshot);
+}
+
+function openRoster(snapshot) {
+  const roster = ui.roster || buildRoster();
+  // Outside `#app`, like the other two dialogs: what it covers is what goes
+  // inert behind it, and it cannot cover the lobby from inside the lobby panel.
+  if (!roster.panel.isConnected) document.body.append(roster.panel);
+  ui.hireReturn = el.btnAddBot;
+
+  fillRoster(snapshot);
   show(roster.panel);
+  syncAppInert();
   const first = roster.grid.querySelector('.roster-tile:not(.is-seated)');
   if (first) first.focus({ preventScroll: true });
 }
@@ -4337,11 +4424,16 @@ function cardBack() {
 }
 
 // ------------------------------------------------------------- popovers ----
-/** Every popover on the client, whether or not it has been built yet. */
+/**
+ * Every popover on the client, whether or not it has been built yet.
+ *
+ * The hire roster used to be the third one. It is a modal screen state now, so
+ * it is not on this list and `popoverOpen()` no longer answers for it — but
+ * `closePopovers` still takes it down, because every caller that meant "clear
+ * what is floating over the game" meant the roster too.
+ */
 function popoverPanels() {
-  const panels = [el.picker, el.calloutPop];
-  if (ui.roster) panels.push(ui.roster.panel);
-  return panels;
+  return [el.picker, el.calloutPop];
 }
 
 /**
@@ -4368,6 +4460,12 @@ function openedPopover(invoker) {
  * `restoreFocus: false` is for the callers that have somewhere better to put
  * it: committing a play focuses the next playable card, and a screen change
  * focuses the screen.
+ *
+ * The hire screen goes down with them. It is not a popover any more, but every
+ * caller here — the refused rejoin, the local leave, the round-over, opening
+ * the rules, Escape — closed the roster before and has to keep closing the
+ * screen that replaced it. `keepHire: true` is the single exception, for the
+ * lobby snapshot that now refreshes the screen instead of killing it.
  */
 function closePopovers(options = {}) {
   // `true` is the Escape key's shorthand for { instant: true }. Escape is a
@@ -4376,7 +4474,8 @@ function closePopovers(options = {}) {
   // choice to the thing that closed. The snap is a class and a forced reflow
   // rather than a frame hop, because rAF does not run in a hidden document.
   if (options === true) options = { instant: true };
-  const { restoreFocus = true, instant = false } = options;
+  const { restoreFocus = true, instant = false, keepHire = false } = options;
+  if (!keepHire) closeHire({ restoreFocus });
   const panels = popoverPanels();
   const active = document.activeElement;
   const stranded = active instanceof HTMLElement && panels.some((panel) => panel && panel.contains(active));
@@ -5586,8 +5685,8 @@ el.btnCopyCode.addEventListener('click', () => copyCode(el.btnCopyCode));
 el.hudCode.addEventListener('click', () => copyCode(el.hudCode));
 el.btnAddBot.addEventListener('click', () => {
   if (!ui.snapshot) return;
-  if (ui.roster && ui.roster.panel.classList.contains('is-open')) {
-    closePopovers();
+  if (hireOpen()) {
+    closeHire();
     return;
   }
   openRoster(ui.snapshot);
