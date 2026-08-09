@@ -1897,6 +1897,22 @@ function buildSeat(player) {
   cards.append(box, fan, deck, count);
 
   body.append(idcol, cards);
+
+  // 2A/5 · the place in the running order, spoken.
+  //
+  // The strip's DOM order is the SEATING order and never changes inside a
+  // round — that stability is what lets the counter place by percentage and
+  // survive a reverse. The queue then sorts the same nodes visually with CSS
+  // `order`, so what a sighted player sees is the running order while what a
+  // screen reader walks is the seating order. Rather than fight that (moving
+  // nodes would cost the counter its invariant), every seat says where it
+  // stands, so the two orders agree in MEANING even where they differ in
+  // sequence. It is the first thing in the seat, so the position is heard
+  // before the name — the same way the ordinal chip is read before the plate.
+  const pos = document.createElement('span');
+  pos.className = 'seat__pos sr-only';
+  node.append(pos);
+
   node.append(body);
 
   // Two readings of the same number: the printed plate above, and "5 cards"
@@ -1935,9 +1951,29 @@ function buildSeat(player) {
 
   node._parts = {
     avatar, name, body, idcol, cards, count, countLong, countNum,
-    badge, status, nick, box, boxLid, boxBase, fan, deck, edge, ring, rank,
+    badge, status, nick, box, boxLid, boxBase, fan, deck, edge, ring, rank, pos,
   };
   return node;
+}
+
+/**
+ * 2A/5 · the ordinal chip, said in words.
+ *
+ * The chip prints NOW, NEXT, 03… — three characters a sighted player reads
+ * against the strip they sit in. Spoken alone, "03" is not a position, so the
+ * spoken form is the whole phrase. Words rather than "3rd" because a screen
+ * reader's ordinal handling is a per-engine guess and this is short enough to
+ * spell. `-1` is nobody at the oven — between turns or the round over — and
+ * then no seat has a place in a running order, so nothing is said.
+ */
+const PLACE_WORDS = [
+  'playing now', 'next to play', 'third to play', 'fourth to play',
+  'fifth to play', 'sixth to play', 'seventh to play', 'eighth to play',
+];
+
+function placePhrase(rank) {
+  if (!Number.isInteger(rank) || rank < 0) return '';
+  return PLACE_WORDS[rank] || `${rank + 1}th to play`;
 }
 
 /**
@@ -2043,6 +2079,10 @@ function updateSeat(node, player, view, exposed, rank) {
   // arrangements are one component reading one value rather than two.
   parts.rank.textContent =
     rank === 0 ? 'NOW' : rank === 1 ? 'NEXT' : rank < 0 ? '' : String(rank + 1).padStart(2, '0');
+  // The same number a third time, spoken. The chip stays out of the
+  // accessibility tree — "03" is not a position — and this says it in full.
+  const place = placePhrase(rank);
+  parts.pos.textContent = place;
   const isTurn = rank === 0;
   node.classList.toggle('is-turn', isTurn);
   node.classList.toggle('is-next', rank === 1);
@@ -2071,7 +2111,11 @@ function updateSeat(node, player, view, exposed, rank) {
   if (target) {
     node.setAttribute('role', 'button');
     node.setAttribute('tabindex', '0');
-    node.setAttribute('aria-label', `Call out ${player.name}`);
+    // `role=button` collapses the subtree into the label, so the place the
+    // seat just wrote into `.seat__pos` would go unheard on exactly the seats
+    // a player is being asked to choose between. It is carried into the label
+    // instead, and stays last so the action still leads.
+    node.setAttribute('aria-label', place ? `Call out ${player.name}, ${place}` : `Call out ${player.name}`);
   } else {
     node.removeAttribute('role');
     node.removeAttribute('tabindex');
