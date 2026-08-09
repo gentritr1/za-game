@@ -196,6 +196,8 @@ const ui = {
   shutterSwap: null,
   shutterRunning: false,
   shutterSwapped: false,
+  shutterGen: 0,      // which roll owns the node; older callbacks no-op
+  shutterTimers: [],  // that roll's own timers, cleared when it is superseded
   breatheTimer: 0, // 01 · re-arms the idle hand once entries have landed
   entrySettleAt: 0, // when the newest wave of cards finishes arriving
   nudgeTimer: 0, // 04 · the 5s inactivity clock
@@ -418,6 +420,20 @@ function shutterNode() {
   return node;
 }
 
+/**
+ * One roll, one generation.
+ *
+ * Both timers used to be anonymous, so they outlived the roll that booked
+ * them. Replayed on the probe: roll 1 covers and swaps, a second screen change
+ * starts roll 2, and then roll 1's leftover cleanup timer fires — it stripped
+ * `is-rolling` off the shared node, so roll 2's shutter vanished mid-roll, and
+ * its `coveredSwap()` ran roll 2's swap with nothing covering the frame. The
+ * wrong shutter was removed and the swap it existed to hide was shown.
+ *
+ * Every roll now claims a generation. A callback from an older one is not the
+ * owner of the node any more and does nothing; its timers are cleared outright
+ * so the stale work never even runs.
+ */
 function rollShutter(swap) {
   const node = shutterNode();
   // A roll that has not covered yet can still carry a newer swap. One that
@@ -426,18 +442,28 @@ function rollShutter(swap) {
     ui.shutterSwap = swap;
     return;
   }
+  // Taking the node over: whatever the previous roll still had queued for it
+  // is now somebody else's business.
+  for (const timer of ui.shutterTimers) clearTimeout(timer);
+  ui.shutterTimers.length = 0;
+  const gen = ++ui.shutterGen;
+
   ui.shutterSwap = swap;
   ui.shutterSwapped = false;
   ui.shutterRunning = true;
   restartAnimation(node, 'is-rolling', 'shutter');
   sound.play('tape-scrub'); // rides the shutter itself, nothing else
   // 42% of the roll: the shutter is fully down and the room can change.
-  setTimeout(coveredSwap, Math.round(SHUTTER_MS * 0.42));
-  setTimeout(() => {
+  ui.shutterTimers.push(setTimeout(() => {
+    if (ui.shutterGen !== gen) return;
+    coveredSwap();
+  }, Math.round(SHUTTER_MS * 0.42)));
+  ui.shutterTimers.push(setTimeout(() => {
+    if (ui.shutterGen !== gen) return;
     node.classList.remove('is-rolling');
     ui.shutterRunning = false;
     coveredSwap(); // belt to the braces: a throttled tab must still land it
-  }, SHUTTER_MS + 60);
+  }, SHUTTER_MS + 60));
 }
 
 function coveredSwap() {
