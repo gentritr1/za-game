@@ -262,6 +262,7 @@ const ui = {
   paintedScreen: '', // the room actually in the DOM, set only by `paintScreen`
   handMetrics: null, // { token, cardW, railW } — the near rail's two numbers
   seatBox: null,     // { token, width, height, port } — the felt the token walks
+  queueArrangement: '', // the queue's seats in rank order; unchanged means nothing slid
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1772,8 +1773,25 @@ function placeSeats(order, ranks, view) {
     // Where every chef stood before the sort. `offsetLeft` rather than a rect:
     // a rect read mid-transition returns the transformed position, and the
     // whole point of this measurement is where the seat BELONGS.
+    //
+    // Only worth knowing if a slide is actually going to happen. This ran on
+    // every snapshot, ahead of the guard below, so a strip that was never going
+    // to move still measured every seat in it -- a forced layout a snapshot on
+    // the phone, for nothing.
+    //
+    // What decides it is the arrangement: the seats in rank order, plus the
+    // token, because a resize moves every seat without re-sorting anything. If
+    // that string is what it was last render then no seat can have gone
+    // anywhere and there is nothing to invert, so nothing is measured at all.
+    // Snapshots arrive constantly for things that do not touch the running
+    // order -- a card count, a declaration -- and those are now free.
     const slid = ui.queuePlaced;
-    const before = new Map(order.map((node) => [node, node.offsetLeft]));
+    const arrangement = `${layoutToken()}|${sorted.map(({ node, rank }) => `${node.dataset.id}:${rank}`).join(',')}`;
+    const rearranged = arrangement !== ui.queueArrangement;
+    ui.queueArrangement = arrangement;
+    // A reverse re-forms the strip even if it lands on the same reading.
+    const willSlide = slid && wantsMotion() && (rearranged || Boolean(ui.dirJustFlipped));
+    const before = willSlide ? new Map(order.map((node) => [node, node.offsetLeft])) : null;
 
     sorted.forEach(({ node, rank }, index) => {
       node.style.removeProperty('left');
@@ -1795,20 +1813,29 @@ function placeSeats(order, ranks, view) {
     // chips have already renumbered, which is the point: an ordinal that
     // counts down while the seat travels is a lie about what happened.
     el.opponents.classList.toggle('is-reforming', Boolean(ui.dirJustFlipped));
-    if (!slid || !wantsMotion()) return;
+    if (!willSlide) return;
+
+    // Read every seat's new home FIRST, then write every inverse transform.
+    // Interleaved, each pass's read had to flush the previous pass's write, so
+    // a strip of seven seats cost seven layouts where one will do.
+    const after = new Map(order.map((node) => [node, node.offsetLeft]));
+
     let moved = false;
     for (const node of order) {
-      const dx = before.get(node) - node.offsetLeft;   // forces the reflow
-      const body = node._parts.body;
+      const dx = before.get(node) - after.get(node);
       if (Math.abs(dx) < 1) continue;
       moved = true;
+      const body = node._parts.body;
       body.style.transition = 'none';
       body.style.transform = `translateX(${dx.toFixed(1)}px)`;
     }
     if (!moved) return;
-    // Each loop pass's offsetLeft read commits the PREVIOUS node's write, so
-    // without one more read the final seat's inverse transform is still
-    // uncommitted when release runs — it snaps while everyone else slides.
+    // This read is load-bearing and stays. The writes above are all still
+    // uncommitted, and `release` runs on the next frame: without a read to
+    // flush them, a seat's inverse transform and its removal land together and
+    // it snaps instead of sliding. It used to be the LAST seat that snapped,
+    // because the interleaved reads happened to commit the other six; now that
+    // nothing is committed until here, this one read covers all of them.
     void el.opponents.offsetLeft;
     const release = () => {
       for (const node of order) {
@@ -1827,7 +1854,10 @@ function placeSeats(order, ranks, view) {
 
   // Leaving the queue: forget where the strip stood, and clear anything a
   // slide left behind, or the first counter frame starts from a stale offset.
+  // The arrangement goes with it, so coming back to the queue never compares
+  // against a reading taken before the counter had the seats.
   ui.queuePlaced = false;
+  ui.queueArrangement = '';
   el.opponents.classList.remove('is-reforming');
 
   const map = COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
