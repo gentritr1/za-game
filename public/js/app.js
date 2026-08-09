@@ -4916,7 +4916,11 @@ const RULE_PAGES = [
   },
   {
     h: 'You drew a card',
-    line: 'Play that card, or keep it and pass.',
+    // "If it fits" is doing real work: a drawn card that cannot be played ends
+    // the turn on its own, and there is no pass to choose. The first draft said
+    // "Play that card, or keep it and pass", which promised a choice the server
+    // does not always offer.
+    line: 'If it fits: play it, or keep it and pass.',
     sr: 'Nothing fits? Take one card off the dough pile. If it can be played you may play that card and nothing else, or keep it and pass; if it cannot be played your turn ends by itself.',
     // game.js:484-511 drawCard · 225-235 playableCardIds narrows to the drawn
     // card alone · 379-381 playCard refuses every other card · 514-523
