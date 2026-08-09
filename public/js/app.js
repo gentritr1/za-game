@@ -1623,8 +1623,16 @@ function relayoutSeating() {
  * Built once and kept on `ui`, next to the seat cache, so nothing rebuilds a
  * node another part of the client is holding a reference to.
  */
+/*
+ * Both pieces are rebuilt if they are missing OR detached. `resetGameView`
+ * clears `.opponents` on the way back to the parlour, which takes the token
+ * with it (the belt is a sibling and survives) — and a cache that only asks
+ * "do I have one?" answers yes while holding a node no longer in the
+ * document, so the direction marker never came back for the rest of the
+ * session. Existing is not the same as being on screen.
+ */
 function seatingFurniture() {
-  if (!ui.belt) {
+  if (!ui.belt || !ui.belt.isConnected) {
     const belt = document.createElement('div');
     belt.className = 'counter-belt';
     belt.setAttribute('aria-hidden', 'true');
@@ -1634,7 +1642,7 @@ function seatingFurniture() {
     el.opponents.after(belt);
     ui.belt = belt;
   }
-  if (!ui.token) {
+  if (!ui.token || !ui.token.isConnected) {
     const token = document.createElement('span');
     token.className = 'counter-token';
     token.setAttribute('aria-hidden', 'true');
