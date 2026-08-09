@@ -3425,6 +3425,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   60% { transform: translateX(-1px); }
 }
 
+/* The call-out window: a bar that is FULL for exactly as long as the window
+   is open, and is removed with it.
+
+   It used to drain over 3000ms. There is no three seconds. The server holds no
+   timer of any kind: a player stays `vulnerable` from the play that leaves them
+   on one card until the turn genuinely leaves their seat and comes back
+   (`server/game.js` advanceTurn, the `next !== from` condition), so at a full
+   table the real window can run half a minute, and a bar that emptied at three
+   seconds told everyone the chance was gone while it was still wide open.
+
+   So it does not move. The lifetime IS the signal: the element exists while
+   `calloutTargets` names the seat and vanishes when it stops. The class keeps
+   the name it has -- renaming it would touch the JS for nothing. */
 .callout-drain {
   display: block;
   width: 100%;
@@ -3441,16 +3454,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   height: 100%;
   background: var(--sauce);
   transform-origin: 0 50%;
-  animation: callout-drain 3000ms var(--ease-step-5) both;
-}
-
-@keyframes callout-drain {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
 }
 
 /* Your own window has no seat panel to live in, so it sits on the rail above
-   the hand: the same five steps, plus the instruction that closes it. */
+   the hand: the same steady bar, plus the instruction that closes it. */
 .callout-self {
   position: absolute;
   left: var(--s3);
@@ -3475,10 +3482,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .callout-self.is-safe { border-color: var(--basil); }
 .callout-self.is-safe .callout-self__label { color: var(--basil); }
 .callout-self.is-safe .callout-drain { border-color: var(--basil); }
+/* Safe now: the same steady bar in basil. The `animation: none` and the
+   `scaleX(1)` that used to be here existed only to cancel the drain, and the
+   drain is gone. */
 .callout-self.is-safe .callout-drain__fill {
   background: var(--basil);
-  animation: none !important;
-  transform: scaleX(1) !important;
 }
 
 /* --- E - burnt slice ----------------------------------------------------- */

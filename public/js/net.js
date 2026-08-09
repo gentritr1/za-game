@@ -6,6 +6,11 @@
  * them. The token is what proves the seat is theirs. It stays in this tab only:
  * `sessionStorage` keeps it over a page reload and drops it when the tab closes.
  *
+ * A reload is just a drop that lost its variables, so it takes the same road:
+ * the app reads the stored seat and hands it to `restore()` before `connect()`,
+ * and from the socket's point of view nothing is different from a reconnect —
+ * `joining`, then the first `state`, or the refusal that sends the player home.
+ *
  * ## The four states
  *
  * An open socket is not a seat. Between the two there is a rejoin in flight,
@@ -67,6 +72,40 @@ function writeSeat(code, value) {
   } catch {
     /* nothing to keep it in */
   }
+}
+
+/**
+ * Every seat this tab still holds a token for, newest first.
+ *
+ * A tab that has hopped between tables keeps a credential per table, so
+ * "the room I was in" is the most recently written one and not merely the
+ * first key storage happens to hand back. Records written before seats
+ * carried an `at` sort oldest, which is exactly what they are.
+ */
+function allSeats() {
+  const seats = [];
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key || !key.startsWith(SEAT_KEY)) continue;
+      let value = null;
+      try {
+        value = JSON.parse(sessionStorage.getItem(key) || 'null');
+      } catch {
+        continue;
+      }
+      if (!value || !value.token || !value.name) continue;
+      seats.push({
+        code: key.slice(SEAT_KEY.length),
+        name: value.name,
+        token: value.token,
+        at: Number(value.at) || 0,
+      });
+    }
+  } catch {
+    return [];
+  }
+  return seats.sort((a, b) => b.at - a.at);
 }
 
 export class Connection {
@@ -201,7 +240,36 @@ export class Connection {
   /** Remembers how to get back into the room after a reconnect. */
   remember(name, code, token) {
     this.credentials = { name, code, token };
-    writeSeat(code, { name, token });
+    writeSeat(code, { name, token, at: Date.now() });
+  }
+
+  /**
+   * Arms the seat a fresh page load should reclaim, BEFORE `connect()`.
+   *
+   * A reload is a reconnect that lost its variables. `remember()` is how a
+   * live join records a seat; this is how the next load picks that record back
+   * up, and it deliberately leaves the stored `at` alone so restoring twice
+   * does not make a stale table look like the newest one. From here the
+   * ordinary machine does the rest: the `open` handler sends the `joinRoom`,
+   * the board stays frozen at `joining`, and a refusal takes the existing
+   * `rejoinRefused` path home.
+   */
+  restore(seat) {
+    if (!seat || !seat.code || !seat.token || !seat.name) return false;
+    this.credentials = { name: seat.name, code: seat.code, token: seat.token };
+    return true;
+  }
+
+  /** The seat this tab most recently sat in, if the token is still here. */
+  lastSeat() {
+    return allSeats()[0] || null;
+  }
+
+  /** The seat this tab holds for one particular table, if any. */
+  seatFor(code) {
+    const seat = readSeat(code);
+    if (!seat || !seat.token || !seat.name) return null;
+    return { code: String(code).toUpperCase(), name: seat.name, token: seat.token };
   }
 
   forget() {

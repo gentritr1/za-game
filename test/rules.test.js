@@ -6,6 +6,7 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const game = require('../server/game');
@@ -570,6 +571,54 @@ test('a player who leaves mid-round closes the round and credits the win', () =>
   assert.strictEqual(seats[0].wins, 1);
 });
 
+test('the deal moves round the table instead of parking on the host', () => {
+  const { room, seats } = table(['Ana', 'Bo', 'Cy', 'Di']);
+  const starters = [];
+  for (let round = 0; round < 5; round++) {
+    assert.ok(room.startRound().ok);
+    starters.push(room.game.players[room.game.turnIndex].id);
+    room.phase = 'roundOver';
+  }
+
+  // The whole bug: every one of these used to be Ana.
+  assert.strictEqual(
+    new Set(starters.slice(0, 4)).size, 4,
+    `four rounds must open at four different seats, got ${starters.slice(0, 4).join(',')}`
+  );
+  assert.deepStrictEqual(
+    starters,
+    [seats[0].id, seats[1].id, seats[2].id, seats[3].id, seats[0].id],
+    'and it passes one seat at a time, wrapping back round'
+  );
+});
+
+test('the deal keeps moving when the chef who dealt last walks out', () => {
+  const { room, seats } = table(['Ana', 'Bo', 'Cy', 'Di']);
+  assert.ok(room.startRound().ok);
+  assert.strictEqual(room.game.players[room.game.turnIndex].id, seats[0].id);
+  room.phase = 'roundOver';
+
+  // Ana dealt and then left. The rotation cannot point at her any more, and
+  // it must not collapse back onto whoever is now listed first.
+  room.removeSeat(seats[0].id);
+  room.phase = 'roundOver';
+  assert.ok(room.startRound().ok);
+  const after = room.game.players[room.game.turnIndex].id;
+  assert.ok(
+    room.seats.some((s) => s.id === after),
+    'the round opens at a seat that is actually at the table'
+  );
+  assert.notStrictEqual(after, seats[0].id, 'and never at the seat that left');
+
+  // It is still rotating, not stuck: the next round moves on again.
+  room.phase = 'roundOver';
+  assert.ok(room.startRound().ok);
+  assert.notStrictEqual(
+    room.game.players[room.game.turnIndex].id, after,
+    'the round after that opens somewhere new again'
+  );
+});
+
 test('a player inside the reconnect grace period stays in the next round', () => {
   const { room, seats } = table(['Ana', 'Bo']);
   assert.ok(room.startRound().ok);
@@ -829,6 +878,127 @@ test('any action winds the idle clock back up', () => {
     room.touchIdleTimer();
     assert.ok(room.idleDueAt > Date.now() + 500, 'the clock is full again');
   });
+});
+
+test('the second turn in a row costs the table the short clock, not the full one', () => {
+  withTimings({ idleTurn: 4000, idleStruck: 1000, idleWarn: 10000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    const seat = room.findSeat(game.currentPlayer(room.game).id);
+    room.scheduleTimers(true);
+    assert.strictEqual(seat.idleStrikes, 0, 'everybody starts with the benefit of the doubt');
+
+    // First expiry: they were given, and have now spent, the full 4s.
+    const t0 = Date.now();
+    manager.tickRoom(room, t0 + 4500);
+    assert.strictEqual(seat.idleStrikes, 1, 'the doubt has been answered once');
+
+    // Bring the same seat back on turn and re-arm exactly as a turn change does.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const budget = room.idleDueAt - Date.now();
+    assert.ok(
+      budget <= 1000 + 50 && budget > 0,
+      `a struck seat waits out the short clock, got ${budget}ms (full price would be ~4000)`
+    );
+
+    // And the warning came down with it: ten seconds of warning on a one
+    // second turn is not a warning.
+    const warn = room.snapshotFor(seat.id).turnIdleWarnMs;
+    assert.strictEqual(warn, 500, `the warning is half the clock in play, got ${warn}`);
+
+    // It really does fire early: half of the OLD clock is already past the new one.
+    const serial = room.game.turnSerial;
+    manager.tickRoom(room, Date.now() + 2000);
+    assert.notStrictEqual(room.game.turnSerial, serial, 'the table moved on at the short clock');
+    assert.strictEqual(seat.idleStrikes, 2, 'and it stays struck while they stay away');
+  });
+});
+
+test('one move makes a struck player an ordinary player again', () => {
+  withTimings({ idleTurn: 4000, idleStruck: 1000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    const seat = room.findSeat(game.currentPlayer(room.game).id);
+    room.scheduleTimers(true);
+    manager.tickRoom(room, Date.now() + 4500);
+    assert.strictEqual(seat.idleStrikes, 1);
+    assert.strictEqual(
+      room.snapshotFor(seat.id).seats.find((s) => s.id === seat.id).idleSkipped, true,
+      'and the table can see it'
+    );
+
+    // They come back and do something — anything. `draw` is the cheapest move
+    // that always exists, and it goes through the real action path.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const acted = manager.applyAction(room, seat.id, { type: 'draw' });
+    assert.ok(acted.ok, `the action itself must land: ${acted.error || ''}`);
+    assert.strictEqual(seat.idleStrikes, 0, 'one move is the whole proof they are here');
+    assert.strictEqual(
+      room.snapshotFor(seat.id).seats.find((s) => s.id === seat.id).idleSkipped, false,
+      'and the table stops flagging them'
+    );
+
+    // Their next turn is back at full price.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const budget = room.idleDueAt - Date.now();
+    assert.ok(budget > 1000 + 50, `back to the full clock, got ${budget}ms`);
+  });
+});
+
+// ------------------------------------------------- the client's own freeze ---
+/**
+ * A source-level guard, not a runtime one: there is no DOM here, and adding one
+ * would cost a dependency this project does not have. It exists because the bug
+ * it catches was invisible to every runtime check we had.
+ *
+ * `syncDesynced` disables the action controls while the connection is out and
+ * then returns early on the way back, trusting the next snapshot to re-enable
+ * them. That trust has to be earned control by control. ZA! and the dough pile
+ * are re-derived every snapshot; PASS and CALL OUT were only ever assigned
+ * `.hidden`, so nothing turned them back on — and because `connect()` opens
+ * every page load in `connecting`, the freeze ran on the ordinary boot path and
+ * both stayed dead for the entire session. A player told to "play it or pass"
+ * could not pass.
+ *
+ * So: anything that freeze switches off must be switched back on somewhere else.
+ */
+test('every control the desync freeze disables has an owner that turns it back on', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  const start = src.indexOf('function syncDesynced(');
+  assert.ok(start > 0, 'syncDesynced is still the freeze');
+
+  const after = src.indexOf('\nfunction ', start + 10);
+  const body = src.slice(start, after > 0 ? after : src.length);
+  const list = body.match(/for \(const button of \[([^\]]+)\]\)\s*\{\s*if \(button\) button\.disabled = true;/);
+  assert.ok(list, 'the freeze still switches off a list of controls');
+
+  const frozen = list[1].split(',').map((s) => s.trim()).filter(Boolean);
+  assert.ok(frozen.length >= 4, `expected the four action controls, got ${frozen.join(',')}`);
+
+  // Everything except the freeze itself. An owner has to live somewhere else:
+  // the freeze re-enabling its own list would just be the early return again.
+  const rest = src.slice(0, start) + src.slice(start + body.length);
+  for (const name of frozen) {
+    const owner = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.disabled\\s*=`);
+    assert.ok(
+      owner.test(rest),
+      `${name} is switched off by the desync freeze and nothing outside it ever assigns `
+      + `.disabled — this is exactly how PASS and CALL OUT died on every boot`
+    );
+  }
 });
 
 // ------------------------------------------------------- the file server -----

@@ -223,6 +223,8 @@ const ui = {
   anchovyCount: 0, // anchovies this round, for the 6C escalation
   callouts: new Map(), // playerId -> { node, mine }
   calloutBeeps: [],
+  pendingAt: 0, // a state-changing action is on the wire; see `armPending`
+  pendingTimer: 0,
   shoutArmedAt: 0, // when the shout became legal, for the timing score
   dirJustFlipped: false,
   btnMute: null,
@@ -320,13 +322,79 @@ const net = new Connection({
  * the home screen's own buttons and for a keyboard shortcut that slipped past.
  */
 function send(payload) {
-  if (net.send(payload)) return true;
+  const gated = Boolean(payload) && PENDING_ACTIONS.has(payload.type);
+  // A second move while the first is still in the air. The controls are
+  // already inert, so this only catches something that got past them; the
+  // silence is deliberate, because the board not answering is the message.
+  if (gated && ui.pendingAt) return false;
+  if (net.send(payload)) {
+    if (gated) armPending();
+    return true;
+  }
   toast(
     net.state === 'joining'
       ? 'Still taking your seat back. One second.'
       : 'No line to the kitchen yet. Hold on.'
   );
   return false;
+}
+
+// ------------------------------------------------- the pending-action gate --
+/**
+ * One move at a time.
+ *
+ * Only the clicked card used to go quiet while the server decided, so the
+ * draw pile, PASS, ZA! and the call-out were all still live and a player could
+ * fire a second action into the same gap. The server rejected the loser, which
+ * is the right outcome arrived at the wrong way round: the interface had
+ * already invited a press it was going to throw away.
+ *
+ * So one gate, armed at the single choke point every action goes through, and
+ * held until the authoritative snapshot lands. `PENDING_RELEASE_MS` is the
+ * escape hatch: a reply that never comes must not wedge the hand forever, and
+ * 2s is far longer than a round trip but short enough to press again.
+ *
+ * PENDING IS NOT DESYNC. Desync is a statement about the connection and
+ * freezes the whole screen behind a banner; pending is a statement about one
+ * move during ordinary play and freezes only the five controls that make one.
+ * They meet in exactly two places, both deliberate: a snapshot releases the
+ * gate before anything is drawn (`applySnapshot`), and losing sync releases it
+ * too (`syncDesynced`) — once the board is frozen for the bigger reason, a
+ * pending move belongs to a round this client may no longer be in.
+ *
+ * `inert` rather than `disabled` on purpose: it blocks pointer AND keyboard in
+ * one attribute, and it un-sets cleanly. Painting `disabled` over these
+ * controls would mean rebuilding, on release, the enabled state that only the
+ * last snapshot knows — a second copy of the truth, which is how they drift.
+ * Visually this is the `.is-desynced` treatment and nothing more: no new
+ * idiom, the frozen thing simply does not answer.
+ */
+const PENDING_ACTIONS = new Set(['play', 'draw', 'pass', 'za', 'callout']);
+const PENDING_RELEASE_MS = 2000;
+
+function armPending() {
+  ui.pendingAt = Date.now();
+  clearTimeout(ui.pendingTimer);
+  ui.pendingTimer = setTimeout(releasePending, PENDING_RELEASE_MS);
+  syncPending();
+}
+
+function releasePending() {
+  clearTimeout(ui.pendingTimer);
+  ui.pendingTimer = 0;
+  if (!ui.pendingAt) return;
+  ui.pendingAt = 0;
+  syncPending();
+}
+
+/** The whole visible half of the gate. Both branches are one attribute. */
+function syncPending() {
+  const held = Boolean(ui.pendingAt);
+  // `.hand-zone` is the footer that holds the hand AND the ZA!/call-out/pass
+  // bar, so it and the dough pile are the whole of the move-making surface.
+  for (const node of [el.handZone, el.drawPile]) {
+    if (node) node.inert = held;
+  }
 }
 
 const CONN_FIRST = 'Knocking on the kitchen door…';
@@ -371,7 +439,18 @@ function syncDesynced() {
   for (const button of [el.btnNextRound, el.btnToLobby]) {
     if (button) button.disabled = stale;
   }
-  if (!stale) return; // the `state` that unfroze us re-enables the rest
+  // Leaving: `renderActionBar` and `renderPiles` state the `disabled` of all
+  // four controls below outright, on every snapshot, so the one that unfreezes
+  // us hands each of them back. This return once meant "somebody else will
+  // sort it out", and for PASS and CALL OUT nobody did — they stayed dead for
+  // the whole session. Do not disable anything here that is not re-derived
+  // there.
+  if (!stale) return;
+  // The connection is the bigger fact and it freezes everything the gate was
+  // holding. Hand the board over rather than leaving two locks on it: the move
+  // in the air belongs to a round this client may no longer be in, and the
+  // snapshot that would have released the gate may never arrive.
+  releasePending();
   for (const button of [el.btnPass, el.btnZa, el.btnCallout, el.drawPile]) {
     if (button) button.disabled = true;
   }
@@ -390,6 +469,10 @@ function handleMessage(message, connectionContext = {}) {
   switch (message.type) {
     case 'joined':
       net.remember(message.youName, message.roomCode, message.token);
+      // Sitting down anywhere other than the linked table retires the link, so
+      // the next reload offers this seat back instead of that address. See
+      // `openingMove`.
+      noteJoined(message.roomCode);
       if (message.reconnected) toast('Welcome back. Your seat is still warm.');
       break;
     case 'state':
@@ -734,6 +817,11 @@ document.addEventListener('pointerdown', (event) => {
 // ============================================================== SNAPSHOT ===
 function applySnapshot(snapshot) {
   ui.snapshot = snapshot;
+  // The authoritative answer is here, so the move is no longer pending. This
+  // runs before anything is drawn: the renderers below set the enabled state
+  // of the very controls the gate was holding, and they must have the last
+  // word on them.
+  releasePending();
 
   // Every round has its own id, so a new round starts with a clean log.
   const gameId = snapshot.game ? snapshot.game.gameId : null;
@@ -856,6 +944,8 @@ function resetRoundEffects() {
 
 function resetGameView() {
   resetRoundEffects();
+  // Leaving the table takes any move in the air with it.
+  releasePending();
   clearNudge();
   ui.entrySettleAt = 0;
   setHandBreathing(false);
@@ -2099,10 +2189,21 @@ function updateSeat(node, player, view, exposed, rank) {
  * The call-out window, drawn from the snapshot.
  *
  * The server has no timer: a player is `vulnerable` from the moment they play
- * down to one card without shouting until play comes back round to them. The
- * three seconds in the handoff are the client's dramatisation of that window,
- * so the bar drains in five countable steps and then simply stops. It never
- * decides anything — the CALL OUT button stays governed by `calloutTargets`.
+ * down to one card without shouting until play comes back round to them
+ * (`server/game.js` advanceTurn clears it on `next !== from`, and nothing in
+ * that file consults a clock).
+ *
+ * This used to be dramatised as three seconds — a bar draining in five
+ * countable steps, and five rising beeps to count them. Both were inventions.
+ * A player who waited out the "countdown" watched the chance appear to expire
+ * while it was in fact still open, sometimes for another half minute; the only
+ * thing the dramatisation reliably did was talk people out of a legal move.
+ *
+ * So the window is now told by its own existence: the box and its bar are here
+ * while the seat is callable and gone when it is not, which is precisely the
+ * lifetime of `calloutTargets`, the same field that governs the CALL OUT
+ * button. One beep marks the opening, because a window you never noticed is
+ * its own kind of lie; nothing counts down.
  *
  * A window closes three ways, and they are told apart in the loop below.
  */
@@ -2150,10 +2251,10 @@ function openCalloutWindow(playerId, isMine) {
     box.append(label, drain);
     el.handZone.append(box);
     entry.node = box;
-    // The window is a dashed sauce box and a bar draining over three seconds:
-    // entirely a picture, and the one moment where not knowing costs you cards.
-    // `syncCalloutWindows` only opens a window that is not already open, so
-    // this is once per arising rather than once per snapshot.
+    // The window is a dashed sauce box and a steady bar, and it is the one
+    // moment where not knowing costs you cards. `syncCalloutWindows` only
+    // opens a window that is not already open, so this is once per arising
+    // rather than once per snapshot.
     announce("You're on one card — shout ZA!");
   } else {
     const seat = ui.seatNodes.get(playerId);
@@ -2163,12 +2264,15 @@ function openCalloutWindow(playerId, isMine) {
     entry.node = drain;
   }
 
-  // One rising beep per drained step, and only ever for one window at a time:
-  // two seats caught out together would otherwise double every beep.
+  // One beep, on the opening, and only ever for one window at a time: two
+  // seats caught out together would otherwise double it.
+  //
+  // This was five rising beeps at 600ms — a three-second countdown in sound,
+  // to a deadline that does not exist. The pitch climbing towards an end is
+  // the same false claim the draining bar made, so it goes with it. A single
+  // note still says "look up", which is all it was ever entitled to say.
   if (ui.callouts.size === 1) {
-    for (let i = 0; i < 5; i++) {
-      ui.calloutBeeps.push(setTimeout(() => sound.play('timer-beep', i + 1), i * 600));
-    }
+    ui.calloutBeeps.push(setTimeout(() => sound.play('timer-beep', 1), 0));
   }
 }
 
@@ -2990,11 +3094,30 @@ function renderActionBar(snapshot, view, yourTurn) {
     ui.shoutArmedAt = 0;
   }
 
+  // EVERY control on this bar has its `disabled` set here, on every snapshot,
+  // both ways. That is the rule, and it is not decoration.
+  //
+  // `syncDesynced` disables all four of these while the connection is out, and
+  // then returns early on the way back, on the understanding that "the `state`
+  // that unfroze us re-enables the rest". That was only ever true of the
+  // controls something re-enables. ZA! and the dough pile are re-derived from
+  // `canDeclareZa` and `canDraw` every snapshot; PASS and CALL OUT were only
+  // ever assigned `.hidden`, so nothing on earth turned them back on. Since
+  // `connect()` starts every page load in `connecting`, the freeze ran on the
+  // ordinary boot path and both buttons were dead for the whole session: the
+  // marquee read "Your turn — play it or pass", the button sat there 109x44,
+  // and pressing it put nothing on the wire. CALL OUT survived only because an
+  // opponent's seat is a second door to the same handler. PASS has no door.
+  //
+  // So: no control here may depend on being revived by somebody else's early
+  // return. `hidden` says whether the move exists; `disabled` says whether it
+  // can be made; both are stated outright from the snapshot.
   el.btnZa.disabled = !view.canDeclareZa;
   el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2));
 
   const targets = view.calloutTargets || [];
   el.btnCallout.hidden = !live || targets.length === 0;
+  el.btnCallout.disabled = !live || targets.length === 0;
   if (targets.length === 1) {
     const target = view.players.find((p) => p.id === targets[0]);
     el.btnCalloutText.textContent = `Call out ${target ? target.name : 'them'}`;
@@ -3003,6 +3126,7 @@ function renderActionBar(snapshot, view, yourTurn) {
   }
 
   el.btnPass.hidden = !view.canPass;
+  el.btnPass.disabled = !view.canPass;
 
   el.handHint.textContent = handHint(view, yourTurn, me);
 }
@@ -5115,14 +5239,91 @@ function boot() {
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;
 
-  const code = new URLSearchParams(location.search).get('code');
-  if (code) el.inputCode.value = code.toUpperCase();
+  const opening = openingMove();
+  if (opening.prefill) el.inputCode.value = opening.prefill;
+  // Arm the seat BEFORE the socket opens: `connect()`'s open handler is what
+  // actually sends the `joinRoom`, and it only sends one if there are
+  // credentials to send. Nothing else about the reconnect changes.
+  const rejoining = opening.seat ? net.restore(opening.seat) : false;
 
-  el.inputName.focus({ preventScroll: true });
+  // A rejoin in flight is about to take the screen away; stealing focus into
+  // a field on the way out is how a reader ends up announcing the home form
+  // it is already leaving.
+  if (!rejoining) el.inputName.focus({ preventScroll: true });
   // 14 · from here on a screen change is worth covering. The first paint is
   // not: there is no previous room to hide.
   ui.booted = true;
   net.connect();
+}
+
+// ------------------------------------------------------ 10b · coming back ----
+/**
+ * What a fresh page load should do about the room this tab was in.
+ *
+ * A reload used to be a small amnesia: the seat token survived in
+ * `sessionStorage`, but nothing read it, so the player landed Home while the
+ * server still held their seat — and the code field was filled from a `?code=`
+ * that could be several tables out of date.
+ *
+ * The precedence, most specific first:
+ *
+ *   1. An invite link this tab has NOT yet acted past. Following somebody's
+ *      link is an explicit instruction and it beats a remembered seat. If we
+ *      also hold a token for that table it is a rejoin; otherwise it is just
+ *      the prefill, as before.
+ *   2. The seat this tab most recently held. Reload, come back to the table.
+ *   3. Nothing. Home, with an EMPTY code field.
+ *
+ * The whole difficulty is telling 1 from 3, because the app never rewrites
+ * the address bar: `?code=OVEN-8180` is still sitting there long after the
+ * player gave up on that table and created another. So a join to any OTHER
+ * room marks the link consumed (see `noteJoined`), and a consumed link is
+ * inert — no rejoin, and no prefill either, which is what stops a dead room
+ * from being offered back to the player.
+ *
+ * A remembered seat the server refuses is NOT handled here: it takes the
+ * existing `rejoinRefused` path, which clears the board and lands Home.
+ */
+const URL_CODE_USED = 'za.url.used';
+
+function urlCode() {
+  try {
+    return (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase();
+  } catch {
+    return '';
+  }
+}
+
+function openingMove() {
+  const code = urlCode();
+  let used = '';
+  try {
+    used = sessionStorage.getItem(URL_CODE_USED) || '';
+  } catch {
+    /* private window: the link simply never counts as consumed */
+  }
+
+  if (code && code !== used) {
+    // 1 · a link this tab has not moved on from.
+    return { prefill: code, seat: net.seatFor(code) };
+  }
+  // 2 · the seat we were in. 3 · or nothing, and no stale code with it.
+  return { prefill: '', seat: net.lastSeat() };
+}
+
+/**
+ * Records that this tab has moved on from the invite link in the address bar.
+ * Only a join to a DIFFERENT table consumes it: joining the linked room is
+ * the link working, and a reload should still find it.
+ */
+function noteJoined(roomCode) {
+  const code = urlCode();
+  if (!code || code === String(roomCode || '').toUpperCase()) return;
+  try {
+    sessionStorage.setItem(URL_CODE_USED, code);
+  } catch {
+    /* nothing to keep it in */
+  }
 }
 
 // ------------------------------------------------ 11 · special of the day ----
