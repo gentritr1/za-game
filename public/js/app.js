@@ -223,6 +223,8 @@ const ui = {
   anchovyCount: 0, // anchovies this round, for the 6C escalation
   callouts: new Map(), // playerId -> { node, mine }
   calloutBeeps: [],
+  pendingAt: 0, // a state-changing action is on the wire; see `armPending`
+  pendingTimer: 0,
   shoutArmedAt: 0, // when the shout became legal, for the timing score
   dirJustFlipped: false,
   btnMute: null,
@@ -320,13 +322,79 @@ const net = new Connection({
  * the home screen's own buttons and for a keyboard shortcut that slipped past.
  */
 function send(payload) {
-  if (net.send(payload)) return true;
+  const gated = Boolean(payload) && PENDING_ACTIONS.has(payload.type);
+  // A second move while the first is still in the air. The controls are
+  // already inert, so this only catches something that got past them; the
+  // silence is deliberate, because the board not answering is the message.
+  if (gated && ui.pendingAt) return false;
+  if (net.send(payload)) {
+    if (gated) armPending();
+    return true;
+  }
   toast(
     net.state === 'joining'
       ? 'Still taking your seat back. One second.'
       : 'No line to the kitchen yet. Hold on.'
   );
   return false;
+}
+
+// ------------------------------------------------- the pending-action gate --
+/**
+ * One move at a time.
+ *
+ * Only the clicked card used to go quiet while the server decided, so the
+ * draw pile, PASS, ZA! and the call-out were all still live and a player could
+ * fire a second action into the same gap. The server rejected the loser, which
+ * is the right outcome arrived at the wrong way round: the interface had
+ * already invited a press it was going to throw away.
+ *
+ * So one gate, armed at the single choke point every action goes through, and
+ * held until the authoritative snapshot lands. `PENDING_RELEASE_MS` is the
+ * escape hatch: a reply that never comes must not wedge the hand forever, and
+ * 2s is far longer than a round trip but short enough to press again.
+ *
+ * PENDING IS NOT DESYNC. Desync is a statement about the connection and
+ * freezes the whole screen behind a banner; pending is a statement about one
+ * move during ordinary play and freezes only the five controls that make one.
+ * They meet in exactly two places, both deliberate: a snapshot releases the
+ * gate before anything is drawn (`applySnapshot`), and losing sync releases it
+ * too (`syncDesynced`) — once the board is frozen for the bigger reason, a
+ * pending move belongs to a round this client may no longer be in.
+ *
+ * `inert` rather than `disabled` on purpose: it blocks pointer AND keyboard in
+ * one attribute, and it un-sets cleanly. Painting `disabled` over these
+ * controls would mean rebuilding, on release, the enabled state that only the
+ * last snapshot knows — a second copy of the truth, which is how they drift.
+ * Visually this is the `.is-desynced` treatment and nothing more: no new
+ * idiom, the frozen thing simply does not answer.
+ */
+const PENDING_ACTIONS = new Set(['play', 'draw', 'pass', 'za', 'callout']);
+const PENDING_RELEASE_MS = 2000;
+
+function armPending() {
+  ui.pendingAt = Date.now();
+  clearTimeout(ui.pendingTimer);
+  ui.pendingTimer = setTimeout(releasePending, PENDING_RELEASE_MS);
+  syncPending();
+}
+
+function releasePending() {
+  clearTimeout(ui.pendingTimer);
+  ui.pendingTimer = 0;
+  if (!ui.pendingAt) return;
+  ui.pendingAt = 0;
+  syncPending();
+}
+
+/** The whole visible half of the gate. Both branches are one attribute. */
+function syncPending() {
+  const held = Boolean(ui.pendingAt);
+  // `.hand-zone` is the footer that holds the hand AND the ZA!/call-out/pass
+  // bar, so it and the dough pile are the whole of the move-making surface.
+  for (const node of [el.handZone, el.drawPile]) {
+    if (node) node.inert = held;
+  }
 }
 
 const CONN_FIRST = 'Knocking on the kitchen door…';
@@ -372,6 +440,11 @@ function syncDesynced() {
     if (button) button.disabled = stale;
   }
   if (!stale) return; // the `state` that unfroze us re-enables the rest
+  // The connection is the bigger fact and it freezes everything the gate was
+  // holding. Hand the board over rather than leaving two locks on it: the move
+  // in the air belongs to a round this client may no longer be in, and the
+  // snapshot that would have released the gate may never arrive.
+  releasePending();
   for (const button of [el.btnPass, el.btnZa, el.btnCallout, el.drawPile]) {
     if (button) button.disabled = true;
   }
@@ -738,6 +811,11 @@ document.addEventListener('pointerdown', (event) => {
 // ============================================================== SNAPSHOT ===
 function applySnapshot(snapshot) {
   ui.snapshot = snapshot;
+  // The authoritative answer is here, so the move is no longer pending. This
+  // runs before anything is drawn: the renderers below set the enabled state
+  // of the very controls the gate was holding, and they must have the last
+  // word on them.
+  releasePending();
 
   // Every round has its own id, so a new round starts with a clean log.
   const gameId = snapshot.game ? snapshot.game.gameId : null;
@@ -860,6 +938,8 @@ function resetRoundEffects() {
 
 function resetGameView() {
   resetRoundEffects();
+  // Leaving the table takes any move in the air with it.
+  releasePending();
   clearNudge();
   ui.entrySettleAt = 0;
   setHandBreathing(false);
