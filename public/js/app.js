@@ -1800,8 +1800,12 @@ function renderChefStats(snapshot) {
       rnd: buildChefStat(node, 'rnd', 'Rnd'),
     };
   }
-  // Always last, so `children[index]` keeps addressing the seats.
-  el.opponents.append(node);
+  // Always last, so `children[index]` keeps addressing the seats. Appending a
+  // node that is already the last child is still a remove-then-insert, so this
+  // ran as a real mutation on every snapshot -- counted at one re-insertion per
+  // snapshot on the probe -- re-dirtying the container that `placeToken` had
+  // just measured. Asking first keeps the invariant and skips the churn.
+  if (el.opponents.lastElementChild !== node) el.opponents.append(node);
 
   const me = snapshot.seats.find((s) => s.id === snapshot.youId);
   node._parts.score.textContent = String(me ? me.wins : 0).padStart(2, '0');
