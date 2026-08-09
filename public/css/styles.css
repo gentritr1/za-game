@@ -2709,130 +2709,470 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .popover__rows { display: grid; gap: var(--s2); }
 
-/* ------------------------------------------------------------ the roster -- */
-/* The hire panel is the same popover treatment, but it belongs to the lobby
-   panel rather than to a card, so it centres itself on the screen. */
-.popover--roster {
+/* -------------------------------------------------------- the hire screen -- */
+/* The hire roster is a screen state, not a panel: it covers the lobby rather
+   than floating over it.
+
+   Everything the popover needed to survive a short window is gone with it —
+   the `max-height` cap, `overflow-y`, `overscroll-behavior`, the scrollbar
+   rules and the sticky Cancel all existed because a 646px card does not fit a
+   560px landscape phone. A screen that IS the window has no such problem, so
+   the fix is a deletion. The scale entrance goes too: this arrives, it does not
+   grow out of the button. */
+.hire {
   position: fixed;
-  left: 50%;
-  top: 50%;
-  bottom: auto;
-  width: min(620px, calc(100vw - var(--s6)));
-  /* The panel is as tall as the parlour has regulars, and a landscape phone is
-     560px of window: uncapped it ran 646px, hanging 43px off the top and
-     taking Cancel 23px past the bottom edge. Cap it to the window and let it
-     take its own scrollbar — the tiles keep their full 110px rather than being
-     squeezed into whatever a capped grid row would leave them. */
-  max-height: calc(100dvh - var(--s6));
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  inset: 0;
   z-index: 22;
-  transform: translate(-50%, -50%) scale(.96);
-  transform-origin: 50% 50%;
-  scrollbar-width: thin;
-  scrollbar-color: var(--bezel) transparent;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s4);
+  background: var(--void);
 }
 
-/* Cancel is how you get out, so it does not scroll away from you. It sits on
-   the panel's bottom padding edge with the cabinet fill behind it — the button
-   itself is `--btn-bg: transparent`, and a transparent way out with chef
-   portraits sliding under it is not a way out. */
-.popover--roster > .btn--quiet {
-  position: sticky;
-  bottom: calc(-1 * var(--s4));
-  z-index: 1;
-  margin-bottom: calc(-1 * var(--s4));
-  padding-bottom: calc(var(--s2) + var(--s4));
-  background: var(--cabinet);
+.hire.is-open { display: flex; }
+
+/* Cancel was a button under the tiles. A screen is backed out of: the arrow
+   sits in the corner, at the 44px hit box a thumb needs even though the glyph
+   is 12px of Press Start 2P. */
+.hire__back {
+  position: absolute;
+  top: var(--s3);
+  left: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+  padding: 0 var(--s2);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-mute);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.popover--roster::-webkit-scrollbar { width: 6px; }
-.popover--roster::-webkit-scrollbar-track { background: var(--console); }
-.popover--roster::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 0; }
+.hire__back:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
-.popover--roster.is-open { transform: translate(-50%, -50%) scale(1); }
+.hire__back-word { display: none; }
 
-/* The cabinet fill needs the sign colour, not the ink colour, behind it. */
-.popover--roster .popover__title {
+.hire__title {
+  margin: 0;
   color: var(--cheese);
   font-family: var(--font-display);
   font-size: 12px;
   line-height: 1.5;
   letter-spacing: .04em;
+  text-align: center;
 }
 
-.roster {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: var(--s2);
+@media (hover: hover) and (pointer: fine) {
+  .hire__back:hover { color: var(--cheese); }
 }
 
-.roster-tile {
+/* The row the stage stands in. It is always here — hiding the row under 720
+   would hide the stage between the chevrons with it; only the chevrons go. */
+.arrows {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--s1);
-  padding: var(--s2);
+  gap: 34px;
+}
+
+.arrows__step {
+  display: none;
+  padding: 10px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--bezel);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrows__step:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+.hire__hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 19px;
+  letter-spacing: .06em;
+  text-align: center;
+}
+
+/* The stage. 192px of content inside a 4px cheese border is 200px on the
+   outside, and 200 fits a 320px phone with 60px to spare — which is the whole
+   argument for this arrangement over the other two that were drawn. */
+.stage {
+  position: relative;
+  flex: none;
+  width: 200px;
+  height: 200px;
+  background: var(--cabinet-hi);
+  border: 4px solid var(--cheese);
+  border-radius: 0;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, .55);
+}
+
+.stage__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.stage[data-any="true"] .stage__frame { display: none; }
+
+/* The flip, unchanged from the tile it came off: 1000ms, steps(1, end),
+   opacity only, one hard swap and nothing between. It is the only motion on
+   this screen — the filmstrip below never animates, and nothing here
+   crossfades, scales or slides.
+
+   Under reduced motion the flip does not run and frame B is held for a pointer
+   that is on the stage, because a swap is a state, not a journey. */
+.stage__frame--b {
+  opacity: 0;
+  animation: za-idle 1000ms steps(1, end) infinite;
+}
+
+@keyframes za-idle {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.stage__any {
+  display: none;
+  position: absolute;
+  inset: var(--s3);
+  align-items: center;
+  justify-content: center;
+  border: var(--bd-thin) dashed var(--bezel);
+  color: var(--bezel);
+  font-family: var(--font-display);
+  font-size: 32px;
+}
+
+.stage[data-any="true"] .stage__any { display: flex; }
+
+/* ------------------------------------------------------- the filmstrip ---- */
+/* Seven index thumbnails. They show frame A and never animate: the flip is the
+   stage's, and six windows going off at once is the flicker this whole
+   arrangement exists to remove.
+
+   Under 720 it is a 4-column grid of 44px cells — the touch minimum — which
+   wraps seven tiles to two rows and caps at 288px, the 320px phone minus the
+   screen's own padding. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+  max-width: 288px;
+}
+
+.strip__tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0;
   background: var(--cabinet-hi);
   color: var(--text);
   border: var(--bd-thin) solid var(--bezel);
   border-radius: 0;
   font-family: var(--font);
-  font-size: 17px;
-  line-height: 1.1;
-  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform var(--d-press) var(--ease-out), border-color var(--d-fast) var(--ease-out);
+  transition: border-color var(--d-fast) var(--ease-out);
 }
 
-.roster-tile:active,
-.roster-tile.is-pressed { transform: scale(.97); }
-.roster-tile:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+.strip__tile:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
-/* The sprite window. The portraits do not exist yet, so the frame stands in. */
-.roster-tile__window {
+.strip__win {
   position: relative;
-  width: 48px;
-  height: 48px;
-  background: var(--cabinet-hi);
-  border: 2px dashed rgba(255, 255, 255, .2);
+  display: block;
+  width: 40px;
+  height: 36px;
   overflow: hidden;
+  /* The portraits are transparent cutouts now, so every window paints the
+     SAME ground — the token the seat avatars and the stage already use. The
+     baked-in navy each portrait used to carry was a slightly different shade
+     per file, and a row of tiles read as six mismatched squares. */
+  background: var(--cabinet-hi);
 }
 
-.roster-tile__name { font-weight: 700; }
+.strip__win img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
 
-.roster-tile.is-seated { opacity: .45; cursor: default; }
-.roster-tile.is-seated:active { transform: none; }
-
-.roster-tile__seated {
+/* ANYBODY has no portrait, at either size: a dashed box with a question mark. */
+.strip__any {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--bezel);
+  color: var(--bezel);
   font-family: var(--font-display);
   font-size: 12px;
-  color: var(--text-mute);
-  letter-spacing: .08em;
 }
 
-.roster-tile--any {
-  border-style: dashed;
-  background: var(--void);
-  color: var(--text-mute);
+/* The considered tile, twice: a cheese border and a cheese rule inside it.
+   The inner rule is an ::after overlay, not an inset box-shadow — an inset
+   shadow paints UNDER child content, so the portrait's own navy ground
+   covered the ring and the art butted bare against the yellow border. The
+   overlay draws the ring over the art edge, which is what the handoff drew. */
+.strip__tile[aria-current="true"] { border-color: var(--cheese); }
+
+/* ::before, because ::after is the 720+ rule under the tile. */
+.strip__tile[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 3px var(--cheese);
+  pointer-events: none;
+  z-index: 2;
 }
 
-.roster-tile--any .roster-tile__window { border-color: rgba(255, 255, 255, .12); }
+/* A seated regular fades but stays legible. The art is what goes to .4 — the
+   word over it holds its own contrast, because a label nobody can read is not
+   a label. */
+.strip__tile[data-seated="true"] .strip__win img,
+.strip__tile[data-seated="true"] .strip__any { opacity: .4; }
 
-.roster__tell {
+.strip__seated {
+  display: none;
+  position: absolute;
+  inset: auto 0 2px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-mute);
+  text-align: center;
+}
+
+.strip__tile[data-seated="true"] .strip__seated { display: block; }
+.strip__tile[data-seated="true"] .strip__seated::after { content: "IN"; }
+
+/* The name column is the one thing worth keeping from the arrangement that
+   lost; there is no width for it under 720. */
+.strip__name { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .strip__tile:hover { border-color: var(--text-dim); }
+  .strip__tile[aria-current="true"]:hover { border-color: var(--cheese); }
+  .arrows__step:hover { color: var(--cheese); }
+}
+
+/* Three items in the stack at every size but one, where they become a column
+   of their own beside the stage. */
+.hire__lines { display: contents; }
+
+.hire__name {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* The tell keeps a floor under its height. The six lines are different
+   lengths, and without the reserve the button below moves out from under the
+   cursor on the way to being pressed. */
+.hire__tell {
+  width: 100%;
+  max-width: 560px;
   min-height: 3.1em;
+  margin: 0;
   padding: var(--s2) var(--s3);
   background: var(--console);
   border: var(--bd-thin) solid var(--bezel);
   color: var(--text-dim);
-  font-size: 17px;
-  line-height: 1.35;
+  font-size: 19px;
+  line-height: 1.3;
   text-align: left;
 }
 
+.hire__go {
+  width: 100%;
+  max-width: 560px;
+  min-height: 44px;
+  padding: var(--s3);
+  background: var(--cheese);
+  color: var(--void);
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .5);
+}
+
+.hire__go:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+/* The press is the button going down onto its own shadow. */
+.hire__go:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
+}
+
+.hire__go[disabled] {
+  background: var(--bezel);
+  color: var(--text-mute);
+  cursor: default;
+  box-shadow: none;
+  transform: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .roster-tile:hover:not(.is-seated) { border-color: var(--cheese); }
+  .hire__go:not([disabled]):hover { background: var(--cheese-hi); }
+}
+
+/* ----------------------------------------------- the hire screen: 720+ ---- */
+/* All of the screen's width rules in one block at the end of it, rather than
+   beside the piece each one belongs to. They override base rules of equal
+   specificity, so they only win by coming later — split up, the strip's
+   desktop rules sat above the strip's own defaults and the names stayed
+   hidden at 1280. */
+@media (min-width: 720px) {
+  .hire { gap: 22px; padding: 40px; }
+  .hire__back { top: var(--s6); left: 40px; }
+  .hire__back-word { display: inline; }
+  .hire__title {
+    position: absolute;
+    top: 28px;
+    left: 0;
+    right: 0;
+    font-size: 16px;
+  }
+  .stage { box-shadow: 8px 8px 0 rgba(0, 0, 0, .55); }
+  .arrows__step { display: block; }
+  .hire__hint { font-size: 21px; }
+  .hire__name { font-size: 18px; }
+  .hire__tell { font-size: 21px; min-height: 2.7em; padding: 10px 14px; }
+  .hire__go {
+    width: auto;
+    min-width: 260px;
+    padding: 14px;
+    font-size: 14px;
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
+  }
+
+  /* A centred row rather than a grid, and the names come back beside the
+     windows: six of them side by side is what this width is for. */
+  .strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    /* Rows 22, columns 10. Seven named tiles wrap between 720 and ~1300px,
+       and the considered tile's bar hangs 11px below the tile plus 5px of
+       bar — a 10px row gap put it on top of the next row's tiles. */
+    gap: 22px 10px;
+    max-width: none;
+  }
+  .strip__tile { height: 72px; padding-right: var(--s3); }
+  .strip__win { width: auto; height: 100%; aspect-ratio: 1; flex: none; }
+  .strip__any { font-size: 19px; }
+  .strip__name {
+    display: block;
+    padding-left: 10px;
+    font-size: 19px;
+    line-height: 1;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  /* Same selector as the base rule, not a shorter one: `IN` is set through
+     `[data-seated]` and would out-specify a bare `.strip__seated::after`. */
+  .strip__tile[data-seated="true"] .strip__seated::after { content: "SEATED"; }
+
+  /* The considered tile also takes a rule under it — the marker the cabinet
+     uses for a selected thing, at the size the strip can carry. */
+  .strip__tile[aria-current="true"]::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    bottom: -11px;
+    height: 5px;
+    background: var(--cheese);
+  }
+}
+
+/* -------------------------------- the hire screen: short window (landscape) */
+/* The one place the stage is allowed off its native size. A landscape phone is
+   400px of height and the column does not fit, so the screen goes to a
+   wrapping row and the stage drops to 152 — the smallest size at which all six
+   gestures were still legible in review. Portrait phones keep 192.
+
+   Last of the three blocks, because it has to beat the 720+ one as well: a
+   720x400 window matches both. */
+@media (max-height: 560px) and (min-width: 520px) {
+  .hire {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    gap: var(--s3) var(--s6);
+    padding: var(--s4);
+  }
+  .stage { width: 152px; height: 152px; }
+  .hire__back { top: var(--s2); left: var(--s2); }
+
+  /* 400px of height does not hold a title, a stage, three lines, a filmstrip
+     and a hint stacked. The stage goes beside what it says about the chef,
+     which is what the wrapping row is for, and the title comes off the
+     absolute position it takes at this width. */
+  .hire__title { position: static; flex-basis: 100%; margin-bottom: calc(-1 * var(--s1)); }
+  .hire__lines {
+    display: flex;
+    flex: 1 1 300px;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s2);
+    max-width: 460px;
+  }
+  .hire__tell { min-height: 3.4em; font-size: 19px; }
+  .hire__go { padding: var(--s3); }
+
+  /* And the strip goes back to the compact cells: the 4-column grid of 44px
+     touch targets from under 720, names hidden, seven tiles in two rows. */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    flex-basis: 100%;
+    gap: 6px;
+    max-width: 288px;
+    margin-inline: auto;
+  }
+  .strip__tile { height: 44px; padding-right: 0; }
+  .strip__win { width: 40px; height: 36px; aspect-ratio: auto; }
+  .strip__any { font-size: 12px; }
+  .strip__name { display: none; }
+  .strip__tile[data-seated="true"] .strip__seated::after { content: "IN"; }
+  .strip__tile[aria-current="true"]::after { content: none; }
 }
 
 .callout-btn {
@@ -4400,7 +4740,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     max-height: 92vh;
     overflow-y: auto;
   }
-  .roster { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-height: 620px) {
@@ -4481,11 +4820,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   /* A popover is `position: absolute` inside the game screen, and the game
      screen is now a scroll container — so the picker would scroll away from
-     the hand it belongs to. Pin it to the viewport instead, the way the hire
-     roster already is, and cap it so it can never be taller than the window.
-     Scoped to the game screen on purpose: the roster is the lobby's, it is
-     already fixed and centred, and a `bottom` here would pin its foot 12px off
-     the window and squeeze it to whatever `top: 50%` left. */
+     the hand it belongs to. Pin it to the viewport instead and cap it so it
+     can never be taller than the window. Scoped to the game screen on purpose:
+     the two popovers left are the table's, and the hire screen is the lobby's
+     and no longer a popover at all. */
   .screen--game > .popover {
     position: fixed;
     bottom: var(--s3);
@@ -4610,7 +4948,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .discard-holder::after { animation: none !important; }
 
   .popover, .popover.is-open { transform: translateX(-50%) !important; }
-  .popover--roster, .popover--roster.is-open { transform: translate(-50%, -50%) !important; }
   .receipt { transform: none !important; }
   .toast, .toast.is-open,
   .conn-banner, .conn-banner.is-open { transform: translateX(-50%) !important; }
@@ -4695,6 +5032,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      the target's turn, not three seconds. No override here: a rule that
      forced the old animation name back on would resurrect the deleted lie
      the moment anyone reintroduced keyframes under that name. */
+
+  /* The stage stops flipping; the pointer still answers with frame B held
+     steady. A swap is a state, not a journey. */
+  .stage__frame--b { animation: none !important; }
+
+  .stage:hover .stage__frame--b { opacity: 1; }
 }
 
 /* ==========================================================================
@@ -5417,15 +5760,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   }
 }
 
-/* The regulars' portraits fill their roster windows and seat avatars. */
-.roster-tile__portrait {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  image-rendering: pixelated;
-}
+/* The 48px flip is gone with the tile that held it: `.roster-tile__portrait`,
+   its `--b` overlay, the `roster-idle` keyframes and the reduced-motion hold
+   that answered them all pointed at a window too small to read. The stage
+   above carries `za-idle` now, and nothing else on the client ever ran this
+   one — an orphaned keyframe is the callout-drain bug waiting to happen
+   again. */
 
 /* ------------------------------------------------- lobby: player select -- */
 /* §3: seats fill like a player-select screen. */

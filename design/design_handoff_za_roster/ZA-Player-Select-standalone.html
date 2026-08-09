@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZA! — player select (3A, the stage)</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#0d0f1a; --console:#080a12; --cabinet:#101426; --cabinet-hi:#151b33;
+  --bezel:#2a3355; --cheese:#ffe14d; --cheese-hi:#fff08a; --basil:#3ddc7f;
+  --ui-cyan:#7de2ff; --text:#e8ecff; --text-dim:#96a3c9; --text-mute:#8f9bc4;
+  --font:"VT323",ui-monospace,monospace; --font-display:"Press Start 2P",var(--font);
+  --bd-thin:3px; --d-fast:160ms; --ease-out:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--void);color:var(--text);font-family:var(--font)}
+
+/* ---------------------------------------------- the hire screen (3A) ---- */
+.hire{position:fixed;inset:0;z-index:22;background:var(--void);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;padding:16px}
+.hire__back{position:absolute;top:12px;left:12px;min-height:44px;padding:0 10px;
+  background:none;border:0;color:var(--text-mute);font-family:var(--font-display);
+  font-size:12px;cursor:pointer}
+.hire__back:hover{color:var(--cheese)}
+.hire__title{margin:0;font-family:var(--font-display);font-size:12px;
+  color:var(--cheese);letter-spacing:.04em;text-align:center}
+
+.stage{position:relative;width:200px;height:200px;flex:none;background:var(--cabinet-hi);
+  border:4px solid var(--cheese);box-shadow:6px 6px 0 rgba(0,0,0,.55)}
+.stage__frame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  image-rendering:pixelated}
+.stage__frame--b{opacity:0;animation:za-idle 1000ms steps(1,end) infinite}
+.stage[data-any="true"] .stage__frame{display:none}
+.stage__any{display:none;position:absolute;inset:12px;border:3px dashed var(--bezel);
+  align-items:center;justify-content:center;font-family:var(--font-display);
+  font-size:32px;color:var(--bezel)}
+.stage[data-any="true"] .stage__any{display:flex}
+@keyframes za-idle{0%{opacity:0}50%{opacity:1}100%{opacity:1}}
+
+.hire__name{font-family:var(--font-display);font-size:14px;line-height:1.4;text-align:center}
+.hire__tell{width:100%;max-width:560px;min-height:3.1em;margin:0;padding:8px 10px;
+  background:var(--console);border:var(--bd-thin) solid var(--bezel);
+  font-size:19px;line-height:1.3;color:var(--text-dim)}
+.hire__go{width:100%;max-width:560px;min-height:44px;padding:12px;background:var(--cheese);
+  color:var(--void);border:0;font-family:var(--font-display);font-size:12px;
+  letter-spacing:.04em;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+.hire__go:hover{background:var(--cheese-hi)}
+.hire__go:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(0,0,0,.5)}
+.hire__go[disabled]{background:var(--bezel);color:var(--text-mute);cursor:default;
+  box-shadow:none;transform:none}
+.hire__hint{font-size:19px;color:var(--text-dim);letter-spacing:.06em;text-align:center}
+
+/* the filmstrip: index thumbnails. They never animate. */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;max-width:288px}
+.strip__tile{position:relative;height:44px;padding:0;display:flex;align-items:center;
+  justify-content:center;background:var(--cabinet-hi);border:var(--bd-thin) solid var(--bezel);
+  cursor:pointer;transition:border-color var(--d-fast) var(--ease-out)}
+.strip__tile:hover{border-color:var(--text-dim)}
+.strip__tile:focus-visible{outline:var(--bd-thin) solid var(--ui-cyan);outline-offset:2px}
+.strip__win{position:relative;width:40px;height:36px;overflow:hidden;display:block}
+.strip__win img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  image-rendering:pixelated}
+.strip__name{display:none}
+.strip__tile[aria-current="true"]{border-color:var(--cheese);box-shadow:inset 0 0 0 3px var(--cheese)}
+.strip__tile[data-seated="true"] .strip__win{opacity:.4}
+.strip__seated{position:absolute;inset:auto 0 2px;font-family:var(--font-display);
+  font-size:12px;color:var(--text-mute);display:none}
+.strip__tile[data-seated="true"] .strip__seated{display:block}
+.strip__any{display:flex;align-items:center;justify-content:center;width:100%;height:100%;
+  font-family:var(--font-display);font-size:12px;color:var(--bezel)}
+
+.arrows{display:none}
+
+/* ------------------------------------------------------ 720 and wider -- */
+@media (min-width:720px){
+  .hire{gap:22px;padding:40px}
+  .hire__title{position:absolute;top:28px;left:0;right:0;font-size:16px}
+  .hire__back{top:24px;left:40px}
+  .hire__name{font-size:18px}
+  .hire__tell{font-size:21px;min-height:2.7em;padding:10px 14px}
+  .hire__go{width:auto;min-width:260px;font-size:14px;padding:14px;box-shadow:5px 5px 0 rgba(0,0,0,.55)}
+  .hire__hint{font-size:21px}
+  .arrows{display:flex;align-items:center;gap:34px}
+  .arrows button{background:none;border:0;font-family:var(--font-display);font-size:24px;
+    color:var(--bezel);cursor:pointer;padding:10px;min-height:44px}
+  .arrows button:hover{color:var(--cheese)}
+  .strip{display:flex;justify-content:center;gap:10px;max-width:none}
+  .strip__tile{width:72px;height:72px;flex-direction:column}
+  .strip__win{width:100%;height:100%}
+  .strip__tile[aria-current="true"]::after{content:"";position:absolute;left:-3px;right:-3px;
+    bottom:-11px;height:5px;background:var(--cheese)}
+}
+
+/* --------------------------------------------- short windows (landscape) */
+@media (max-height:560px) and (min-width:520px){
+  .hire{flex-direction:row;flex-wrap:wrap;align-content:center;gap:16px 24px}
+  .stage{width:152px;height:152px}
+  .hire__title{position:static;flex-basis:100%}
+  .strip{flex-basis:100%}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .stage__frame--b{animation:none}
+  .stage:hover .stage__frame--b,.stage[data-hold="true"] .stage__frame--b{opacity:1}
+}
+</style>
+</head>
+<body>
+<div class="hire" role="dialog" aria-label="Hire a chef bot">
+  <button class="hire__back" type="button">&#9664; BACK</button>
+  <p class="hire__title">WHO'S COMING IN?</p>
+
+  <div class="arrows">
+    <button type="button" data-step="-1" aria-label="Previous regular">&#9664;</button>
+    <div class="stage" id="stage">
+      <img class="stage__frame" id="frameA" src="" alt="">
+      <img class="stage__frame stage__frame--b" id="frameB" src="" alt="">
+      <div class="stage__any">?</div>
+    </div>
+    <button type="button" data-step="1" aria-label="Next regular">&#9654;</button>
+  </div>
+  <div class="stage" id="stageNarrow" hidden></div>
+
+  <p class="hire__name" id="who">Vito</p>
+  <p class="hire__tell" id="tell" role="status"></p>
+  <button class="hire__go" id="go" type="button">HIRE VITO</button>
+  <div class="strip" id="strip"></div>
+  <p class="hire__hint" id="hint">TAP TO PREVIEW &middot; TAP AGAIN TO HIRE</p>
+</div>
+
+<script>
+const REGULARS = [
+  {id:'vito',name:'Vito',tell:'Vito hoards his wilds until he is down to three cards. Then out they come, together.'},
+  {id:'carmela',name:'Carmela',tell:'Carmela catches almost everything. Forget to shout in front of her and it is already too late.'},
+  {id:'paulie',name:'Big Paulie',tell:'Big Paulie takes his time, and he always reaches for the +2 first.'},
+  {id:'pina',name:'Nonna Pina',tell:'Nonna Pina will not attack you if she has anything else to play. Right up until she wins.'},
+  {id:'dominic',name:'Dominic',tell:'Dominic plays his highest number, every time. No plan, occasionally devastating.'},
+  {id:'ray',name:'Ray',tell:'Ray moves before you have finished reading the card. He is not looking at your hand.'},
+  {id:'any',name:'Anybody',tell:'Whoever is free walks in. Somebody always is.',isAny:true},
+];
+const SEATED = new Set(['dominic']);          // demo state
+const ART = (id) => '../ref/regulars/' + id + '.png';
+const ARTB = (id) => '../ref/regulars/' + id + '-b.png';
+
+// Both frames are decoded before the screen opens, so the first flip is
+// never a blank window.
+for (const r of REGULARS) { if (!r.isAny) { new Image().src = ART(r.id); new Image().src = ARTB(r.id); } }
+
+let active = 0;
+const strip = document.getElementById('strip');
+const tiles = REGULARS.map((r, n) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'strip__tile';
+  b.dataset.seated = String(SEATED.has(r.id));
+  b.setAttribute('aria-label', (SEATED.has(r.id) ? r.name + ' is already at the table. ' : 'Preview ' + r.name + '. ') + r.tell);
+  const win = document.createElement('span'); win.className = 'strip__win';
+  if (r.isAny) { win.innerHTML = '<span class="strip__any">?</span>'; }
+  else { const i = document.createElement('img'); i.src = ART(r.id); i.alt = ''; i.draggable = false; win.append(i); }
+  const seat = document.createElement('span'); seat.className = 'strip__seated'; seat.textContent = 'IN';
+  b.append(win, seat);
+  b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') select(n); });
+  b.addEventListener('focus', () => select(n));
+  b.addEventListener('click', () => { active === n ? hire() : select(n); });
+  strip.append(b);
+  return b;
+});
+
+function select(n) {
+  active = n;
+  const r = REGULARS[n];
+  const stage = document.getElementById('stage');
+  stage.dataset.any = String(!!r.isAny);
+  if (!r.isAny) {
+    const a = document.getElementById('frameA'), bImg = document.getElementById('frameB');
+    a.src = ART(r.id);
+    // Restart the flip on the new regular so everyone starts on frame A.
+    bImg.style.animation = 'none'; void bImg.offsetWidth;
+    bImg.src = ARTB(r.id); bImg.style.animation = '';
+  }
+  document.getElementById('who').textContent = r.name;
+  document.getElementById('tell').textContent = r.tell;
+  const go = document.getElementById('go');
+  const seated = SEATED.has(r.id);
+  go.disabled = seated;
+  go.textContent = seated ? r.name.toUpperCase() + ' IS SEATED'
+    : r.isAny ? 'SEND ANYBODY' : 'HIRE ' + r.name.toUpperCase();
+  tiles.forEach((t, i) => t.setAttribute('aria-current', String(i === n)));
+}
+
+function hire() {
+  const r = REGULARS[active];
+  if (SEATED.has(r.id)) return;
+  document.getElementById('hint').textContent = (r.isAny ? 'SOMEBODY' : r.name.toUpperCase()) + ' IS COMING IN';
+  document.getElementById('hint').style.color = '#3ddc7f';
+  // ship: closeHire(); send({type:'addBot', regularId: r.isAny ? undefined : r.id});
+}
+
+document.getElementById('go').addEventListener('click', hire);
+for (const a of document.querySelectorAll('.arrows button')) {
+  a.addEventListener('click', () => select((active + Number(a.dataset.step) + REGULARS.length) % REGULARS.length));
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') { select((active + 1) % REGULARS.length); tiles[active].focus(); }
+  if (e.key === 'ArrowLeft') { select((active + REGULARS.length - 1) % REGULARS.length); tiles[active].focus(); }
+  if (e.key === 'Enter' && document.activeElement === document.body) hire();
+});
+select(0);
+tiles[0].focus();
+</script>
+</body>
+</html>
