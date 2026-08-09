@@ -2932,10 +2932,21 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-size: 12px;
 }
 
-/* The considered tile, twice: a cheese border and a cheese rule inside it. */
-.strip__tile[aria-current="true"] {
-  border-color: var(--cheese);
+/* The considered tile, twice: a cheese border and a cheese rule inside it.
+   The inner rule is an ::after overlay, not an inset box-shadow — an inset
+   shadow paints UNDER child content, so the portrait's own navy ground
+   covered the ring and the art butted bare against the yellow border. The
+   overlay draws the ring over the art edge, which is what the handoff drew. */
+.strip__tile[aria-current="true"] { border-color: var(--cheese); }
+
+/* ::before, because ::after is the 720+ rule under the tile. */
+.strip__tile[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   box-shadow: inset 0 0 0 3px var(--cheese);
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* A seated regular fades but stays legible. The art is what goes to .4 — the
