@@ -162,6 +162,17 @@ const REGULARS = [
 
 const ANYBODY_TELL = 'Whoever is free walks in. Somebody always is.';
 
+/**
+ * The seventh face on the hire screen. ANYBODY is not a regular — the server
+ * takes an `addBot` with no `regularId` and picks — so it is kept beside
+ * `REGULARS` rather than in it. `REGULARS` is the poster on the wall and stays
+ * exactly as written.
+ */
+const ANYBODY = { id: null, name: 'Anybody', tell: ANYBODY_TELL, isAny: true };
+
+const regularArt = (id) => `assets/regulars/${id}.png`;
+const regularArtB = (id) => `assets/regulars/${id}-b.png`;
+
 /** The regular sitting under this seat name, or null for a plain chef bot. */
 function regularByName(name) {
   const key = String(name || '').toLowerCase();
@@ -564,20 +575,30 @@ function show(node) { node.classList.add('is-open'); }
 function hide(node) { node.classList.remove('is-open'); }
 
 /**
- * There are two modals now, and only one `#app` to hide behind them. A modal
+ * There are three modals now, and only one `#app` to hide behind them. A modal
  * lives outside `#app` and makes it inert; whoever closes last is the one that
  * gives the app back, so the flag is derived from what is open rather than
  * written by each dialog in turn.
  */
 function syncAppInert() {
   el.app.inert =
-    el.overlay.classList.contains('is-open') || el.rulesOverlay.classList.contains('is-open');
+    el.overlay.classList.contains('is-open')
+    || el.rulesOverlay.classList.contains('is-open')
+    || hireOpen();
 }
 
-/** The dialog that owns the tab order right now. Null when neither is open. */
+/**
+ * The dialog that owns the tab order right now. Null when none is open.
+ *
+ * The order is the stacking order: the rules sit over everything, the
+ * round-over receipt is the news, and the hire screen is the lobby's — it is
+ * closed by both of the others before either opens, so it never has to argue
+ * with them for the trap.
+ */
 function openModal() {
   if (el.rulesOverlay.classList.contains('is-open')) return el.rulesDialog;
   if (el.overlay.classList.contains('is-open')) return el.dialog;
+  if (hireOpen()) return ui.roster.panel;
   return null;
 }
 
@@ -678,6 +699,13 @@ function announce(text) {
 }
 
 function paintScreen(name) {
+  // The hire screen belongs to the lobby, and it is the one thing here that a
+  // screen change does not take with it. As a popover it hung inside the lobby
+  // panel and went quiet when the lobby did; on `document.body` it does not —
+  // leaving the room left it standing over Home with `#app` inert behind it,
+  // which is a room nobody can get out of. No restore: the screen change books
+  // its own landing in `landOnScreen`.
+  if (name !== 'lobby') closeHire({ restoreFocus: false });
   ui.screen = name;
   // The room is now the one in the DOM, so every measurement cached against the
   // old room is stale from this line on. Moving the token is the whole
@@ -712,8 +740,11 @@ function paintScreen(name) {
 function landOnScreen(name) {
   if (!ui.booted) return;
   // The round-over dialog owns focus for as long as it is up, and hands it back
-  // itself. A screen repaint underneath it must not reach in and take it.
-  if (el.overlay.classList.contains('is-open')) return;
+  // itself. A screen repaint underneath it must not reach in and take it. The
+  // hire screen is the same deal: it survives a lobby snapshot now, so the
+  // repaint that snapshot causes must not pull focus out of it and into a
+  // lobby that is inert anyway.
+  if (el.overlay.classList.contains('is-open') || hireOpen()) return;
   const screen = el.screens.find((node) => node.dataset.screen === name);
   if (screen) screen.focus({ preventScroll: true });
 }
@@ -916,9 +947,17 @@ function applySnapshot(snapshot) {
   if (snapshot.phase === 'lobby') {
     // No restore: the room itself is changing, and `landOnScreen` has a better
     // answer than a card on a screen that is about to go inert.
-    closePopovers({ restoreFocus: false });
+    //
+    // `keepHire` is the one exception on this line. Every other caller of
+    // `closePopovers` is a state change that takes the player somewhere else;
+    // this one fires on every lobby snapshot, including the ones that arrive
+    // *because* somebody else hired a chef. Closing the hire screen for those
+    // threw the player out of the screen they were reading. It refreshes
+    // instead, so a chef who just sat down goes grey in place.
+    closePopovers({ restoreFocus: false, keepHire: true });
     closeRoundOverlay();
     renderLobby(snapshot);
+    refreshRoster(snapshot);
     showScreen('lobby');
     resetGameView();
     return;
@@ -1110,6 +1149,9 @@ function renderAvatar(node, person) {
 
 // ================================================================= LOBBY ===
 function renderLobby(snapshot) {
+  // The hire screen is one press away from here, and its stage is the only
+  // place the second frames are ever shown at full size. Warm them now.
+  preloadRegulars();
   const rows = new DocumentFragment();
   for (const seat of snapshot.seats) {
     const row = document.createElement('li');
@@ -1278,128 +1320,425 @@ function buildPolaroid(seat) {
   return card;
 }
 
-// ------------------------------------------------------- the hire roster ----
+// ------------------------------------------------------- the hire screen ----
 /**
- * The panel behind "Hire a chef bot". It is built once, from here, and reuses
- * the popover treatment the topping picker and the call-out list already use.
+ * "Hire a chef bot" is a screen state, not a panel.
+ *
+ * It was a popover: a 620px card floating over the lobby, capped to the window
+ * with its own scrollbar because six regulars plus a Cancel ran 646px and a
+ * landscape phone is 560px of window. A screen state has none of those
+ * problems — it covers the lobby instead of fitting inside it, so the cap, the
+ * scrollbar rules and the sticky Cancel all go.
+ *
+ * Covering the lobby is also a promise about focus: this is `aria-modal`, so it
+ * joins the two dialogs that already exist here (the round-over receipt and the
+ * HOUSE RULES deck) rather than inventing a third mechanism. `syncAppInert`
+ * makes `#app` inert behind it and `openModal` hands it the tab trap.
  */
 function buildRoster() {
   const panel = document.createElement('div');
-  panel.className = 'popover popover--roster';
+  panel.className = 'hire';
   panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-modal', 'false');
+  panel.setAttribute('aria-modal', 'true');
   panel.setAttribute('aria-label', 'Hire a chef bot');
+  // The trap falls back to focusing the dialog itself when it holds no
+  // focusable control, which needs a tabindex to land on.
+  panel.tabIndex = -1;
+
+  // Cancel was a full-width button under the tiles, where it belonged to the
+  // panel. A screen is backed out of, not dismissed, so the way out is a BACK
+  // arrow in the corner the player already looks at to leave a room.
+  const back = document.createElement('button');
+  back.className = 'hire__back';
+  back.type = 'button';
+  // The word rides beside the arrow where there is room for it. On a 320px
+  // phone there is not: the title is 200px of Press Start 2P centred in 320,
+  // so it runs from x60, and "◀ BACK" reaches x98 — the two collided. The
+  // arrow keeps the 44px box on its own and the label carries the name.
+  back.setAttribute('aria-label', 'Back');
+  const backGlyph = document.createElement('span');
+  backGlyph.setAttribute('aria-hidden', 'true');
+  backGlyph.textContent = '◀';
+  const backWord = document.createElement('span');
+  backWord.className = 'hire__back-word';
+  backWord.setAttribute('aria-hidden', 'true');
+  backWord.textContent = 'BACK';
+  back.append(backGlyph, backWord);
+  back.addEventListener('click', () => closeHire());
 
   const title = document.createElement('p');
-  title.className = 'popover__title';
-  title.textContent = "Who's coming in?";
+  title.className = 'hire__title';
+  title.textContent = "WHO'S COMING IN?";
 
-  const grid = document.createElement('div');
-  grid.className = 'roster';
+  // The stage. 192px is the size the idle frames were drawn at, and the only
+  // size at which the gesture in them reads as a gesture: at the 48px the
+  // roster tile gave them, a movement 24 source pixels wide was six pixels of
+  // screen and the flip looked like the tile blinking. Never scaled up, and
+  // never scaled down anywhere but the filmstrip.
+  // The chevrons flank the stage and do for a mouse what the arrow keys do for
+  // a keyboard. They are hidden under 720, where there is no width for them and
+  // the filmstrip is already a thumb's reach away — the row itself stays, or
+  // hiding the chevrons would hide the stage standing between them.
+  const arrows = document.createElement('div');
+  arrows.className = 'arrows';
+  const prev = hireChevron('◀', -1, 'Previous regular');
+  const next = hireChevron('▶', 1, 'Next regular');
 
+  const stage = document.createElement('div');
+  stage.className = 'stage';
+  const frameA = document.createElement('img');
+  frameA.className = 'stage__frame';
+  frameA.alt = '';
+  frameA.draggable = false;
+  const frameB = document.createElement('img');
+  frameB.className = 'stage__frame stage__frame--b';
+  frameB.alt = '';
+  frameB.draggable = false;
+  // ANYBODY has no portrait: the stage becomes the same dashed box the
+  // filmstrip tile uses, one size up.
+  const any = document.createElement('div');
+  any.className = 'stage__any';
+  any.setAttribute('aria-hidden', 'true');
+  any.textContent = '?';
+  stage.append(frameA, frameB, any);
+  arrows.append(prev, stage, next);
+
+  const name = document.createElement('p');
+  name.className = 'hire__name';
+
+  // The same `role="status"` paragraph the popover had, with a floor under its
+  // height: `min-height` reserved for three lines means switching regular
+  // never re-flows the button out from under the cursor that is about to
+  // press it.
   const tell = document.createElement('p');
-  tell.className = 'roster__tell';
+  tell.className = 'hire__tell';
   tell.setAttribute('role', 'status');
   tell.textContent = ANYBODY_TELL;
 
-  const cancel = document.createElement('button');
-  cancel.className = 'btn btn--quiet btn--sm btn--block';
-  cancel.type = 'button';
-  cancel.textContent = 'Cancel';
-  cancel.addEventListener('click', closePopovers);
+  const go = document.createElement('button');
+  go.className = 'hire__go';
+  go.type = 'button';
+  go.addEventListener('click', hireSelected);
 
-  panel.append(title, grid, tell, cancel);
-  ui.roster = { panel, grid, tell };
+  // Name, tell and button travel together. In the column they are three items
+  // in the stack and this wrapper is `display: contents`, so it changes
+  // nothing; in a short window it becomes the text column standing beside the
+  // stage, which is the only way the screen fits 400px of height.
+  const lines = document.createElement('div');
+  lines.className = 'hire__lines';
+  lines.append(name, tell, go);
+
+  const strip = document.createElement('div');
+  strip.className = 'strip';
+
+  const hint = document.createElement('p');
+  hint.className = 'hire__hint';
+
+  panel.append(back, title, arrows, lines, strip, hint);
+
+  // Left and Right move the selection and take focus with them, so the tile
+  // the arrows land on is the tile Enter presses. Scoped to the panel: the
+  // table has its own opinions about arrow keys.
+  panel.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    hireStep(event.key === 'ArrowRight' ? 1 : -1);
+  });
+
+  ui.roster = {
+    panel, strip, tell, stage, frameA, frameB, name, go, hint,
+    entries: REGULARS.concat([ANYBODY]),
+    tiles: [],
+    seated: new Set(),
+    active: 0,
+    // The tile an explicit act has already put on the stage. A press on THIS
+    // one commits; a press on any other one only considers it.
+    armed: -1,
+  };
   return ui.roster;
 }
 
-/** One tile. `regular` is null for the ANYBODY tile. */
-function rosterTile(regular, seated) {
+function hireChevron(glyph, step, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'arrows__step';
+  button.textContent = glyph;
+  button.setAttribute('aria-label', label);
+  button.addEventListener('click', () => hireStep(step));
+  return button;
+}
+
+/** Moves the selection by one and takes focus with it. */
+function hireStep(step) {
+  const roster = ui.roster;
+  const count = roster.entries.length;
+  const n = (roster.active + step + count) % count;
+  hireSelect(n);
+  roster.armed = n;
+  roster.tiles[n].focus({ preventScroll: true });
+}
+
+/** True when this pointer cannot hover — where the two-tap rule applies. */
+function coarsePointer() {
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
+/** True when this entry is already at the table. ANYBODY never is. */
+function hireSeated(entry) {
+  return !entry.isAny && ui.roster.seated.has(entry.name.toLowerCase());
+}
+
+/**
+ * The only thing on this screen that sends. Previewing a regular and hiring
+ * one are two different acts, and this is the second one.
+ */
+function hireSelected() {
+  const roster = ui.roster;
+  const entry = roster.entries[roster.active];
+  if (!entry) return;
+  if (hireSeated(entry)) {
+    toast(`${entry.name} is already at the table.`);
+    return;
+  }
+  closeHire();
+  send(entry.isAny ? { type: 'addBot' } : { type: 'addBot', regularId: entry.id });
+}
+
+/**
+ * Both frames of all six, decoded before anyone opens the screen.
+ *
+ * The first flip of an uncached frame B is a blank window for one beat — the
+ * `steps(1, end)` swap gives the browser no time to fetch anything, so an
+ * un-decoded second frame reads as the chef vanishing. One pass on lobby mount
+ * costs nothing and the whole screen is warm from then on. The images are kept
+ * rather than dropped on the floor: a discarded `new Image()` is collectable,
+ * and with it the decode this is here to buy.
+ */
+const preloadedRegulars = [];
+function preloadRegulars() {
+  if (preloadedRegulars.length) return;
+  for (const regular of REGULARS) {
+    const a = new Image();
+    a.src = regularArt(regular.id);
+    preloadedRegulars.push(a);
+    if (!regular.idleFrame) continue;
+    const b = new Image();
+    b.src = regularArtB(regular.id);
+    preloadedRegulars.push(b);
+  }
+}
+
+/**
+ * Puts one regular on the stage.
+ *
+ * The flip is the same rule the 48px tile carried — 1000ms, `steps(1, end)`,
+ * opacity only — moved to the size it was drawn for. It stays the only motion
+ * on this screen: nothing crossfades, nothing scales, and the filmstrip below
+ * never animates at all.
+ *
+ * Switching regular restarts it. Without the restart the incoming chef
+ * inherits the outgoing chef's phase and opens mid-gesture — Vito arrives with
+ * the card already in his jacket — so the animation is torn down, the reflow
+ * forced, and the rule handed back. Every chef opens on frame A.
+ */
+function hireSelect(n) {
+  const roster = ui.roster;
+  const entry = roster.entries[n];
+  if (!entry) return;
+  roster.active = n;
+  roster.stage.dataset.any = String(Boolean(entry.isAny));
+  if (!entry.isAny) {
+    roster.frameA.src = regularArt(entry.id);
+    const b = roster.frameB;
+    b.style.animation = 'none';
+    void b.offsetWidth;
+    // A regular without a second frame simply gets a stage that does not flip.
+    // `idleFrame` is the flag for the file existing; a missing one would flash
+    // a broken-image box on the beat.
+    b.hidden = !entry.idleFrame;
+    if (entry.idleFrame) b.src = regularArtB(entry.id);
+    b.style.animation = '';
+  }
+  roster.name.textContent = entry.name;
+  roster.tell.textContent = entry.tell;
+  const seated = hireSeated(entry);
+  roster.go.disabled = seated;
+  roster.go.textContent = seated
+    ? `${entry.name.toUpperCase()} IS SEATED`
+    : entry.isAny ? 'SEND ANYBODY' : `HIRE ${entry.name.toUpperCase()}`;
+  // Carried as state, not as colour: the cheese border and the bar under the
+  // considered tile are the same fact drawn twice.
+  for (const [i, tile] of roster.tiles.entries()) {
+    tile.setAttribute('aria-current', String(i === n));
+  }
+}
+
+/** True while the hire screen is up. */
+function hireOpen() {
+  return Boolean(ui.roster && ui.roster.panel.classList.contains('is-open'));
+}
+
+/**
+ * Backs out of the hire screen and gives focus back to the button that opened
+ * it.
+ *
+ * Same conditional handback as `closePopovers`: focus only goes back when it
+ * would otherwise be stranded inside the screen that is going away. The
+ * handback is synchronous rather than a frame late — `syncAppInert` writes the
+ * `inert` property directly, so the lobby is focusable again on the next line,
+ * and `requestAnimationFrame` does not run in a hidden document at all.
+ */
+function closeHire(options = {}) {
+  if (options === true) options = { instant: true };
+  const { restoreFocus = true } = options;
+  if (!hireOpen()) return;
+  const active = document.activeElement;
+  const stranded = active instanceof HTMLElement && ui.roster.panel.contains(active);
+  hide(ui.roster.panel);
+  syncAppInert();
+  const target = ui.hireReturn;
+  ui.hireReturn = null;
+  if (!restoreFocus || !stranded) return;
+  if (target && target.isConnected && !target.closest('[inert]') && target.offsetParent !== null) {
+    target.focus({ preventScroll: true });
+  }
+}
+
+/**
+ * One index thumbnail.
+ *
+ * The filmstrip is the roster demoted: seven small windows whose whole job is
+ * to say who else there is and let you get to them. They show frame A and
+ * never animate — the flip lives on the stage now, and a strip of six of them
+ * going off at once is the flicker this handoff exists to remove.
+ */
+function stripTile(entry, n) {
   const tile = document.createElement('button');
   tile.type = 'button';
-  tile.className = regular ? 'roster-tile' : 'roster-tile roster-tile--any';
-  const line = regular ? regular.tell : ANYBODY_TELL;
+  tile.className = 'strip__tile';
+  const seated = hireSeated(entry);
+  tile.dataset.seated = String(seated);
+  // The stage shows one regular at a time, so every tile carries its own tell
+  // as its label. A screen reader gets the whole roster without previewing it.
+  tile.setAttribute(
+    'aria-label',
+    seated
+      ? `${entry.name} is already at the table. ${entry.tell}`
+      : `Preview ${entry.name}. ${entry.tell}`
+  );
+  tile.setAttribute('aria-current', 'false');
 
-  const window_ = document.createElement('span');
-  window_.className = 'roster-tile__window';
-  window_.setAttribute('aria-hidden', 'true');
-  if (regular) {
+  const win = document.createElement('span');
+  win.className = 'strip__win';
+  win.setAttribute('aria-hidden', 'true');
+  if (entry.isAny) {
+    const mark = document.createElement('span');
+    mark.className = 'strip__any';
+    mark.textContent = '?';
+    win.append(mark);
+  } else {
     const face = document.createElement('img');
-    face.className = 'roster-tile__portrait';
-    face.src = `assets/regulars/${regular.id}.png`;
+    face.src = regularArt(entry.id);
     face.alt = '';
     face.draggable = false;
-    window_.append(face);
-    // The idle frame stacks over the portrait and stays at opacity 0 until
-    // the tile is hovered or focused; the flip itself is CSS. Only built for
-    // regulars flagged as owning the asset.
-    if (regular.idleFrame) {
-      const faceB = document.createElement('img');
-      faceB.className = 'roster-tile__portrait roster-tile__portrait--b';
-      faceB.src = `assets/regulars/${regular.id}-b.png`;
-      faceB.alt = '';
-      faceB.draggable = false;
-      window_.append(faceB);
-    }
+    win.append(face);
   }
+  // IN under 720, SEATED at 720 and over — the word is CSS, because which one
+  // fits is a question about the width and nothing else.
+  const label = document.createElement('span');
+  label.className = 'strip__seated';
+  label.setAttribute('aria-hidden', 'true');
+  win.append(label);
 
   const name = document.createElement('span');
-  name.className = 'roster-tile__name';
-  name.textContent = regular ? regular.name : 'Anybody';
+  name.className = 'strip__name';
+  name.setAttribute('aria-hidden', 'true');
+  name.textContent = entry.name;
 
-  tile.append(window_, name);
-  // The tell is only shown for the tile under the pointer, so every tile
-  // carries it as its own label too. A screen reader gets the whole roster.
-  tile.setAttribute('aria-label', regular ? `Hire ${regular.name}. ${regular.tell}` : `Hire anybody. ${ANYBODY_TELL}`);
+  tile.append(win, name);
 
-  if (seated) {
-    tile.classList.add('is-seated');
-    // Left focusable on purpose: the tell is the tutorial, and a keyboard
-    // player should still be able to read the one for a chef already seated.
-    tile.setAttribute('aria-disabled', 'true');
-    tile.setAttribute('aria-label', `${regular.name} is already at the table. ${regular.tell}`);
-    const label = document.createElement('span');
-    label.className = 'roster-tile__seated';
-    label.textContent = 'Seated';
-    tile.append(label);
-  }
+  // A hover previews — and only a real one. The guard on `pointerType` is what
+  // makes the two-tap rule work: a tap synthesises a `pointerenter` alongside
+  // it, and without the guard that enter would arm the tile the tap is about
+  // to press, so the first tap would hire.
+  tile.addEventListener('pointerenter', (event) => {
+    if (event.pointerType !== 'mouse') return;
+    hireSelect(n);
+    ui.roster.armed = n;
+  });
 
-  const describe = () => { ui.roster.tell.textContent = line; };
-  tile.addEventListener('pointerenter', describe);
-  tile.addEventListener('focus', describe);
+  // Focus previews too, so tabbing through the strip gets exactly what
+  // hovering gets, and Enter presses what you are looking at. It only ARMS on
+  // a pointer that can hover: a tap focuses the tile as well as clicking it,
+  // and arming here would be the same first-tap-hires bug by another door.
+  // A seated regular still previews — the tell is the tutorial.
+  tile.addEventListener('focus', () => {
+    hireSelect(n);
+    if (!coarsePointer()) ui.roster.armed = n;
+  });
+
   tile.addEventListener('click', () => {
-    if (seated) {
-      toast(`${regular.name} is already at the table.`);
+    if (ui.roster.armed === n) {
+      hireSelected();
       return;
     }
-    closePopovers();
-    send(regular ? { type: 'addBot', regularId: regular.id } : { type: 'addBot' });
+    hireSelect(n);
+    ui.roster.armed = n;
   });
   return tile;
 }
 
+/** Who is already at the table, by lowercased name — the seated set. */
+function seatedRegulars(snapshot) {
+  return new Set(snapshot.seats.filter((s) => s.isBot).map((s) => s.name.toLowerCase()));
+}
+
+/** Fills the screen from a snapshot. Called on open and on every lobby snapshot. */
+function fillRoster(snapshot) {
+  const roster = ui.roster;
+  roster.seated = seatedRegulars(snapshot);
+  roster.tiles = roster.entries.map((entry, n) => stripTile(entry, n));
+  roster.strip.replaceChildren(...roster.tiles);
+}
+
+/**
+ * The lobby can re-render underneath this screen — a snapshot arrives, or the
+ * other player hires somebody. The screen used to be closed by that snapshot;
+ * now it stays and re-reads the seated set in place, so a chef who has just sat
+ * down goes grey under the cursor rather than the whole screen disappearing.
+ */
+function refreshRoster(snapshot) {
+  if (!hireOpen()) return;
+  fillRoster(snapshot);
+  // Re-run the selection against the new seated set: if the regular under
+  // consideration is the one who just sat down, the button has to say so and
+  // stop being pressable before the player presses it.
+  hireSelect(ui.roster.active);
+}
+
 function openRoster(snapshot) {
-  openedPopover(el.btnAddBot);
   const roster = ui.roster || buildRoster();
-  if (!roster.panel.isConnected) {
-    const host = el.btnAddBot.closest('.panel') || el.btnAddBot.parentElement;
-    host.append(roster.panel);
-  }
+  // Outside `#app`, like the other two dialogs: what it covers is what goes
+  // inert behind it, and it cannot cover the lobby from inside the lobby panel.
+  if (!roster.panel.isConnected) document.body.append(roster.panel);
+  // The button that opened it is where focus goes back to when it closes —
+  // named here rather than read off `document.activeElement`, because this is
+  // the only thing that opens the screen and it is marked
+  // `aria-haspopup="dialog"` for saying so.
+  ui.hireReturn = el.btnAddBot;
 
-  const seated = new Set(
-    snapshot.seats.filter((s) => s.isBot).map((s) => s.name.toLowerCase())
-  );
-  const tiles = new DocumentFragment();
-  for (const regular of REGULARS) {
-    tiles.append(rosterTile(regular, seated.has(regular.name.toLowerCase())));
-  }
-  tiles.append(rosterTile(null, false));
-  roster.grid.replaceChildren(tiles);
-  roster.tell.textContent = ANYBODY_TELL;
-
+  fillRoster(snapshot);
+  hireSelect(0);
+  roster.armed = -1;
+  roster.hint.textContent = coarsePointer()
+    ? 'TAP TO PREVIEW · TAP AGAIN TO HIRE'
+    : '◀ ▶ OR HOVER · ENTER TO HIRE';
   show(roster.panel);
-  const first = roster.grid.querySelector('.roster-tile:not(.is-seated)');
-  if (first) first.focus({ preventScroll: true });
+  syncAppInert();
+  // The first tile, seated or not. The screen is never in a state with nobody
+  // considered, and a seated regular previews like any other — it is the
+  // hire button that refuses, not the tile.
+  roster.tiles[0].focus({ preventScroll: true });
 }
 
 function tag(kind, text) {
@@ -4337,11 +4676,16 @@ function cardBack() {
 }
 
 // ------------------------------------------------------------- popovers ----
-/** Every popover on the client, whether or not it has been built yet. */
+/**
+ * Every popover on the client, whether or not it has been built yet.
+ *
+ * The hire roster used to be the third one. It is a modal screen state now, so
+ * it is not on this list and `popoverOpen()` no longer answers for it — but
+ * `closePopovers` still takes it down, because every caller that meant "clear
+ * what is floating over the game" meant the roster too.
+ */
 function popoverPanels() {
-  const panels = [el.picker, el.calloutPop];
-  if (ui.roster) panels.push(ui.roster.panel);
-  return panels;
+  return [el.picker, el.calloutPop];
 }
 
 /**
@@ -4368,6 +4712,12 @@ function openedPopover(invoker) {
  * `restoreFocus: false` is for the callers that have somewhere better to put
  * it: committing a play focuses the next playable card, and a screen change
  * focuses the screen.
+ *
+ * The hire screen goes down with them. It is not a popover any more, but every
+ * caller here — the refused rejoin, the local leave, the round-over, opening
+ * the rules, Escape — closed the roster before and has to keep closing the
+ * screen that replaced it. `keepHire: true` is the single exception, for the
+ * lobby snapshot that now refreshes the screen instead of killing it.
  */
 function closePopovers(options = {}) {
   // `true` is the Escape key's shorthand for { instant: true }. Escape is a
@@ -4376,7 +4726,8 @@ function closePopovers(options = {}) {
   // choice to the thing that closed. The snap is a class and a forced reflow
   // rather than a frame hop, because rAF does not run in a hidden document.
   if (options === true) options = { instant: true };
-  const { restoreFocus = true, instant = false } = options;
+  const { restoreFocus = true, instant = false, keepHire = false } = options;
+  if (!keepHire) closeHire({ restoreFocus });
   const panels = popoverPanels();
   const active = document.activeElement;
   const stranded = active instanceof HTMLElement && panels.some((panel) => panel && panel.contains(active));
@@ -5586,8 +5937,8 @@ el.btnCopyCode.addEventListener('click', () => copyCode(el.btnCopyCode));
 el.hudCode.addEventListener('click', () => copyCode(el.hudCode));
 el.btnAddBot.addEventListener('click', () => {
   if (!ui.snapshot) return;
-  if (ui.roster && ui.roster.panel.classList.contains('is-open')) {
-    closePopovers();
+  if (hireOpen()) {
+    closeHire();
     return;
   }
   openRoster(ui.snapshot);
