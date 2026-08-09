@@ -4716,6 +4716,88 @@ function demoWild() {
   return stage;
 }
 
+/**
+ * 3 · The five action cards, at the rib size the game already uses for a card
+ * seen edge-on: keyline, symbol, suit letter. This is the one page that is a
+ * list rather than a scene, because five cards are five facts and pretending
+ * otherwise would cost the player a page each.
+ */
+const RC_ACTIONS = [
+  {
+    card: { id: 'rc-a1', suit: 'pepperoni', kind: 'skip', value: null },
+    name: 'Burnt Slice',
+    what: 'Skips the next chef.',
+    // game.js:448-457 — advanceTurn(2).
+  },
+  {
+    card: { id: 'rc-a2', suit: 'basil', kind: 'reverse', value: null },
+    name: 'Flip the Pie',
+    what: 'Play turns around.',
+    // game.js:458-468 — direction *= -1.
+  },
+  {
+    card: { id: 'rc-a3', suit: 'cheese', kind: 'draw2', value: null },
+    name: 'Extra Toppings',
+    what: 'Next chef takes two.',
+    // game.js:469-477 — dealTo(victim, 2) then advanceTurn(2).
+  },
+  {
+    card: { id: 'rc-a4', suit: null, kind: 'wild', value: null },
+    name: "Chef's Choice",
+    what: 'Goes anywhere; name topping.',
+    // game.js:211 canPlay · 385-387 a topping is required · 391.
+  },
+  {
+    card: { id: 'rc-a5', suit: null, kind: 'wild4', value: null },
+    name: 'The Whole Pie',
+    what: 'Next chef takes four.',
+    // game.js:469-477 — the same branch as +2, count 4.
+  },
+];
+
+function demoActions() {
+  const stage = rcStage('deck__demo--list');
+  for (const entry of RC_ACTIONS) {
+    const row = rcEl('div', 'deck__row');
+    const face = renderCard(entry.card, { size: 'rib' });
+    face.setAttribute('aria-hidden', 'true');
+    face.removeAttribute('role');
+    face.removeAttribute('aria-label');
+    const text = rcEl('p', 'deck__row-text');
+    text.append(
+      rcEl('b', 'deck__row-name', `${entry.name} — `),
+      rcEl('span', 'deck__row-what', entry.what)
+    );
+    row.append(face, text);
+    stage.append(row);
+  }
+  return stage;
+}
+
+/**
+ * 4 · One card comes off the dough pile, and there are exactly two ways out of
+ * it. Both are drawn as arrows that take it in turns to light, because the
+ * player picks one of them and never both.
+ */
+function demoDraw() {
+  const stage = rcStage('deck__demo--row deck__demo--draw');
+  const oven = rcCard({ id: 'rc-d1', suit: 'cheese', kind: 'number', value: 8 });
+  const pile = rcEl('span', 'deck__pile');
+  const drawn = rcCard({ id: 'rc-d2', suit: 'cheese', kind: 'number', value: 4 });
+  drawn.classList.add('deck__drawn');
+  // The face sits behind the back and slides out from under it, so the card
+  // is dealt off the pile rather than appearing beside it.
+  pile.append(drawn, rcBack('deck__pile-top'));
+  stage.append(
+    oven,
+    rcArrow('l', 'deck__ar--beat-a'),
+    pile,
+    rcArrow('r', 'deck__ar--beat-b'),
+    rcBack()
+  );
+  return stage;
+}
+
 // -------------------------------------------------------------- the pages --
 /**
  * Eight pages in the order a player needs them. `sr` is the whole rule, in
@@ -4742,6 +4824,25 @@ const RULE_PAGES = [
     // · 385-387 a wild without a named topping is refused · 391 the named
     // topping becomes state.currentTopping.
     demo: demoWild,
+  },
+  {
+    h: 'The action cards',
+    line: null,
+    sr: "The five action cards. Burnt Slice: the next chef gets the burnt bit and misses a turn. Flip the Pie: play turns around and runs the other way. Extra Toppings: the next chef takes two cards and misses a turn. Chef's Choice: goes on anything, and you name the topping in play. The Whole Pie: the next chef takes four cards and misses a turn, and you name the topping. The first three come in all four toppings; the two wilds have none. A plus two or a plus four is dealt the moment it lands and the turn skips straight past the chef who took it, so there is no answering one with your own.",
+    // game.js:448-457 skip · 458-468 reverse · 469-477 the two penalties, which
+    // deal inside the effect and then advanceTurn(2): the state carries no
+    // pending draw, which is what makes stacking impossible rather than banned.
+    // · 211 + 385-391 the wilds.
+    demo: demoActions,
+  },
+  {
+    h: 'You drew a card',
+    line: 'Play that card, or keep it and pass.',
+    sr: 'Nothing fits? Take one card off the dough pile. If it can be played you may play that card and nothing else, or keep it and pass; if it cannot be played your turn ends by itself.',
+    // game.js:484-511 drawCard · 225-235 playableCardIds narrows to the drawn
+    // card alone · 379-381 playCard refuses every other card · 514-523
+    // passTurn, which is legal only after a draw.
+    demo: demoDraw,
   },
 ];
 

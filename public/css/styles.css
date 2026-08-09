@@ -3065,7 +3065,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    to the slot next but one, which is what a card flying onto the oven card
    travels, so no keyframe ever carries a hard-coded pixel. */
 .deck {
-  --demo-card: 64px;
+  /* `--deck-card` is the screen's card size and the only one the media queries
+     below touch. `--demo-card` is what a card actually renders at, and a page
+     that needs more room than the others takes it as a fraction of the first —
+     so a scene can shrink itself without falling out of step with the screen
+     it is on. */
+  --deck-card: 64px;
+  --demo-card: var(--deck-card);
   --demo-gap: 8px;
   --demo-ar: 18px;
   --demo-h: 96px;
@@ -3222,6 +3228,90 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   animation: deck-swatch-in 3600ms var(--ease-step) infinite;
 }
 
+/* --- 3 · the action cards -------------------------------------------------- */
+/* The one page that is a list rather than a scene: five cards are five facts.
+   A rib is the frame the game already uses for a card seen edge-on — keyline,
+   symbol, suit letter, nothing else — and it sizes off the slot it sits in,
+   which is why the two-glyph indexes (+2, <>, +4) get the wider one. */
+.deck__demo--list {
+  display: grid;
+  min-height: 0;
+  gap: var(--s2);
+  text-align: left;
+}
+
+.deck__row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+}
+
+.deck .deck__row .card--rib { --card-w: 20px; margin: 0 auto; }
+.deck .deck__row .card--rib[data-glyphs="2"] { --card-w: 28px; }
+
+.deck__row-text { margin: 0; }
+.deck__row-name { color: var(--cheese); font-weight: normal; }
+.deck__row-what { color: var(--text-dim); }
+
+/* A list cannot act anything out, so it keeps time instead: each frame takes
+   its turn to lean, top to bottom, and the page reads as five cards waiting
+   rather than five lines of print. */
+@keyframes deck-nudge {
+  0%, 6%    { transform: translate3d(0, 0, 0); }
+  13%, 24%  { transform: translate3d(3px, 0, 0); }
+  32%, 100% { transform: translate3d(0, 0, 0); }
+}
+
+.deck__row .card { animation: deck-nudge 4000ms var(--ease-step) infinite; }
+.deck__row:nth-child(2) .card { animation-delay: 170ms; }
+.deck__row:nth-child(3) .card { animation-delay: 340ms; }
+.deck__row:nth-child(4) .card { animation-delay: 510ms; }
+.deck__row:nth-child(5) .card { animation-delay: 680ms; }
+
+/* --- 4 · the drawn card ---------------------------------------------------- */
+/* Five things in a row where every other scene has three, so the cards run a
+   little under the deck's size to buy the drawn card the room to come out far
+   enough to be read. */
+.deck__demo--draw { --demo-card: calc(var(--deck-card) * 0.86); }
+
+/* The pile is a box wide enough for the back plus the card coming out from
+   under it, so the row's width never changes as the card slides. */
+.deck__pile {
+  position: relative;
+  flex: none;
+  width: calc(var(--demo-card) * 1.82);
+  height: calc(var(--demo-card) * var(--card-ratio));
+}
+
+.deck__pile .card { position: absolute; left: 0; top: 0; }
+.deck__pile-top { z-index: 1; }
+
+@keyframes deck-deal {
+  0%, 8%    { transform: translate3d(0, 0, 0); }
+  20%, 90%  { transform: translate3d(calc(var(--demo-card) * 0.8), -4px, 0); }
+  98%, 100% { transform: translate3d(0, 0, 0); }
+}
+
+.deck__drawn { animation: deck-deal 3600ms var(--ease-step) infinite; }
+
+/* The two ways out take it in turns, because the player takes one of them and
+   never both. */
+@keyframes deck-beat-a {
+  0%, 12%   { opacity: .22; }
+  22%, 46%  { opacity: 1; }
+  56%, 100% { opacity: .22; }
+}
+
+@keyframes deck-beat-b {
+  0%, 52%   { opacity: .22; }
+  62%, 88%  { opacity: 1; }
+  96%, 100% { opacity: .22; }
+}
+
+.deck__ar--beat-a { animation: deck-beat-a 3600ms var(--ease-step) infinite; }
+.deck__ar--beat-b { animation: deck-beat-b 3600ms var(--ease-step) infinite; }
+
 /* --- flipping ------------------------------------------------------------- */
 .deck__nav {
   display: flex;
@@ -3272,7 +3362,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 @media (min-width: 480px) {
-  .deck { --demo-card: 84px; --demo-gap: 12px; --demo-ar: 22px; --demo-h: 128px; }
+  .deck { --deck-card: 84px; --demo-gap: 12px; --demo-ar: 22px; --demo-h: 128px; }
   .deck__h { font-size: 16px; }
 }
 
@@ -3282,7 +3372,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    keeps the topping off colour alone once the word is gone. Last of the three,
    so it wins on a window that is both wide and short. */
 @media (max-height: 480px) {
-  .deck { --demo-card: 44px; --demo-gap: 6px; --demo-ar: 14px; --demo-h: 68px; }
+  .deck { --deck-card: 44px; --demo-gap: 6px; --demo-ar: 14px; --demo-h: 68px; }
   .deck__h { font-size: 12px; }
   .deck .card__banner { display: none; }
   .deck__step { width: 38px; height: 38px; }
@@ -3308,6 +3398,22 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   .deck__art--was { animation: none; opacity: 0; }
   .deck__art--now { animation: none; opacity: 1; }
+
+  /* Page 3 has nothing to park: the list already says all five cards, and the
+     lean was only ever timekeeping. */
+  .deck__row .card { animation: none; transform: none; }
+
+  /* Page 4 parks with the card already dealt and BOTH ways out lit, which is
+     the frame that carries the rule: one card off the pile, two things you may
+     do with it. */
+  .deck__drawn {
+    animation: none;
+    transform: translate3d(calc(var(--demo-card) * 0.8), -4px, 0);
+  }
+
+  .deck__ar--beat-a,
+  .deck__ar--beat-b { animation: none; opacity: 1; }
+
   .deck__step { transition: none; }
 }
 
