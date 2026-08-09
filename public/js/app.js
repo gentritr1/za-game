@@ -428,6 +428,13 @@ function syncPending() {
   for (const node of [el.handZone, el.drawPile]) {
     if (node) node.inert = held;
   }
+  // A chef's seat is the second door onto the call-out, so it has to go quiet
+  // with the first one. `send()` already refuses it, but a seat that still
+  // lifts under the cursor is offering a move the board has stopped taking.
+  // A class rather than `inert`: inert would take the whole counter out of the
+  // accessibility tree, and who is playing is exactly what a player wants read
+  // to them while they wait for their own move to land.
+  if (el.opponents) el.opponents.classList.toggle('is-held', held);
 }
 
 const CONN_FIRST = 'Knocking on the kitchen door…';

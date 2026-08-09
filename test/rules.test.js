@@ -992,9 +992,19 @@ test('every control the desync freeze disables has an owner that turns it back o
   // the freeze re-enabling its own list would just be the early return again.
   const rest = src.slice(0, start) + src.slice(start + body.length);
   for (const name of frozen) {
-    const owner = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.disabled\\s*=`);
+    // An assignment of `true` is another way of switching the control OFF, so
+    // it cannot be the owner that switches it back on. Everything else counts:
+    // the real owners are written `= !view.canPass`, not `= false`, and
+    // demanding the literal `false` would fail the code that actually fixed
+    // this.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Collect the right-hand sides rather than trying to exclude `true` inside
+    // the pattern: `\s*` backtracks, so a lookahead placed after it happily
+    // matches at the space and the assertion silently stops asserting.
+    const assigns = [...rest.matchAll(new RegExp(`${escaped}\\.disabled\\s*=\\s*([^;]+);`, 'g'))];
+    const owner = assigns.some((m) => m[1].trim() !== 'true');
     assert.ok(
-      owner.test(rest),
+      owner,
       `${name} is switched off by the desync freeze and nothing outside it ever assigns `
       + `.disabled — this is exactly how PASS and CALL OUT died on every boot`
     );

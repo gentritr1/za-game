@@ -540,6 +540,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .btn--ghost {
   --btn-bg: var(--cabinet);
   --btn-fg: var(--ui-cyan);
+
   border-color: var(--bezel-live);
 }
 
@@ -1534,6 +1535,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   outline: var(--bd-thin) solid var(--cheese);
   outline-offset: calc(9px * var(--k, 1));
 }
+
+/* While a move is in the air the seat stops offering itself, the same way the
+   hand zone does. The seat keeps its ring and its badge — it is still the
+   chef who forgot to shout, it just is not a button for this moment. */
+.opponents.is-held .seat[role="button"] { pointer-events: none; }
 
 /* The lift rides `.seat__id`, not `.seat__body`: the queue slide writes an
    inline transform on the body, and two owners of one transform means the
