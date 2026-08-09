@@ -2741,7 +2741,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   position: absolute;
   top: var(--s3);
   left: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
   padding: 0 var(--s2);
   background: none;
   border: 0;
@@ -2755,6 +2760,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .hire__back:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+.hire__back-word { display: none; }
 
 .hire__title {
   margin: 0;
@@ -2860,81 +2867,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .stage[data-any="true"] .stage__any { display: flex; }
 
-/* ----------------------------------------------- the hire screen: 720+ ---- */
-@media (min-width: 720px) {
-  .hire { gap: 22px; padding: 40px; }
-  .hire__back { top: var(--s6); left: 40px; }
-  .hire__title {
-    position: absolute;
-    top: 28px;
-    left: 0;
-    right: 0;
-    font-size: 16px;
-  }
-  .stage { box-shadow: 8px 8px 0 rgba(0, 0, 0, .55); }
-  .arrows__step { display: block; }
-  .hire__hint { font-size: 21px; }
-  .hire__name { font-size: 18px; }
-  .hire__tell { font-size: 21px; min-height: 2.7em; padding: 10px 14px; }
-  .hire__go {
-    width: auto;
-    min-width: 260px;
-    padding: 14px;
-    font-size: 14px;
-    box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
-  }
-
-  /* A centred row rather than a grid, and the names come back beside the
-     windows: six of them side by side is what this width is for. */
-  .strip {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    max-width: none;
-  }
-  .strip__tile { height: 72px; padding-right: var(--s3); }
-  .strip__win { width: auto; height: 100%; aspect-ratio: 1; flex: none; }
-  .strip__any { font-size: 19px; }
-  .strip__name {
-    display: block;
-    padding-left: 10px;
-    font-size: 19px;
-    line-height: 1;
-    color: var(--text);
-    white-space: nowrap;
-  }
-  .strip__seated::after { content: "SEATED"; }
-
-  /* The considered tile also takes a rule under it — the marker the cabinet
-     uses for a selected thing, at the size the strip can carry. */
-  .strip__tile[aria-current="true"]::after {
-    content: "";
-    position: absolute;
-    left: -3px;
-    right: -3px;
-    bottom: -11px;
-    height: 5px;
-    background: var(--cheese);
-  }
-}
-
-/* -------------------------------- the hire screen: short window (landscape) */
-/* The one place the stage is allowed off its native size. A landscape phone is
-   400px of height and the column does not fit, so the screen goes to a
-   wrapping row and the stage drops to 152 — the smallest size at which all six
-   gestures were still legible in review. Portrait phones keep 192. */
-@media (max-height: 560px) and (min-width: 520px) {
-  .hire {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-content: center;
-    gap: var(--s4) var(--s6);
-  }
-  .stage { width: 152px; height: 152px; }
-  .hire__title { position: static; flex-basis: 100%; }
-}
-
 /* ------------------------------------------------------- the filmstrip ---- */
 /* Seven index thumbnails. They show frame A and never animate: the flip is the
    stage's, and six windows going off at once is the flicker this whole
@@ -3036,6 +2968,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .arrows__step:hover { color: var(--cheese); }
 }
 
+/* Three items in the stack at every size but one, where they become a column
+   of their own beside the stage. */
+.hire__lines { display: contents; }
+
 .hire__name {
   margin: 0;
   color: var(--text);
@@ -3097,6 +3033,125 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 @media (hover: hover) and (pointer: fine) {
   .hire__go:not([disabled]):hover { background: var(--cheese-hi); }
+}
+
+/* ----------------------------------------------- the hire screen: 720+ ---- */
+/* All of the screen's width rules in one block at the end of it, rather than
+   beside the piece each one belongs to. They override base rules of equal
+   specificity, so they only win by coming later — split up, the strip's
+   desktop rules sat above the strip's own defaults and the names stayed
+   hidden at 1280. */
+@media (min-width: 720px) {
+  .hire { gap: 22px; padding: 40px; }
+  .hire__back { top: var(--s6); left: 40px; }
+  .hire__back-word { display: inline; }
+  .hire__title {
+    position: absolute;
+    top: 28px;
+    left: 0;
+    right: 0;
+    font-size: 16px;
+  }
+  .stage { box-shadow: 8px 8px 0 rgba(0, 0, 0, .55); }
+  .arrows__step { display: block; }
+  .hire__hint { font-size: 21px; }
+  .hire__name { font-size: 18px; }
+  .hire__tell { font-size: 21px; min-height: 2.7em; padding: 10px 14px; }
+  .hire__go {
+    width: auto;
+    min-width: 260px;
+    padding: 14px;
+    font-size: 14px;
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
+  }
+
+  /* A centred row rather than a grid, and the names come back beside the
+     windows: six of them side by side is what this width is for. */
+  .strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    max-width: none;
+  }
+  .strip__tile { height: 72px; padding-right: var(--s3); }
+  .strip__win { width: auto; height: 100%; aspect-ratio: 1; flex: none; }
+  .strip__any { font-size: 19px; }
+  .strip__name {
+    display: block;
+    padding-left: 10px;
+    font-size: 19px;
+    line-height: 1;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .strip__seated::after { content: "SEATED"; }
+
+  /* The considered tile also takes a rule under it — the marker the cabinet
+     uses for a selected thing, at the size the strip can carry. */
+  .strip__tile[aria-current="true"]::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    bottom: -11px;
+    height: 5px;
+    background: var(--cheese);
+  }
+}
+
+/* -------------------------------- the hire screen: short window (landscape) */
+/* The one place the stage is allowed off its native size. A landscape phone is
+   400px of height and the column does not fit, so the screen goes to a
+   wrapping row and the stage drops to 152 — the smallest size at which all six
+   gestures were still legible in review. Portrait phones keep 192.
+
+   Last of the three blocks, because it has to beat the 720+ one as well: a
+   720x400 window matches both. */
+@media (max-height: 560px) and (min-width: 520px) {
+  .hire {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    gap: var(--s3) var(--s6);
+    padding: var(--s4);
+  }
+  .stage { width: 152px; height: 152px; }
+  .hire__back { top: var(--s2); left: var(--s2); }
+
+  /* 400px of height does not hold a title, a stage, three lines, a filmstrip
+     and a hint stacked. The stage goes beside what it says about the chef,
+     which is what the wrapping row is for, and the title comes off the
+     absolute position it takes at this width. */
+  .hire__title { position: static; flex-basis: 100%; margin-bottom: calc(-1 * var(--s1)); }
+  .hire__lines {
+    display: flex;
+    flex: 1 1 300px;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s2);
+    max-width: 460px;
+  }
+  .hire__tell { min-height: 3.4em; font-size: 19px; }
+  .hire__go { padding: var(--s3); }
+
+  /* And the strip goes back to the compact cells: seven 72px tiles with names
+     wrap to two rows of 154px, which is the rest of the window. */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    flex-basis: 100%;
+    gap: 6px;
+    max-width: 288px;
+    margin-inline: auto;
+  }
+  .strip__tile { height: 44px; padding-right: 0; }
+  .strip__win { width: 40px; height: 36px; aspect-ratio: auto; }
+  .strip__any { font-size: 12px; }
+  .strip__name { display: none; }
+  .strip__seated::after { content: "IN"; }
+  .strip__tile[aria-current="true"]::after { content: none; }
 }
 
 .callout-btn {

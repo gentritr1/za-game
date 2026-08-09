@@ -1344,7 +1344,19 @@ function buildRoster() {
   const back = document.createElement('button');
   back.className = 'hire__back';
   back.type = 'button';
-  back.textContent = '◀ BACK';
+  // The word rides beside the arrow where there is room for it. On a 320px
+  // phone there is not: the title is 200px of Press Start 2P centred in 320,
+  // so it runs from x60, and "◀ BACK" reaches x98 — the two collided. The
+  // arrow keeps the 44px box on its own and the label carries the name.
+  back.setAttribute('aria-label', 'Back');
+  const backGlyph = document.createElement('span');
+  backGlyph.setAttribute('aria-hidden', 'true');
+  backGlyph.textContent = '◀';
+  const backWord = document.createElement('span');
+  backWord.className = 'hire__back-word';
+  backWord.setAttribute('aria-hidden', 'true');
+  backWord.textContent = 'BACK';
+  back.append(backGlyph, backWord);
   back.addEventListener('click', () => closeHire());
 
   const title = document.createElement('p');
@@ -1401,13 +1413,21 @@ function buildRoster() {
   go.type = 'button';
   go.addEventListener('click', hireSelected);
 
+  // Name, tell and button travel together. In the column they are three items
+  // in the stack and this wrapper is `display: contents`, so it changes
+  // nothing; in a short window it becomes the text column standing beside the
+  // stage, which is the only way the screen fits 400px of height.
+  const lines = document.createElement('div');
+  lines.className = 'hire__lines';
+  lines.append(name, tell, go);
+
   const strip = document.createElement('div');
   strip.className = 'strip';
 
   const hint = document.createElement('p');
   hint.className = 'hire__hint';
 
-  panel.append(back, title, arrows, name, tell, go, strip, hint);
+  panel.append(back, title, arrows, lines, strip, hint);
 
   // Left and Right move the selection and take focus with them, so the tile
   // the arrows land on is the tile Enter presses. Scoped to the panel: the
