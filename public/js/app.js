@@ -87,7 +87,6 @@ const el = {
   btnToLobby: $('btn-to-lobby'),
   roundWait: $('round-wait'),
   // house rules
-  screwRail: $('screw-rail'),
   rulesOverlay: $('overlay-rules'),
   rulesDialog: $('rules-dialog'),
   rulesBody: $('rules-body'),
