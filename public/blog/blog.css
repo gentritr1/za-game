@@ -942,13 +942,17 @@ code {
 }
 
 /* steps(1, end) holds each interval at its own start value, so this is four
-   hard frames — off, low, high, off — and never a glide. */
+   hard frames — off, low, high, off — and never a glide. The visible span is
+   exactly 1200ms (25% to 58.33% of 3600ms): each bubble goes out on the beat
+   the next one starts, so the caption's "one bubble at a time" is arithmetic,
+   not hope. At the old 25-75% span, two adjacent bubbles overlapped for
+   600ms of every cycle. */
 @keyframes za-simmer {
-  0%   { opacity: 0; transform: translateY(0); }
-  25%  { opacity: 1; transform: translateY(0); }
-  50%  { opacity: 1; transform: translateY(-12px); }
-  75%  { opacity: 0; transform: translateY(-12px); }
-  100% { opacity: 0; transform: translateY(0); }
+  0%      { opacity: 0; transform: translateY(0); }
+  25%     { opacity: 1; transform: translateY(0); }
+  41.67%  { opacity: 1; transform: translateY(-12px); }
+  58.33%  { opacity: 0; transform: translateY(-12px); }
+  100%    { opacity: 0; transform: translateY(0); }
 }
 
 .pot__bub--1 { left: 44px;  animation-delay: 0ms; }
@@ -1036,12 +1040,18 @@ code {
   aspect-ratio: 1 / 1;
   background: var(--sauce);
   border: var(--bd-thin) solid var(--cheese);
-  animation: za-tray-take 3600ms steps(1, end) infinite;
+  /* The cycle must outlast the last square's fade: square eight dims at
+     2800 + 1680 = 4480ms, and the first square does not relight until 5600,
+     so for 1120ms the tray holds the picture the page is about — eight gone,
+     one kept. At the old 3600ms cycle the first square was already full
+     again before the eighth went out, and the all-but-one frame never
+     existed. */
+  animation: za-tray-take 5600ms steps(1, end) infinite;
 }
 
 @keyframes za-tray-take {
-  0%,  45%  { opacity: 1; }
-  46%, 100% { opacity: .16; }
+  0%,  29%  { opacity: 1; }
+  30%, 100% { opacity: .16; }
 }
 
 .tray__sq:nth-child(1) { animation-delay: 0ms; }

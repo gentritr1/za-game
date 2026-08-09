@@ -3624,8 +3624,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   animation: deck-dealt 3800ms var(--ease-step) infinite;
 }
 
-/* And the turn moves on. */
-.deck__seat--next::after { animation: deck-yours 3800ms var(--ease-step) infinite; }
+/* And the turn moves on — AFTER the clock has run out and the card has been
+   dealt, which is the story this page tells in order. `deck-yours` lights at
+   44%, while the bar is still draining; borrowing it had the next seat lit
+   before the deadline it is supposed to follow. Its own phase starts at 80%,
+   behind the bar's 70% empty and the card's 72% arrival. */
+@keyframes deck-next {
+  0%, 74%  { opacity: 0; }
+  80%, 92% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+
+.deck__seat--next::after { animation: deck-next 3800ms var(--ease-step) infinite; }
 
 /* --- flipping ------------------------------------------------------------- */
 .deck__nav {
@@ -4680,13 +4690,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .anchovy-stamp,
   .anchovy-stamp.is-on { transform: translate(-50%, -50%) !important; }
 
-  /* The call-out drain is information, not decoration: it is the only thing a
-     muted player has to count the window down by, so it keeps its 3 seconds.
-     The five steps flatten to a linear slide via the --ease-step-5 fallback. */
-  .callout-drain__fill {
-    animation-duration: 3000ms !important;
-    animation-name: callout-drain !important;
-  }
+  /* The call-out bar is steady in every mode now — the honest-callout pass
+     removed the drain and its keyframes, because the window's real length is
+     the target's turn, not three seconds. No override here: a rule that
+     forced the old animation name back on would resurrect the deleted lie
+     the moment anyone reintroduced keyframes under that name. */
 }
 
 /* ==========================================================================
