@@ -261,6 +261,7 @@ const ui = {
   // was taken under; none is ever cleared by hand.
   paintedScreen: '', // the room actually in the DOM, set only by `paintScreen`
   handMetrics: null, // { token, cardW, railW } — the near rail's two numbers
+  seatBox: null,     // { token, width, height, port } — the felt the token walks
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1655,6 +1656,40 @@ function seatingFurniture() {
  * only thing allowed to move, and a percentage translate would be a percentage
  * of the token rather than of the felt.
  */
+/**
+ * The felt's box and the portrait size, which is everything the token needs to
+ * work out where to stand.
+ *
+ * All three were read on every snapshot, immediately after `renderOpponents`
+ * wrote `data-chefs` and `data-crowd` on the very same element — a guaranteed
+ * style recalc followed by a forced layout, hundreds of times a round. None of
+ * them is content-driven: the container is sized by the capped playfield and
+ * `--port` by the notch and the crowd. Confirmed on the probe — the same eight
+ * seats with card counts 1,3,7,8,14,5,2 and with 5,3,7,2,9,4,6 measure an
+ * identical 1280 x 520 at --port 60px, and only dropping to four players moves
+ * --port, to 70px, by way of `data-crowd`.
+ *
+ * So the key is the viewport, the room, and the three attributes that feed the
+ * CSS. `placeToken` writes nothing that appears in it, so unlike `--panel-w`
+ * this cache cannot drive its own key.
+ *
+ * A degenerate measurement is never stored. A zero-sized felt means the room is
+ * not laid out yet, and freezing that would hide the token until something else
+ * happened to move the key — the exact way the panel-width cache failed.
+ */
+function seatBox() {
+  const o = el.opponents;
+  const key = `${layoutToken()}|${o.dataset.mode}|${o.dataset.chefs}|${o.dataset.crowd}`;
+  if (ui.seatBox && ui.seatBox.token === key) return ui.seatBox;
+  const width = o.offsetWidth;
+  const height = o.offsetHeight;
+  const port = parseFloat(getComputedStyle(o).getPropertyValue('--port')) || 54;
+  const box = { token: key, width, height, port };
+  if (width === 0 || height === 0) return box;
+  ui.seatBox = box;
+  return box;
+}
+
 function placeToken(token, order, ranks, view) {
   const seats = order.length;
   // A token needs two different places to stand between. At a table of two
@@ -1696,15 +1731,13 @@ function placeToken(token, order, ranks, view) {
   const a = spotOf(from);
   const b = spotOf(to);
 
-  const width = el.opponents.offsetWidth;
-  const height = el.opponents.offsetHeight;
-  if (width === 0 || height === 0) {
+  const box = seatBox();
+  if (box.width === 0 || box.height === 0) {
     token.hidden = true;
     return;
   }
-  const port = parseFloat(getComputedStyle(el.opponents).getPropertyValue('--port')) || 54;
-  const x = ((a[0] + b[0]) / 2 / 100) * width;
-  const y = ((a[1] + b[1]) / 2 / 100) * height + port * 0.5;
+  const x = ((a[0] + b[0]) / 2 / 100) * box.width;
+  const y = ((a[1] + b[1]) / 2 / 100) * box.height + box.port * 0.5;
 
   token.hidden = false;
   // The glyph is drawn with borders, not set as a character: neither VT323 nor
