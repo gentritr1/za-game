@@ -2179,10 +2179,21 @@ function updateSeat(node, player, view, exposed, rank) {
  * The call-out window, drawn from the snapshot.
  *
  * The server has no timer: a player is `vulnerable` from the moment they play
- * down to one card without shouting until play comes back round to them. The
- * three seconds in the handoff are the client's dramatisation of that window,
- * so the bar drains in five countable steps and then simply stops. It never
- * decides anything — the CALL OUT button stays governed by `calloutTargets`.
+ * down to one card without shouting until play comes back round to them
+ * (`server/game.js` advanceTurn clears it on `next !== from`, and nothing in
+ * that file consults a clock).
+ *
+ * This used to be dramatised as three seconds — a bar draining in five
+ * countable steps, and five rising beeps to count them. Both were inventions.
+ * A player who waited out the "countdown" watched the chance appear to expire
+ * while it was in fact still open, sometimes for another half minute; the only
+ * thing the dramatisation reliably did was talk people out of a legal move.
+ *
+ * So the window is now told by its own existence: the box and its bar are here
+ * while the seat is callable and gone when it is not, which is precisely the
+ * lifetime of `calloutTargets`, the same field that governs the CALL OUT
+ * button. One beep marks the opening, because a window you never noticed is
+ * its own kind of lie; nothing counts down.
  *
  * A window closes three ways, and they are told apart in the loop below.
  */
@@ -2230,10 +2241,10 @@ function openCalloutWindow(playerId, isMine) {
     box.append(label, drain);
     el.handZone.append(box);
     entry.node = box;
-    // The window is a dashed sauce box and a bar draining over three seconds:
-    // entirely a picture, and the one moment where not knowing costs you cards.
-    // `syncCalloutWindows` only opens a window that is not already open, so
-    // this is once per arising rather than once per snapshot.
+    // The window is a dashed sauce box and a steady bar, and it is the one
+    // moment where not knowing costs you cards. `syncCalloutWindows` only
+    // opens a window that is not already open, so this is once per arising
+    // rather than once per snapshot.
     announce("You're on one card — shout ZA!");
   } else {
     const seat = ui.seatNodes.get(playerId);
@@ -2243,12 +2254,15 @@ function openCalloutWindow(playerId, isMine) {
     entry.node = drain;
   }
 
-  // One rising beep per drained step, and only ever for one window at a time:
-  // two seats caught out together would otherwise double every beep.
+  // One beep, on the opening, and only ever for one window at a time: two
+  // seats caught out together would otherwise double it.
+  //
+  // This was five rising beeps at 600ms — a three-second countdown in sound,
+  // to a deadline that does not exist. The pitch climbing towards an end is
+  // the same false claim the draining bar made, so it goes with it. A single
+  // note still says "look up", which is all it was ever entitled to say.
   if (ui.callouts.size === 1) {
-    for (let i = 0; i < 5; i++) {
-      ui.calloutBeeps.push(setTimeout(() => sound.play('timer-beep', i + 1), i * 600));
-    }
+    ui.calloutBeeps.push(setTimeout(() => sound.play('timer-beep', 1), 0));
   }
 }
 
