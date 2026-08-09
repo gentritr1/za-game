@@ -5596,6 +5596,32 @@ el.btnLeaveGame.addEventListener('click', () => {
     return;
   }
   disarmLeave();
+
+  // A confirmed leave has to land somewhere. Across a dead line the `leaveRoom`
+  // is simply dropped — `send` toasts and returns false — and the player is held
+  // at a table they have already decided twice to walk away from, with no route
+  // to the one screen this cabinet must always be able to reach. So an
+  // unsynchronized confirm leaves LOCALLY: the seat credentials go, the board is
+  // cleared and Home comes up. The server side of it is unchanged from closing
+  // the tab — the seat sits out its own reconnect grace and is then collected.
+  // The wire path below is untouched for a connection that can still carry it,
+  // because a leave the server hears about ends the round properly.
+  if (!net.synchronized) {
+    net.forget();
+    ui.snapshot = null;
+    closePopovers({ restoreFocus: false });
+    closeRules(false);
+    closeRoundOverlay();
+    resetGameView();
+    showScreen('home');
+    // `forget()` only re-states the connection when the socket is still open.
+    // Across a dead one the banner would go on offering to get us back to a
+    // seat that no longer exists, until the next reconnect happened to redraw
+    // it. Home is not a table: say what is actually true now.
+    handleStatus(net.state);
+    return;
+  }
+
   send({ type: 'leaveRoom' });
 });
 
