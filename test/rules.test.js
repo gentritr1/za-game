@@ -570,6 +570,54 @@ test('a player who leaves mid-round closes the round and credits the win', () =>
   assert.strictEqual(seats[0].wins, 1);
 });
 
+test('the deal moves round the table instead of parking on the host', () => {
+  const { room, seats } = table(['Ana', 'Bo', 'Cy', 'Di']);
+  const starters = [];
+  for (let round = 0; round < 5; round++) {
+    assert.ok(room.startRound().ok);
+    starters.push(room.game.players[room.game.turnIndex].id);
+    room.phase = 'roundOver';
+  }
+
+  // The whole bug: every one of these used to be Ana.
+  assert.strictEqual(
+    new Set(starters.slice(0, 4)).size, 4,
+    `four rounds must open at four different seats, got ${starters.slice(0, 4).join(',')}`
+  );
+  assert.deepStrictEqual(
+    starters,
+    [seats[0].id, seats[1].id, seats[2].id, seats[3].id, seats[0].id],
+    'and it passes one seat at a time, wrapping back round'
+  );
+});
+
+test('the deal keeps moving when the chef who dealt last walks out', () => {
+  const { room, seats } = table(['Ana', 'Bo', 'Cy', 'Di']);
+  assert.ok(room.startRound().ok);
+  assert.strictEqual(room.game.players[room.game.turnIndex].id, seats[0].id);
+  room.phase = 'roundOver';
+
+  // Ana dealt and then left. The rotation cannot point at her any more, and
+  // it must not collapse back onto whoever is now listed first.
+  room.removeSeat(seats[0].id);
+  room.phase = 'roundOver';
+  assert.ok(room.startRound().ok);
+  const after = room.game.players[room.game.turnIndex].id;
+  assert.ok(
+    room.seats.some((s) => s.id === after),
+    'the round opens at a seat that is actually at the table'
+  );
+  assert.notStrictEqual(after, seats[0].id, 'and never at the seat that left');
+
+  // It is still rotating, not stuck: the next round moves on again.
+  room.phase = 'roundOver';
+  assert.ok(room.startRound().ok);
+  assert.notStrictEqual(
+    room.game.players[room.game.turnIndex].id, after,
+    'the round after that opens somewhere new again'
+  );
+});
+
 test('a player inside the reconnect grace period stays in the next round', () => {
   const { room, seats } = table(['Ana', 'Bo']);
   assert.ok(room.startRound().ok);

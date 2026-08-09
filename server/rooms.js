@@ -81,6 +81,10 @@ class Room {
     this.idleDueAt = 0;
     this.awayTurnSerial = -1;
     this.emptySince = Date.now();
+    // Who dealt last, and how many rounds this room has dealt. See
+    // `startingSeatIndex`.
+    this.lastStarterId = null;
+    this.roundsDealt = 0;
   }
 
   // -- seats ---------------------------------------------------------------
@@ -200,6 +204,31 @@ class Room {
 
   // -- lifecycle -----------------------------------------------------------
 
+  /**
+   * The deal passes round the table, one seat per round.
+   *
+   * Every round used to open at seat zero, which is the host, so one player
+   * moved first in every round the room ever played. First move is a real
+   * edge in a game about shedding cards, and it was going to the same chair
+   * for the same reason a chair is listed first.
+   *
+   * By round, not by winner: handing the opening to whoever just won pays the
+   * lead to the player already ahead. Passing the deal is what card games have
+   * always done with it, and it gives every seat the first move equally often.
+   *
+   * Rotation is tracked by WHO dealt, not by a counter over seat positions, so
+   * people arriving and leaving between rounds cannot shuffle whose turn it is
+   * to deal. Only when that player is gone does it fall back to the round
+   * count, which keeps it deterministic without pretending to remember a seat
+   * that no longer exists.
+   */
+  startingSeatIndex(seats) {
+    if (!this.lastStarterId) return 0;
+    const at = seats.findIndex((s) => s.id === this.lastStarterId);
+    if (at === -1) return this.roundsDealt % seats.length;
+    return (at + 1) % seats.length;
+  }
+
   startRound() {
     // A player inside the reconnect grace period keeps their seat in the new
     // round. The away timer skips their turns until they come back.
@@ -210,6 +239,7 @@ class Room {
     if (seats.length > game.MAX_PLAYERS) {
       return { ok: false, error: `A table holds at most ${game.MAX_PLAYERS} players.` };
     }
+    const startIndex = this.startingSeatIndex(seats);
     this.game = game.createGame(seats.map((s) => {
       const regular = s.isBot ? bot.findRegular(s.regularId) : null;
       return {
@@ -221,7 +251,11 @@ class Room {
         line: regular ? regular.line : null,
         cue: bot.cueFor(regular),
       };
-    }));
+    }), { startIndex });
+    // Recorded after the round is built, so a table that failed to start does
+    // not burn a turn of the deal.
+    this.lastStarterId = seats[startIndex].id;
+    this.roundsDealt += 1;
     this.phase = 'playing';
     this.syncConnectionFlags();
     this.scheduleTimers(true);

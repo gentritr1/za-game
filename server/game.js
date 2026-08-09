@@ -122,9 +122,20 @@ function buildDeck() {
 // ---------------------------------------------------------------------------
 
 /**
+ * Which seat is up first. Anything outside the table folds back onto it: a
+ * bad index can only ever be a caller's bug, and a round that throws is worse
+ * than a round that starts one seat over.
+ */
+function openingSeat(startIndex, count) {
+  const asked = Math.trunc(Number(startIndex));
+  if (!Number.isFinite(asked)) return 0;
+  return ((asked % count) + count) % count;
+}
+
+/**
  * Starts a round.
  * @param {Array<{id: string, name: string, isBot?: boolean}>} seats
- * @param {{ seed?: number, strictWildFour?: boolean }} options
+ * @param {{ seed?: number, strictWildFour?: boolean, startIndex?: number }} options
  */
 function createGame(seats, options = {}) {
   if (seats.length < MIN_PLAYERS) throw new Error('Not enough players.');
@@ -155,7 +166,9 @@ function createGame(seats, options = {}) {
     drawPile,
     discardPile: [],
     currentTopping: null,
-    turnIndex: 0,
+    // Not always the host. The room passes the deal round the table between
+    // rounds; see `Room.startRound`.
+    turnIndex: openingSeat(options.startIndex, seats.length),
     direction: 1, // 1 = to the left, -1 = to the right
     drawnCard: null, // { playerId, cardId } while a drawn card may still be played
     status: 'playing', // 'playing' | 'roundOver'
