@@ -282,6 +282,26 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .screen:not(.is-active) { pointer-events: none; }
 
+/* Nothing animates in a room nobody is in.
+
+   A screen leaves on `visibility`, not `display`, so leaving it does not stop
+   anything inside it: measured on the probe with the table on screen, twelve
+   named infinite loops were still `playState: "running"` behind it — the home
+   attract line and its chalkboard, four PRESS START blinks, three bots
+   blinking at an empty lobby, two swaying polaroids. All of it painting for
+   nobody.
+
+   Only the rooms the player has left. The active screen is untouched, and the
+   cabinet murals need no rule here: below the panel threshold, and on any
+   screen but the table, `syncCabinet` takes them out of the document entirely
+   rather than hiding them. */
+.screen:not(.is-active),
+.screen:not(.is-active) *,
+.screen:not(.is-active) *::before,
+.screen:not(.is-active) *::after {
+  animation-play-state: paused !important;
+}
+
 .screen.is-active {
   z-index: 1;
   opacity: 1;
@@ -799,10 +819,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   background: var(--cabinet);
   color: var(--ui-cyan);
   transform: none;
-  transition:
-    background-color var(--d-mid) var(--ease-out),
-    border-color var(--d-mid) var(--ease-out),
-    color var(--d-mid) var(--ease-out);
+  /* The three moments SNAP between each other. The handoff prompt has the
+     strip changing "only fill, border and text colour" — a lamp changing
+     colour, not a dissolve — and cross-fading a full-bleed strip repaints the
+     whole width of the cabinet for 220ms on every single turn.
+
+     Spelled `none`, not deleted. Dropping the declaration leaves the initial
+     `transition-property: all`, which is harmless at the initial 0s duration
+     but not under reduced motion: that block forces
+     `transition-duration: 140ms !important` on everything, so `all` would
+     quietly restore the cross-fade for exactly the readers who asked for less
+     motion. Verified on the reduced-motion rig. */
+  transition: none;
 }
 
 /* The cabinet's own name, always at the left end of the strip. At rest it is
@@ -974,10 +1002,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   border-radius: var(--r-lg);
   transform: translateY(var(--arc, 0px));
   opacity: 1;
+  /* The fill snaps; the arc and the fade still travel. Every seat re-dresses
+     on every snapshot, so a background-color tween was a repaint on all seven
+     panels at once for 220ms — and the kit's fill is a lamp state anyway, not
+     a fade. */
   transition:
     transform var(--d-slow) var(--ease-out),
-    opacity var(--d-mid) var(--ease-out),
-    background-color var(--d-mid) var(--ease-out);
+    opacity var(--d-mid) var(--ease-out);
 }
 
 @starting-style {
@@ -1371,7 +1402,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   white-space: nowrap;
   transform: translateX(-50%);
   box-shadow: 3px 3px 0 rgba(0, 0, 0, .5);
-  transition: background-color var(--d-mid) var(--ease-out), color var(--d-mid) var(--ease-out);
+  /* The topping plate snaps to the new colour. A tween between two saturated
+     fills passes through colours that are not toppings at all. `none` rather
+     than a deleted line, for the reduced-motion reason spelled out on the
+     marquee above. */
+  transition: none;
 }
 
 .topping-now__emoji { font-style: normal; font-size: 13px; }
@@ -1876,13 +1911,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    border box, so `overflow` cannot touch it. It only ever changes colour, so
    nothing about the card's size or position moves when a card becomes
    playable. */
+/* The ring SNAPS. A turn change re-dresses the whole hand at once, so a
+   transition here was up to twelve simultaneous outline repaints for 160ms,
+   every handoff, on the hottest path in the game. A bulb is lit or it is not:
+   the same steps() language the rest of the cabinet is drawn in. */
 .hand .card {
   outline: var(--bd-thin) solid transparent;
   outline-offset: 1px;
   transition:
     transform var(--d-mid) var(--ease-out),
-    opacity var(--d-mid) var(--ease-out),
-    outline-color var(--d-fast) var(--ease-out);
+    opacity var(--d-mid) var(--ease-out);
 }
 
 .hand .card.is-playable { outline-color: var(--cheese); }
@@ -2707,9 +2745,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* --- E - burnt slice ----------------------------------------------------- */
+/* Snapped, not tweened. Animating `filter` over a whole panel repaints the
+   panel AND its portrait every frame for the duration; the spec asks for a
+   seat that "goes greyscale", which is a state, not a journey. */
 .seat.is-skipped {
   filter: grayscale(1) brightness(.72);
-  transition: filter var(--d-fast) var(--ease-step);
 }
 
 .seat__stamp {
