@@ -159,6 +159,7 @@ const ui = {
   nearRow: [], // the near rail as last laid out, for a resize to re-space it
   peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
   peekCardId: null, // which rib the peek is showing
+  pitGeom: null,    // the strip's geometry, measured once per scrub session
   seatNodes: new Map(), // playerId -> seat element
   belt: null, // 2B · the conveyor under the queue, built once
   token: null, // 2A · the chevron that walks the counter, built once
@@ -204,6 +205,7 @@ const ui = {
   playedById: null, // whoever's hand shrank, including you
   // Effect state. All of it is client-side and none of it is a game rule.
   prevTopKind: null,
+  prevTopping: null, // 11 · the topping the oven last rang for
   chain: 0, // consecutive +2/+4 tops, the visual ladder of README 4A
   anchovyCount: 0, // anchovies this round, for the 6C escalation
   callouts: new Map(), // playerId -> { node, mine }
@@ -218,6 +220,8 @@ const ui = {
   shutterSwap: null,
   shutterRunning: false,
   shutterSwapped: false,
+  shutterGen: 0,      // which roll owns the node; older callbacks no-op
+  shutterTimers: [],  // that roll's own timers, cleared when it is superseded
   breatheTimer: 0, // 01 · re-arms the idle hand once entries have landed
   entrySettleAt: 0, // when the newest wave of cards finishes arriving
   nudgeTimer: 0, // 04 · the 5s inactivity clock
@@ -234,6 +238,7 @@ const ui = {
   chainTotal: 0, // cards the current run has forced, for the running total
   chainNode: null,
   chainTotalNode: null,
+  turnMoment: null, // which of the marquee's three moments is showing
   prevDeclared: new Map(), // playerId -> declaredZa last snapshot
   shoutNode: null,
 };
@@ -555,6 +560,20 @@ function shutterNode() {
   return node;
 }
 
+/**
+ * One roll, one generation.
+ *
+ * Both timers used to be anonymous, so they outlived the roll that booked
+ * them. Replayed on the probe: roll 1 covers and swaps, a second screen change
+ * starts roll 2, and then roll 1's leftover cleanup timer fires — it stripped
+ * `is-rolling` off the shared node, so roll 2's shutter vanished mid-roll, and
+ * its `coveredSwap()` ran roll 2's swap with nothing covering the frame. The
+ * wrong shutter was removed and the swap it existed to hide was shown.
+ *
+ * Every roll now claims a generation. A callback from an older one is not the
+ * owner of the node any more and does nothing; its timers are cleared outright
+ * so the stale work never even runs.
+ */
 function rollShutter(swap) {
   const node = shutterNode();
   // A roll that has not covered yet can still carry a newer swap. One that
@@ -563,18 +582,28 @@ function rollShutter(swap) {
     ui.shutterSwap = swap;
     return;
   }
+  // Taking the node over: whatever the previous roll still had queued for it
+  // is now somebody else's business.
+  for (const timer of ui.shutterTimers) clearTimeout(timer);
+  ui.shutterTimers.length = 0;
+  const gen = ++ui.shutterGen;
+
   ui.shutterSwap = swap;
   ui.shutterSwapped = false;
   ui.shutterRunning = true;
   restartAnimation(node, 'is-rolling', 'shutter');
   sound.play('tape-scrub'); // rides the shutter itself, nothing else
   // 42% of the roll: the shutter is fully down and the room can change.
-  setTimeout(coveredSwap, Math.round(SHUTTER_MS * 0.42));
-  setTimeout(() => {
+  ui.shutterTimers.push(setTimeout(() => {
+    if (ui.shutterGen !== gen) return;
+    coveredSwap();
+  }, Math.round(SHUTTER_MS * 0.42)));
+  ui.shutterTimers.push(setTimeout(() => {
+    if (ui.shutterGen !== gen) return;
     node.classList.remove('is-rolling');
     ui.shutterRunning = false;
     coveredSwap(); // belt to the braces: a throttled tab must still land it
-  }, SHUTTER_MS + 60);
+  }, SHUTTER_MS + 60));
 }
 
 function coveredSwap() {
@@ -607,16 +636,53 @@ async function copyCode(chip) {
 }
 
 // ------------------------------------------------------- press feedback ----
-// Pressable things answer on pointer-down, not on release.
+/**
+ * Pressable things answer on pointer-down, not on release.
+ *
+ * This used to book a fresh pair of `{ once: true }` window listeners per
+ * press. `once` only retires the listener that actually fires, so every
+ * completed press left its unfired `pointercancel` twin on the window for the
+ * rest of the session — measured on the probe: twenty-five press/release
+ * cycles left exactly twenty-five live handlers, and one stray cancel ran all
+ * of them. The pair also carried no pointer identity, so on a two-finger table
+ * lifting one finger released the button the OTHER finger was still holding.
+ *
+ * Now it is one session per pointer id. At most three window listeners exist
+ * at any moment, they are removed the instant the last finger lifts, and a
+ * release only ever touches the target that pointer put down.
+ */
+const PRESS_END = ['pointerup', 'pointercancel', 'lostpointercapture'];
+const pressedBy = new Map(); // pointerId -> the element that pointer pressed
+let pressWatching = false;
+
+function endPress(event) {
+  const target = pressedBy.get(event.pointerId);
+  if (!target) return;
+  pressedBy.delete(event.pointerId);
+  // Two fingers can rest on the same control. It stays pressed until the last
+  // of them leaves, which is what the player's hand is actually doing.
+  let stillHeld = false;
+  for (const other of pressedBy.values()) if (other === target) stillHeld = true;
+  if (!stillHeld) target.classList.remove('is-pressed');
+  if (pressedBy.size === 0) {
+    pressWatching = false;
+    for (const type of PRESS_END) window.removeEventListener(type, endPress);
+  }
+}
+
 document.addEventListener('pointerdown', (event) => {
   const target = event.target.closest(
     '.btn, .screw, .card.is-playable, .code-chip, .topping-btn, .callout-btn, .pile--draw, .seat-row__kick'
   );
   if (!target || target.disabled) return;
+  // A repeated down on a live id would strand whatever it was holding.
+  if (pressedBy.has(event.pointerId)) endPress(event);
   target.classList.add('is-pressed');
-  const release = () => target.classList.remove('is-pressed');
-  window.addEventListener('pointerup', release, { once: true });
-  window.addEventListener('pointercancel', release, { once: true });
+  pressedBy.set(event.pointerId, target);
+  if (!pressWatching) {
+    pressWatching = true;
+    for (const type of PRESS_END) window.addEventListener(type, endPress);
+  }
 });
 
 // ============================================================== SNAPSHOT ===
@@ -730,6 +796,9 @@ function resetRoundEffects() {
   // clearing would make the first snapshot of the round look like a shout.
   ui.prevDeclared.clear();
   ui.prevTopKind = null;
+  // The first card of a round IS a topping change — there was no topping
+  // before it — so the oven rings once as the round opens.
+  ui.prevTopping = null;
   ui.anchovyCount = 0;
   ui.shoutArmedAt = 0;
   // A new round always runs to the left again. Without this a round that ended
@@ -1163,7 +1232,12 @@ function renderTurnBanner(snapshot, view, yourTurn) {
   const callout = view.status === 'playing' && (view.calloutTargets || []).length > 0;
   el.turnBanner.classList.toggle('is-callout', callout);
   el.turnBanner.classList.toggle('is-you', yourTurn && !callout);
-  setTurnText(turnLabel(view, yourTurn, callout));
+  // Which of the strip's three moments is on. A change of MOMENT is news; a
+  // change of name inside the waiting moment is the roll-call.
+  const moment = callout ? 'callout' : yourTurn ? 'you' : 'waiting';
+  const changed = ui.turnMoment !== null && ui.turnMoment !== moment;
+  ui.turnMoment = moment;
+  setTurnText(turnLabel(view, yourTurn, callout), changed);
   armIdleCountdown(snapshot, view, yourTurn);
 }
 
@@ -1236,22 +1310,27 @@ function turnLabel(view, yourTurn, callout) {
 }
 
 /**
- * Swaps the turn label. The new text drops in over 180ms so the change is felt
- * and not only read. A second turn change cancels the first one instead of
- * stacking on top of it.
+ * Swaps the turn label.
+ *
+ * It used to drop the new text in over 180ms on EVERY turn. Most turns only
+ * change a name — "Vito is eyeing the pile…" for "Carmela is eyeing the pile…"
+ * — which is the roll-call, not news, and it was riding along on the same
+ * frame as the marquee's fill, the rail's ping and the seat inverting. One
+ * dominant signal per handoff: the roll-call snaps, and the swap animates only
+ * when the strip actually changes moment (waiting / yours / call-out).
+ *
+ * Opacity only, no rise. The handoff prompt has the three moments differing in
+ * "fill, border and text colour" with the row never reflowing, and warns that
+ * the call-out moment "must not also be the only moment that moves" — so all
+ * three punctuate the same way or none of them do.
  */
-function setTurnText(text) {
+function setTurnText(text, punctuate) {
   if (el.turnText.textContent === text) return;
   el.turnText.textContent = text;
-  if (!wantsMotion() || typeof el.turnText.animate !== 'function') return;
+  if (!punctuate || !wantsMotion() || typeof el.turnText.animate !== 'function') return;
+  // A second moment change cancels the first rather than stacking on it.
   for (const running of el.turnText.getAnimations()) running.cancel();
-  el.turnText.animate(
-    [
-      { opacity: 0, transform: 'translateY(-5px)' },
-      { opacity: 1, transform: 'none' },
-    ],
-    { duration: 180, easing: EASE_OUT }
-  );
+  el.turnText.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: EASE_OUT });
 }
 
 /**
@@ -2139,6 +2218,13 @@ function renderPiles(view, yourTurn) {
     holder.style.setProperty('--tilt', `${((seed % 81) / 10 - 4).toFixed(1)}deg`);
     holder.style.setProperty('--enter-spin', `${(Math.floor(seed / 7) % 13) - 6}deg`);
     if (view.currentTopping) holder.dataset.topping = view.currentTopping;
+    // 11 · the oven only rings when the ring's colour is the news — a wild
+    // being named, or a suit change. A card landing on its own kind already
+    // has its landing, and a second 500ms cue on top of it said nothing.
+    if (landed && view.currentTopping && view.currentTopping !== ui.prevTopping) {
+      holder.classList.add('is-recolour');
+    }
+    if (landed) ui.prevTopping = view.currentTopping || null;
     if (top) holder.append(renderCard(top, { size: 'pile' }));
     el.discardSlot.replaceChildren(holder);
 
@@ -2287,6 +2373,8 @@ function renderHand(snapshot, view, yourTurn) {
   // The pit is filled first: a card demoting out of the near rail has to be
   // out of it before the near rail is spaced, or the gap would close twice.
   fillRail(el.handPit, pit.map((e) => e.slot), 'rib');
+  // The ribs just moved, so any cached scrub geometry describes the old strip.
+  invalidatePit();
   const raised = fillRail(el.handNear, near.map((e) => e.slot), 'hand');
   layoutNear(near);
   labelPit(pit.length, yourTurn);
@@ -2585,18 +2673,64 @@ function releaseEntry(slot, delay) {
  * show the neighbouring card. Nothing in here can play a card; play happens
  * only in the near rail, which is exactly what the peek lands on top of.
  */
-function ribUnder(clientX, clientY) {
-  let best = null;
-  let bestD = Infinity;
+/**
+ * The scrub's geometry, measured once per session rather than per move.
+ *
+ * A scrub is a drag: the pointer moves dozens of times a second and NOTHING it
+ * reads can change while it is down. The old path read every rib's rect, the
+ * hand's rect and the pit's offsets on every single `pointermove` — 8 rect
+ * reads and 2 offset reads per move with six ribs, each one a forced layout
+ * because `showPeek` had just written to the peek's style. Measured on the
+ * probe: 30 moves inside one frame cost 300 layout reads.
+ *
+ * So the strip is measured once, at pointerdown, and every move after that is
+ * arithmetic. The cache is dropped whenever the thing it describes could have
+ * moved: a resize, a re-render of the rails, or the end of the session.
+ *
+ * Deliberately NOT rAF-batched. The writes left in the move path are two
+ * custom properties on one element and no read follows them, so they cannot
+ * force a reflow and the browser already coalesces them to the next frame. An
+ * rAF hop would add a way for the peek to never land at all — rAF is starved
+ * whenever the document is hidden, and a queued write is a bug waiting for a
+ * throttled tab.
+ */
+function measurePit() {
+  const ribs = [];
   for (const slot of el.handPit.children) {
     const r = slot.getBoundingClientRect();
+    ribs.push({ slot, left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width });
+  }
+  const box = el.hand.getBoundingClientRect();
+  ui.pitGeom = {
+    ribs,
+    boxLeft: box.left,
+    boxWidth: box.width,
+    peekTop: el.handPit.offsetTop + el.handPit.offsetHeight + 8,
+  };
+  return ui.pitGeom;
+}
+
+/** The strip moved or was rebuilt: the next read has to measure again. */
+function invalidatePit() {
+  ui.pitGeom = null;
+}
+
+function pitGeom() {
+  return ui.pitGeom || measurePit();
+}
+
+function ribUnder(clientX, clientY) {
+  const geom = pitGeom();
+  let best = null;
+  let bestD = Infinity;
+  for (const r of geom.ribs) {
     const dx = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
     // The pit wraps to two rows at review width, so the row counts too.
     const dy = clientY < r.top ? r.top - clientY : clientY > r.bottom ? clientY - r.bottom : 0;
     const d = dx * dx + dy * dy;
     if (d < bestD) {
       bestD = d;
-      best = slot;
+      best = r.slot;
     }
   }
   return best;
@@ -2615,14 +2749,27 @@ function showPeek(slot) {
     face.removeAttribute('role');
     el.handPeek.replaceChildren(face);
   }
-  const box = el.hand.getBoundingClientRect();
-  const rib = slot.getBoundingClientRect();
-  const x = rib.left - box.left + rib.width / 2 - 42;
+  // Every number below comes off the cached measurement — no layout read on
+  // the move path at all. A rib that is not in the cache (the strip was
+  // rebuilt under a held pointer) forces one re-measure and no more.
+  let geom = pitGeom();
+  let rib = geom.ribs.find((r) => r.slot === slot);
+  if (!rib) {
+    geom = measurePit();
+    rib = geom.ribs.find((r) => r.slot === slot);
+    if (!rib) return;
+  }
+  const x = rib.left - geom.boxLeft + rib.width / 2 - 42;
   // It lands over the near rail: at 375px there is only 15px of room above the
   // pit, and covering the place you play from is one more way of saying a peek
   // is not a play.
-  el.handPeek.style.setProperty('--peek-top', `${el.handPit.offsetTop + el.handPit.offsetHeight + 8}px`);
-  el.handPeek.style.setProperty('--peek-x', `${Math.round(Math.max(0, Math.min(x, box.width - 84)))}px`);
+  const top = `${geom.peekTop}px`;
+  const left = `${Math.round(Math.max(0, Math.min(x, geom.boxWidth - 84)))}px`;
+  // The pointer crosses many pixels per rib, so most moves resolve to numbers
+  // that are already on the element. Writing them again is churn.
+  const style = el.handPeek.style;
+  if (style.getPropertyValue('--peek-top') !== top) style.setProperty('--peek-top', top);
+  if (style.getPropertyValue('--peek-x') !== left) style.setProperty('--peek-x', left);
   el.handPeek.hidden = false;
   el.hand.classList.add('has-peek');
 }
@@ -2636,6 +2783,8 @@ function clearPeek() {
 
 function bindPit() {
   el.handPit.addEventListener('pointerdown', (event) => {
+    // One measurement opens the session; every move inside it is arithmetic.
+    invalidatePit();
     const slot = ribUnder(event.clientX, event.clientY);
     if (!slot) return;
     ui.peekPointer = event.pointerId;
@@ -2655,6 +2804,7 @@ function bindPit() {
   const end = (event) => {
     if (ui.peekPointer !== event.pointerId) return;
     ui.peekPointer = -1;
+    invalidatePit();
     clearPeek();
   };
   el.handPit.addEventListener('pointerup', end);
@@ -2665,7 +2815,11 @@ function bindPit() {
   // landing on a rib shows the same peek, leaving it clears it.
   el.handPit.addEventListener('focusin', (event) => {
     const slot = event.target.closest('.hand-slot');
-    if (slot) showPeek(slot);
+    if (!slot) return;
+    // Tabbing is not a drag — there is no session to hold a measurement open,
+    // and a focus move is rare enough that measuring each time costs nothing.
+    invalidatePit();
+    showPeek(slot);
   });
   el.handPit.addEventListener('focusout', (event) => {
     if (ui.peekPointer >= 0) return;
@@ -3805,14 +3959,29 @@ function openedPopover(invoker) {
  * focuses the screen.
  */
 function closePopovers(options = {}) {
-  const { restoreFocus = true } = options;
+  // `true` is the Escape key's shorthand for { instant: true }. Escape is a
+  // retraction, not a decision — riding the 130ms exit for it is the popover
+  // arguing. A pointer close keeps the animation: there the movement ties the
+  // choice to the thing that closed. The snap is a class and a forced reflow
+  // rather than a frame hop, because rAF does not run in a hidden document.
+  if (options === true) options = { instant: true };
+  const { restoreFocus = true, instant = false } = options;
   const panels = popoverPanels();
   const active = document.activeElement;
-  const stranded = active instanceof HTMLElement && panels.some((panel) => panel.contains(active));
+  const stranded = active instanceof HTMLElement && panels.some((panel) => panel && panel.contains(active));
 
-  hide(el.picker);
-  hide(el.calloutPop);
-  if (ui.roster) hide(ui.roster.panel);
+  for (const panel of panels) {
+    if (!panel) continue;
+    if (instant) {
+      panel.classList.add('is-snapping');
+      hide(panel);
+      panel.classList.remove('is-open');
+      void panel.offsetWidth;   // commit the closed state with no transition
+      panel.classList.remove('is-snapping');
+    } else {
+      hide(panel);
+    }
+  }
   ui.pendingWild = null;
 
   const target = ui.popoverReturn;
@@ -4518,7 +4687,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closePopovers();
+  if (event.key === 'Escape') closePopovers(true);
   if (event.key !== 'Tab' || !el.overlay.classList.contains('is-open')) return;
 
   const controls = Array.from(el.dialog.querySelectorAll('button:not([disabled]):not([hidden])'))
@@ -4562,6 +4731,7 @@ window.addEventListener('resize', () => {
       layoutNear(ui.nearRow);
     }
     // The pit's height moves when it re-wraps, and the peek hangs off it.
+    invalidatePit();
     if (ui.peekCardId) {
       const slot = ui.handSlots.get(ui.peekCardId);
       if (slot && slot.parentElement === el.handPit) showPeek(slot);
