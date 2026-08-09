@@ -28,7 +28,7 @@ true size, and the fix is to show it there.
 The rendered work — three arrangements, each at 320 and 1280, with hover, focus,
 two-tap touch, the seated state and the Anybody tile all live — is here:
 
-`design_handoff_za_roster/ZA-Player-Select-standalone.html`
+`design/design_handoff_za_roster/ZA-Player-Select-standalone.html`
 
 Open it and resize the window across 720 px. It is the 3A implementation in
 plain HTML/CSS/JS against the existing tokens; lift from it directly.
@@ -178,3 +178,36 @@ Implement in this order, committing after each step:
 - Touch: first tap never hires.
 - `prefers-reduced-motion`: no flip; frame B holds while the pointer is on the
   stage.
+
+---
+
+## As shipped — deviations from the letter, kept to the spirit
+
+The implementation on `table` differs from this prompt in ways worth
+recording; the standalone file above is the designer's frozen artifact and is
+left exactly as delivered (its empty `src` stubs, missing `aria-modal`,
+unused `#stageNarrow` and single-act tap handler are prototype shortcuts the
+shipped code does not share).
+
+- **The considered tile's inner ring is a `::before` overlay, not the inset
+  box-shadow written in step 5.** An inset shadow paints under child content,
+  so the portrait covered the ring and the art butted bare against the
+  border. The overlay draws the ring over the art edge — the look this
+  document drew. (`::after` was already the 720+ bar under the tile.)
+- **Focus arms the two-act tap only for pointers that can hover.** Step 6's
+  `pointerenter` guard alone was not enough here: focus also previews, and a
+  tap focuses — guarding only `pointerenter` would have let the first tap
+  hire through the focus door.
+- **Landscape 720×400 needed a wrapping row** the spec's fixed column
+  overflowed by 74px; a `display: contents` wrapper keeps the other two
+  layouts untouched. **BACK is glyph-only under 720** (the word collided
+  with the centred title by 38px at 320). **A seated tile fades its art, not
+  the whole window** — the label at 40% opacity computed to ~2:1. **Focus on
+  open goes to tile 0 even if seated** — the tell is the tutorial either
+  way.
+- **The CRT overlay sits at z-index 15 in this repo, not the 40 this prompt
+  assumed** — every dialog already renders above the scanlines, and the hire
+  screen follows that idiom.
+- **The 720+ strip carries `gap: 22px 10px`** so the selected tile's bar
+  (11px below + 5px tall) clears the next row when seven named tiles wrap
+  between 720 and ~1300px.

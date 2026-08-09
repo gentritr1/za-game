@@ -3087,7 +3087,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 10px;
+    /* Rows 22, columns 10. Seven named tiles wrap between 720 and ~1300px,
+       and the considered tile's bar hangs 11px below the tile plus 5px of
+       bar — a 10px row gap put it on top of the next row's tiles. */
+    gap: 22px 10px;
     max-width: none;
   }
   .strip__tile { height: 72px; padding-right: var(--s3); }
@@ -3154,8 +3157,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hire__tell { min-height: 3.4em; font-size: 19px; }
   .hire__go { padding: var(--s3); }
 
-  /* And the strip goes back to the compact cells: seven 72px tiles with names
-     wrap to two rows of 154px, which is the rest of the window. */
+  /* And the strip goes back to the compact cells: the 4-column grid of 44px
+     touch targets from under 720, names hidden, seven tiles in two rows. */
   .strip {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

@@ -1589,7 +1589,6 @@ function hireOpen() {
  * and `requestAnimationFrame` does not run in a hidden document at all.
  */
 function closeHire(options = {}) {
-  if (options === true) options = { instant: true };
   const { restoreFocus = true } = options;
   if (!hireOpen()) return;
   const active = document.activeElement;
@@ -1697,8 +1696,14 @@ function seatedRegulars(snapshot) {
 function fillRoster(snapshot) {
   const roster = ui.roster;
   roster.seated = seatedRegulars(snapshot);
+  // A snapshot can rebuild the strip while a keyboard player is standing on
+  // it — another player hires, the tiles are replaced, and focus would fall
+  // to the body mid-walk. Remember which tile held focus and put the player
+  // back on its rebuilt twin; when focus is elsewhere, change nothing.
+  const held = roster.tiles ? roster.tiles.indexOf(document.activeElement) : -1;
   roster.tiles = roster.entries.map((entry, n) => stripTile(entry, n));
   roster.strip.replaceChildren(...roster.tiles);
+  if (held >= 0 && roster.tiles[held]) roster.tiles[held].focus();
 }
 
 /**
