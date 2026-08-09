@@ -1049,6 +1049,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .turn-count:empty { display: none; }
 
+/* Except on the one moment that is ALREADY the alarm. The call-out window
+   floods the strip with sauce, and sauce digits on a sauce fill measured
+   1.000:1 in the live state — the clock was not dim, it was gone. Both things
+   are true at once whenever somebody forgets to shout while your own turn is
+   running out, which is exactly the moment the seconds matter. The digits take
+   the void the rest of the flooded strip's text already uses: 5.32:1. */
+.hud__turn.is-callout .turn-count { color: var(--void); }
+
 /* ----------------------------------------------------------------- table -- */
 .table {
   position: relative;
