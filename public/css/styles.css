@@ -3057,56 +3057,258 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .rules:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
-.rules__sec + .rules__sec { margin-top: var(--s3); }
-
-/* Never below 12px on screen, per the kit. */
-.rules__h {
-  margin-bottom: 2px;
-  font-family: var(--font-display);
-  font-size: 12px;
-  line-height: 1.5;
-  letter-spacing: .04em;
-  color: var(--cheese);
-}
-
-.rules__p { color: var(--text-dim); }
-.rules__p b { color: var(--text); font-weight: normal; }
-
-/* One action card a row: the frame renderCard made, its name, its one line. */
-.rules__cards { display: grid; gap: var(--s2); margin-top: var(--s2); }
-
-.rules__card {
+/* --- the instruction card ------------------------------------------------ */
+/* One rule a page: a demo made of real cards, a headline, at most a line under
+   it. The whole deck is sized off three numbers — the width of a demo card,
+   the gap between pieces and the width of an arrow — so every scene scales by
+   changing those and nothing else. `--demo-hop` is the distance from one slot
+   to the slot next but one, which is what a card flying onto the oven card
+   travels, so no keyframe ever carries a hard-coded pixel. */
+.deck {
+  --demo-card: 64px;
+  --demo-gap: 8px;
+  --demo-ar: 18px;
+  --demo-h: 96px;
+  --demo-hop: calc(var(--demo-card) + var(--demo-ar) + var(--demo-gap) * 2);
+  /* A card that lands sits a little past square, so the card underneath keeps
+     its leftmost strip showing — which is exactly what the real discard pile
+     does, and it is also the only way the player can still see what the two
+     cards had in common once one of them is on top of the other. Both flights
+     leave the LEFT strip, because that is the strip the covered card's own
+     three-letter banner is already aligned into. */
+  --demo-lap: 14px;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  align-items: center;
   gap: var(--s3);
 }
 
-/* `.card` takes its width from `--card-w`; a rib sets no width of its own, so
-   the two-glyph indexes (+2, <>, +4) get the wider frame the pit gives them. */
-.rules__card .card--rib { --card-w: 20px; margin: 0 auto; }
-.rules__card .card--rib[data-glyphs="2"] { --card-w: 28px; }
+/* A demo card is the hand card at two thirds. The frame keeps its 5px keyline,
+   its 11px index and its 13px banner at any width — only the sprite window and
+   the big value scale, which is exactly what should. */
+.deck .card { --card-w: var(--demo-card); }
 
-.rules__card-name { color: var(--cheese); }
-.rules__card-what { color: var(--text-dim); }
+/* A demo card is small and on a short screen loses its banner altogether, so
+   the suit rides in the corner as a letter the way it does on a rib: one more
+   glyph, no new colour, and never a topping told by colour alone. */
+.deck .card__index-suit {
+  display: block;
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0;
+}
 
-.rules__foot {
-  margin-top: var(--s3);
+.deck__stage { display: grid; align-content: start; }
+
+.deck__page {
+  display: grid;
+  justify-items: center;
+  gap: var(--s2);
+  text-align: center;
+}
+
+/* The flip is this attribute, and it is also what parks the demos: a page that
+   is not showing is `display: none`, and a stylesheet animation inside a box
+   that is not rendered does not run. That is why the demos are animations and
+   not a rAF loop — a rAF in a pane nobody is looking at is a frame budget
+   spent on nothing. */
+.deck__page[hidden] { display: none; }
+
+/* Never below 12px on screen, per the kit. */
+.deck__h {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: .04em;
+  color: var(--cheese);
+  text-shadow: 2px 2px 0 var(--sauce-deep);
+}
+
+.deck__line {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--text-dim);
+}
+
+/* --- demo stage ----------------------------------------------------------- */
+.deck__demo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--demo-gap);
+  width: 100%;
+  min-height: var(--demo-h);
+}
+
+/* An arrow, drawn rather than typed: Press Start 2P has no glyph for a chevron,
+   the same reason the card frame spells its indexes X, <> and +2 in ASCII. Bar
+   and head cut out of one box, so there is no font that can be missing it. */
+.deck__ar {
+  flex: none;
+  width: var(--demo-ar);
+  height: 10px;
+  background: var(--ui-cyan);
+  clip-path: polygon(0 34%, 58% 34%, 58% 0, 100% 50%, 58% 100%, 58% 66%, 0 66%);
+}
+
+.deck__ar--l { transform: scaleX(-1); }
+
+/* A card in flight rides over the card it is landing on. */
+.deck__fly { z-index: 2; }
+
+/* The hop is the same distance both ways; the two keyframe sets differ only in
+   its sign, and the return leg is the same slot it left. */
+@keyframes deck-fly-r {
+  0%, 6%    { transform: translate3d(0, 0, 0); }
+  18%, 52%  { transform: translate3d(calc(var(--demo-hop) + var(--demo-lap)), -6px, 0); }
+  64%, 100% { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes deck-fly-l {
+  0%, 6%    { transform: translate3d(0, 0, 0); }
+  18%, 52%  { transform: translate3d(calc(var(--demo-lap) - var(--demo-hop)), -6px, 0); }
+  64%, 100% { transform: translate3d(0, 0, 0); }
+}
+
+.deck__fly--r { animation: deck-fly-r 3600ms var(--ease-step) infinite; }
+
+/* Half a cycle behind, so the two flights read as one rule shown twice rather
+   than as two cards racing. */
+.deck__fly--l {
+  animation: deck-fly-l 3600ms var(--ease-step) infinite;
+  animation-delay: -1800ms;
+}
+
+/* --- 2 · the topping swatch ----------------------------------------------- */
+/* The same sprite the card windows use, twice, stacked. Only opacity moves. */
+.deck__swatch {
+  position: relative;
+  flex: none;
+  width: calc(var(--demo-card) * 0.58);
+  height: calc(var(--demo-card) * 0.58);
+  background: var(--cabinet-hi);
+  box-shadow: inset 0 0 0 var(--bd-thin) var(--bezel);
+}
+
+.deck__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+/* Timed off the wild's flight: the topping turns over as the card lands, and
+   turns back as it lifts, so the loop reads as one move undone and not as a
+   glitch. */
+@keyframes deck-swatch-out {
+  0%, 14%   { opacity: 1; }
+  20%, 58%  { opacity: 0; }
+  64%, 100% { opacity: 1; }
+}
+
+@keyframes deck-swatch-in {
+  0%, 14%   { opacity: 0; }
+  20%, 58%  { opacity: 1; }
+  64%, 100% { opacity: 0; }
+}
+
+.deck__art--was { animation: deck-swatch-out 3600ms var(--ease-step) infinite; }
+
+.deck__art--now {
+  opacity: 0;
+  animation: deck-swatch-in 3600ms var(--ease-step) infinite;
+}
+
+/* --- flipping ------------------------------------------------------------- */
+.deck__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
   padding-top: var(--s2);
   border-top: var(--bd-thin) solid var(--bezel);
+}
+
+/* 44px of tap target, the kit's floor, and the same cabinet recipe as every
+   other control: cabinet fill, bezel keyline, hard offset shadow, no radius. */
+.deck__step {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--cabinet);
+  border: var(--bd-thin) solid var(--bezel);
+  border-radius: 0;
+  box-shadow: var(--sh-card);
+  color: var(--ui-cyan);
+  cursor: pointer;
+  transition: transform var(--d-press) var(--ease-step);
+}
+
+.deck__step:hover { border-color: var(--ui-cyan); }
+.deck__step:active { transform: translate(2px, 2px); }
+
+.deck__dots { display: flex; align-items: center; gap: 6px; }
+
+.deck__dot {
+  width: 8px;
+  height: 8px;
+  background: var(--bezel);
+}
+
+.deck__dot.is-on {
+  background: var(--cheese);
+  transform: scale(1.25);
+}
+
+.rules__foot {
+  margin-top: var(--s2);
   color: var(--text-mute);
 }
 
-/* A short window gives the body every pixel the chrome can spare. */
-@media (max-height: 480px) {
-  .dialog--rules { padding: var(--s2) var(--s3) var(--s2); gap: var(--s2); }
-  .dialog__title--rules { font-size: 12px; }
+@media (min-width: 480px) {
+  .deck { --demo-card: 84px; --demo-gap: 12px; --demo-ar: 22px; --demo-h: 128px; }
+  .deck__h { font-size: 16px; }
 }
 
-@media (min-width: 480px) {
-  .dialog--rules { padding: var(--s6) var(--s6) var(--s4); gap: var(--s4); }
-  .dialog__title--rules { font-size: 20px; }
-  .rules__card { grid-template-columns: 36px minmax(0, 1fr); }
+/* A short window. The demo scales, and the banner comes off the frame: it is
+   the one part of a card that does not scale with `--card-w`, and at 44px it
+   would sit across the sprite window. The corner suit letter above is what
+   keeps the topping off colour alone once the word is gone. Last of the three,
+   so it wins on a window that is both wide and short. */
+@media (max-height: 480px) {
+  .deck { --demo-card: 44px; --demo-gap: 6px; --demo-ar: 14px; --demo-h: 68px; }
+  .deck__h { font-size: 12px; }
+  .deck .card__banner { display: none; }
+  .deck__step { width: 38px; height: 38px; }
+  .deck { gap: var(--s2); }
+}
+
+/* Motion off. Every demo parks on the single frame that carries the most of
+   its rule, and the deck still flips — the RULES have to survive with motion
+   off, so nothing here may be the only telling of anything.
+
+   Pages 1 and 2 park at rest rather than mid-flight on purpose: a card frozen
+   on top of the oven card covers the very card the player is meant to compare
+   it against. At rest the arrows carry the direction and both faces are
+   readable, which is more of the rule than a landing is. The swatch is the
+   exception — it parks on the topping the wild named, because that change is
+   the whole of page 2. */
+@media (prefers-reduced-motion: reduce) {
+  .deck__fly--r,
+  .deck__fly--l {
+    animation: none;
+    transform: none;
+  }
+
+  .deck__art--was { animation: none; opacity: 0; }
+  .deck__art--now { animation: none; opacity: 1; }
+  .deck__step { transition: none; }
 }
 
 /* A quiet way in from home and from the lobby: the zine link's recipe, on a

@@ -4593,171 +4593,287 @@ function paintMuteToggle() {
 
 // ============================================================ HOUSE RULES ===
 /**
- * The rules the server actually enforces, written out once.
+ * THE INSTRUCTION CARD.
  *
- * Every line here was read off `server/game.js` and `server/rooms.js` rather
+ * A cabinet does not carry an essay. It carries an instruction card: pictures,
+ * a headline, almost no words. This is that card — eight pages, one rule each,
+ * flipped at the player's own pace and never on a timer.
+ *
+ * Every page is a demo, a headline of five words at most, and at most one line
+ * under it. Nothing in a demo is clip art: every card comes out of
+ * `renderCard()`, which is the only place in this client allowed to build card
+ * markup, and every topping swatch is the same sprite the card windows use. A
+ * rule about cards is shown with the game's own cards or it is not shown.
+ *
+ * The words that went are not lost. Each page carries the FULL rule as one
+ * sentence in a visually-hidden node, so a screen reader is handed the rule
+ * and not the headline; the demos are `aria-hidden` because that sentence
+ * already says what they mean, and drawn twice they would only be read twice.
+ *
+ * Every rule here was read off `server/game.js` and `server/rooms.js` rather
  * than off the README, and the citation is kept beside it: if a rule moves,
- * the line that describes it is one grep away. Nothing in this overlay asks
- * the server anything — it is the same text for everybody, at every phase.
+ * the line that describes it is one grep away.
  */
-const RULES = [
-  {
-    h: 'Empty your box',
-    p: 'Put down your last card and the round is yours. The win is counted <b>before</b> the card takes effect, so a +4 that empties your box still wins and the chef beside you keeps a clean hand.',
-    // game.js:398-401 — the length-0 check returns before applyCardEffect().
-  },
-  {
-    h: 'Shout ZA!',
-    p: 'The <b>ZA!</b> button is legal the moment you are down to <b>two cards or fewer</b>, and you may hit it on anybody\'s turn, not only your own.',
-    // game.js:540-556 declareZa (hand.length > 2 refused) · viewFor 633-635.
-  },
-  {
-    h: 'Caught quiet',
-    p: 'Lay down your second-to-last card without shouting and any other chef can call you out: <b>2 cards</b> back in your hand. The window closes when the turn really leaves your seat and comes back — at a table of two a Burnt Slice brings it straight back, so you are still catchable — and picking up cards for any reason cancels a shout you already made.',
-    // game.js:403-406 vulnerable · 47 + 559-578 callOut/CALLOUT_PENALTY
-    // · 311-322 advanceTurn clears it only on a real change of seat
-    // · 291-295 dealTo cancels declaredZa and vulnerable above one card.
-  },
-  {
-    h: 'Matching',
-    p: 'Play a card that shares the <b>topping in play</b>, or the <b>same number</b> as the card in the oven, or the <b>same symbol</b> — a Burnt Slice goes on any Burnt Slice, whatever the topping. While a wild sits on top there is no symbol to match: only the topping the chef named, or another wild, will do.',
-    // game.js:208-222 canPlay — suit, number-on-number, kind-on-kind, and the
-    // `!isWild(top)` guard that switches symbol matching off over a wild.
-  },
-  {
-    h: 'The card you just drew',
-    p: 'Nothing fits? Take one card off the dough pile. If it can be played you may play <b>that card and nothing else</b>, or keep it and pass; if it cannot be played your turn ends by itself.',
-    // game.js:484-511 drawCard · 225-235 playableCardIds under drawnCard
-    // · 379-381 playCard refuses any other card · 514-523 passTurn.
-  },
-  {
-    h: 'Two at the table',
-    p: 'With two chefs left there is no direction to reverse, so <b>Flip the Pie works like a Burnt Slice</b>: you play again.',
-    // game.js:446 twoPlayerGame · 458-467 the reverse branch.
-  },
-];
 
-/** The five action cards, each drawn by renderCard at rib size. */
-const RULE_CARDS = [
-  {
-    card: { id: 'rules-skip', suit: 'pepperoni', kind: 'skip', value: null },
-    name: 'Burnt Slice',
-    what: 'The next chef gets the burnt bit and misses a turn.',
-    // game.js:449-457 — advanceTurn(2).
-  },
-  {
-    card: { id: 'rules-reverse', suit: 'basil', kind: 'reverse', value: null },
-    name: 'Flip the Pie',
-    what: 'Play turns around and runs the other way.',
-    // game.js:458-467 — direction *= -1.
-  },
-  {
-    card: { id: 'rules-draw2', suit: 'cheese', kind: 'draw2', value: null },
-    name: 'Extra Toppings +2',
-    what: 'The next chef takes two cards and misses a turn.',
-    // game.js:469-477 — dealTo(victim, 2) then advanceTurn(2).
-  },
-  {
-    card: { id: 'rules-wild', suit: null, kind: 'wild', value: null },
-    name: "Chef's Choice",
-    what: 'Goes on anything. You name the topping in play.',
-    // game.js:211 canPlay · 385-387 a topping is required · 391.
-  },
-  {
-    card: { id: 'rules-wild4', suit: null, kind: 'wild4', value: null },
-    name: 'The Whole Pie +4',
-    what: 'The next chef takes four and misses a turn, and you name the topping.',
-    // game.js:469-477 — same branch as +2, count 4.
-  },
-];
-
-const RULES_TAIL = [
-  {
-    h: 'No stacking',
-    p: 'A +2 or a +4 is dealt the moment it lands and the turn skips straight past the chef who took it, so there is no answering one with your own.',
-    // game.js:469-477 — the cards are dealt inside the effect and
-    // advanceTurn(2) follows; the state carries no pending draw to pass on.
-  },
-  {
-    h: 'The kitchen clock',
-    p: 'Your turn carries <b>45 seconds</b> — the marquee counts the last ten down, then the oven gives you one card and moves on. Drop off and the table only waits about <b>12 seconds</b>; your seat is held for <b>2 minutes</b>.',
-    // rooms.js:21 AWAY_TURN_TIMEOUT_MS = 12000 · 189 armed only for a seat
-    // that is not a bot and not connected · 438-449 the tick that fires it
-    // · game.js:529-537 forceSkip deals one card · rooms.js:22 + 394-399
-    // RECONNECT_GRACE_MS = 120000.
-  },
-];
+/** Deck-local element builder. `rc` — rules card. */
+function rcEl(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
 
 /**
- * Built once, on the first open. Nothing here changes with the snapshot, so a
- * rebuild would only throw away the scroll position the player was reading at.
+ * One card for a demo.
+ *
+ * `renderCard` is the only card-markup source in this client, so an
+ * illustration in the rules is the same object the table deals rather than a
+ * drawing of one. Two things are done to it after: the banner falls back to
+ * its three-letter token, because a demo frame runs well under hand size and
+ * nothing is ever placed in a strip it cannot finish in; and it is hidden from
+ * assistive tech, because the page's hidden sentence already carries what the
+ * picture is there to say.
+ */
+function rcCard(card, options = {}) {
+  const face = renderCard(card, { size: 'hand', ...options });
+  face.classList.add('is-tokened');
+  face.setAttribute('aria-hidden', 'true');
+  face.removeAttribute('role');
+  face.removeAttribute('aria-label');
+  return face;
+}
+
+/** The real card back, at demo size. */
+function rcBack(className) {
+  const back = rcCard(null, { faceDown: true });
+  if (className) back.classList.add(className);
+  return back;
+}
+
+/**
+ * An arrow. Drawn, never typed: Press Start 2P has no glyph for ‹ or ›, the
+ * same reason the card frame spells its indexes X, <> and +2 in ASCII. A bar
+ * and a head cut out of one box with `clip-path`, pointing whichever way the
+ * modifier says.
+ */
+function rcArrow(dir, className) {
+  const arrow = rcEl('span', `deck__ar deck__ar--${dir}${className ? ` ${className}` : ''}`);
+  arrow.setAttribute('aria-hidden', 'true');
+  return arrow;
+}
+
+/** A topping swatch: the sprite the card windows already use, nothing new. */
+function rcSprite(slug, className) {
+  const art = rcEl('img', className ? `deck__art ${className}` : 'deck__art');
+  art.src = `${SPRITE_DIR}/${slug}.png`;
+  art.alt = '';
+  art.decoding = 'async';
+  art.draggable = false;
+  return art;
+}
+
+/** A seat plate. One short word in a bezel box that can light up. */
+function rcPlate(word, className) {
+  return rcEl('span', className ? `deck__plate ${className}` : 'deck__plate', word);
+}
+
+function rcStage(className) {
+  return rcEl('div', `deck__demo ${className}`);
+}
+
+// ------------------------------------------------------------- the demos ---
+
+/**
+ * 1 · A card leaves a hand and lands on the oven card — once because it shares
+ * the topping, once because it shares the number. Both flights run off one
+ * clock half a cycle apart, so the page says "topping or number" without ever
+ * printing the words.
+ */
+function demoMatch() {
+  const stage = rcStage('deck__demo--row');
+  const bySuit = rcCard({ id: 'rc-m1', suit: 'pepperoni', kind: 'number', value: 9 });
+  bySuit.classList.add('deck__fly', 'deck__fly--r');
+  const oven = rcCard({ id: 'rc-m2', suit: 'pepperoni', kind: 'number', value: 5 });
+  const byValue = rcCard({ id: 'rc-m3', suit: 'basil', kind: 'number', value: 5 });
+  byValue.classList.add('deck__fly', 'deck__fly--l');
+  stage.append(bySuit, rcArrow('r'), oven, rcArrow('l'), byValue);
+  return stage;
+}
+
+/**
+ * 2 · Chef's Choice lands on a card it shares nothing with, and the topping in
+ * play changes to the one the chef named. The swatch is two real sprites
+ * stacked; only their opacity moves.
+ */
+function demoWild() {
+  const stage = rcStage('deck__demo--row');
+  const wild = rcCard({ id: 'rc-w1', suit: null, kind: 'wild', value: null });
+  wild.classList.add('deck__fly', 'deck__fly--r');
+  const oven = rcCard({ id: 'rc-w2', suit: 'basil', kind: 'number', value: 3 });
+  const swatch = rcEl('span', 'deck__swatch');
+  swatch.append(rcSprite('basil', 'deck__art--was'), rcSprite('anchovy', 'deck__art--now'));
+  stage.append(wild, rcArrow('r'), oven, swatch);
+  return stage;
+}
+
+// -------------------------------------------------------------- the pages --
+/**
+ * Eight pages in the order a player needs them. `sr` is the whole rule, in
+ * full, for the visually-hidden node — shortening the page must never shorten
+ * what is known, so anything that could not survive twelve visible words is
+ * kept here word for word.
+ */
+const RULE_PAGES = [
+  {
+    h: 'Match it',
+    line: 'A Burnt Slice goes on any Burnt Slice.',
+    sr: 'Play a card that shares the topping in play, or the same number as the card in the oven, or the same symbol — a Burnt Slice goes on any Burnt Slice, whatever the topping. While a wild sits on top there is no symbol to match: only the topping the chef named, or another wild, will do.',
+    // game.js:208-222 canPlay — suit at 217, number-on-number at 218-220, and
+    // kind-on-kind at 221 behind the `!isWild(top)` guard that switches symbol
+    // matching off while a wild is the top card.
+    demo: demoMatch,
+  },
+  {
+    h: 'Wilds go anywhere',
+    line: 'Then you name the topping in play.',
+    sr: "Chef's Choice and The Whole Pie play on any card, whatever is sitting in the oven, and you must name the topping that stays in play before the card goes down.",
+    // game.js:211 canPlay returns true for a wild before anything is compared
+    // · 213 the strict draw-four variant is an option no room turns on
+    // · 385-387 a wild without a named topping is refused · 391 the named
+    // topping becomes state.currentTopping.
+    demo: demoWild,
+  },
+];
+
+// --------------------------------------------------------- the deck itself --
+/**
+ * The deck's own state. The pages are built once — nothing on them changes
+ * with a snapshot — and flipping is a `hidden` attribute, which is also what
+ * parks the demos: a page that is not showing is `display: none`, and a CSS
+ * animation in a box that is not rendered does not run. That is the whole
+ * reason the demos are stylesheet animations and not a rAF loop; a rAF in a
+ * pane nobody is looking at is a frame budget spent on nothing.
+ */
+const deck = {
+  pages: [],
+  dots: [],
+  dotGroup: null,
+  index: 0,
+};
+
+function goRulePage(index, quiet = false) {
+  const total = deck.pages.length;
+  if (!total) return;
+  // The ends wrap rather than disable. A disabled control that had focus drops
+  // that focus on the floor, and the one control a player is holding down at
+  // the end of the deck is exactly the one that would be disabled.
+  const next = ((index % total) + total) % total;
+  const changed = next !== deck.index;
+  deck.index = next;
+  for (let i = 0; i < total; i++) deck.pages[i].hidden = i !== next;
+  for (let i = 0; i < total; i++) deck.dots[i].classList.toggle('is-on', i === next);
+  // Position, spoken. The dots are a picture of it; this is the same fact in
+  // words, and every page repeats it in its own hidden line so a reader who
+  // lands mid-deck is never lost.
+  if (deck.dotGroup) deck.dotGroup.setAttribute('aria-label', `Rule ${next + 1} of ${total}`);
+  if (changed && !quiet) sound.play('menu-blip');
+}
+
+/**
+ * Built once, on the first open. Nothing here changes with the snapshot, and
+ * rebuilding would only restart every demo the player was watching.
  */
 function buildRulesBody() {
   if (ui.rulesBuilt) return;
   ui.rulesBuilt = true;
 
-  const frag = new DocumentFragment();
-  const section = (rule) => {
-    const sec = document.createElement('section');
-    sec.className = 'rules__sec';
-    const head = document.createElement('h3');
-    head.className = 'rules__h';
-    head.textContent = rule.h;
-    const body = document.createElement('p');
-    body.className = 'rules__p';
-    body.innerHTML = rule.p; // fixed strings from this file, no player text
-    sec.append(head, body);
+  const root = rcEl('div', 'deck');
+  const stage = rcEl('div', 'deck__stage');
+  // The page swap is the announcement. Focus stays on the control the player
+  // is using — it never moves into the page — so without this a screen-reader
+  // user would press the arrow and be told nothing at all.
+  stage.setAttribute('aria-live', 'polite');
+
+  deck.pages = RULE_PAGES.map((page, i) => {
+    const sec = rcEl('section', 'deck__page');
+    sec.hidden = i !== 0;
+    const demo = page.demo();
+    demo.setAttribute('aria-hidden', 'true');
+    sec.append(demo, rcEl('h3', 'deck__h', page.h));
+    if (page.line) sec.append(rcEl('p', 'deck__line', page.line));
+    const full = rcEl('p', 'sr-only', `Rule ${i + 1} of ${RULE_PAGES.length}. ${page.sr}`);
+    sec.append(full);
+    stage.append(sec);
     return sec;
+  });
+
+  const nav = rcEl('div', 'deck__nav');
+  const step = (dir, label) => {
+    const button = rcEl('button', `deck__step deck__step--${dir === 1 ? 'next' : 'prev'}`);
+    button.type = 'button';
+    button.setAttribute('aria-label', label);
+    button.append(rcArrow(dir === 1 ? 'r' : 'l'));
+    button.addEventListener('click', () => goRulePage(deck.index + dir));
+    return button;
   };
 
-  for (const rule of RULES) frag.append(section(rule));
-
-  const cards = section({
-    h: 'The action cards',
-    p: 'The first three come in all four toppings; the two wilds have none.',
+  const dots = rcEl('div', 'deck__dots');
+  dots.setAttribute('role', 'group');
+  dots.setAttribute('aria-label', `Rule 1 of ${RULE_PAGES.length}`);
+  deck.dotGroup = dots;
+  deck.dots = RULE_PAGES.map((_, i) => {
+    const dot = rcEl('span', `deck__dot${i === 0 ? ' is-on' : ''}`);
+    dot.setAttribute('aria-hidden', 'true');
+    dots.append(dot);
+    return dot;
   });
-  const list = document.createElement('div');
-  list.className = 'rules__cards';
-  for (const entry of RULE_CARDS) {
-    const row = document.createElement('div');
-    row.className = 'rules__card';
-    const face = renderCard(entry.card, { size: 'rib' });
-    // The frame is the illustration of the line beside it. Read out, it would
-    // say the card's name a second time.
-    face.setAttribute('aria-hidden', 'true');
-    face.removeAttribute('role');
-    face.removeAttribute('aria-label');
-    const text = document.createElement('p');
-    text.className = 'rules__p';
-    const name = document.createElement('b');
-    name.className = 'rules__card-name';
-    name.textContent = `${entry.name} — `;
-    const what = document.createElement('span');
-    what.className = 'rules__card-what';
-    what.textContent = entry.what;
-    text.append(name, what);
-    row.append(face, text);
-    list.append(row);
-  }
-  cards.append(list);
-  frag.append(cards);
 
-  for (const rule of RULES_TAIL) frag.append(section(rule));
+  nav.append(step(-1, 'Previous rule'), dots, step(1, 'Next rule'));
+  root.append(stage, nav);
 
-  const foot = document.createElement('p');
-  foot.className = 'rules__p rules__foot';
+  // Arrow keys, from anywhere in the dialog — including the dialog box itself,
+  // which is what holds focus the moment the overlay opens.
+  el.rulesDialog.addEventListener('keydown', (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key === 'ArrowLeft') goRulePage(deck.index - 1);
+    else if (event.key === 'ArrowRight') goRulePage(deck.index + 1);
+    else return;
+    event.preventDefault();
+  });
+
+  // A swipe, for the hands that will never see a keyboard. Listeners are
+  // passive: the deck reads the gesture, it never fights the page for it.
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  stage.addEventListener('touchstart', (event) => {
+    tracking = event.touches.length === 1;
+    if (!tracking) return;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+  }, { passive: true });
+  stage.addEventListener('touchend', (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    // A drag that is mostly vertical is the player scrolling, not flipping.
+    if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+    goRulePage(deck.index + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+
+  const foot = rcEl('p', 'rules__foot');
   foot.append(document.createTextNode('How all of this was built, and what broke on the way: '));
-  const zine = document.createElement('a');
-  zine.className = 'quiet-link';
+  const zine = rcEl('a', 'quiet-link', 'THE ZINE');
   zine.href = 'blog/index.html';
   // A new tab, because the game is a live socket and this dialog opens over it.
   zine.target = '_blank';
   zine.rel = 'noopener';
-  zine.textContent = 'THE ZINE';
   foot.append(zine, document.createTextNode('.'));
-  frag.append(foot);
 
-  el.rulesBody.replaceChildren(frag);
+  el.rulesBody.replaceChildren(root, foot);
 }
 
 /** The opener to hand focus back to when the one that opened it is gone. */
@@ -4769,9 +4885,12 @@ function visibleRulesOpener() {
 function openRules() {
   if (el.rulesOverlay.classList.contains('is-open')) return;
   buildRulesBody();
-  // The body is built once and kept, so it also keeps wherever it was last
-  // scrolled to — and a rules dialog that opens halfway down the action cards
-  // reads as broken. Every open starts at the goal.
+  // The deck is built once and kept, so it also keeps whichever page it was
+  // last flipped to — and a rules card that opens on page six reads as broken.
+  // Every open starts at the front of the deck, quietly: the blip that belongs
+  // to opening the dialog is played below, and two blips on one press is one
+  // too many.
+  goRulePage(0, true);
   el.rulesBody.scrollTop = 0;
   ui.rulesFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // A popover left standing under the overlay would keep its own click-outside
