@@ -46,7 +46,25 @@
   --console:   #080a12;   /* log / recessed panels */
   --cabinet:   #101426;   /* panel fill */
   --cabinet-hi:#151b33;   /* sprite window, checker light square */
-  --bezel:     #2a3355;   /* every inactive border */
+  --bezel:     #2a3355;   /* every DECORATIVE border: panels, rails, trays */
+  /* The same rule, one step up, for the edge of something you can OPERATE.
+     `--bezel` on `--cabinet` is 1.481:1 — the game's signature dark rule, and
+     right for a panel edge, but WCAG 1.4.11 asks 3:1 of any boundary a player
+     has to find in order to use the control it draws. Lightening `--bezel`
+     itself would repaint the whole cabinet, so the roles are split instead:
+     buttons, inputs, popover edges and screw heads take this one, everything
+     structural keeps the dark rule.
+
+     Same hue and saturation as `--bezel` (hsl 227, 34%), lightness 25% -> 49%:
+     a brightness step inside the palette, not a new colour. 49% is the lowest
+     step at which the boundary clears 3:1 against EVERY cabinet surface it can
+     sit on — 3.285:1 on --cabinet, 3.056:1 on --cabinet-hi, 3.434:1 on --void.
+     (The floor for --cabinet alone is 47% / #4f61a1 at 3.093:1; two points more
+     buys the screw head, whose fill is --cabinet-hi, without a second token.)
+
+     Genuinely DISABLED controls are exempt from 1.4.11 and deliberately keep
+     `--bezel`: that dimmer edge is now what tells them apart from live ones. */
+  --bezel-live:#5265a7;   /* every ENABLED interactive border */
   --ui-cyan:   #7de2ff;   /* labels, hints, system text */
 
   --text:      #e8ecff;
@@ -415,7 +433,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: var(--s3) var(--s4);
   background: var(--cabinet);
   color: var(--text);
-  border: var(--bd-thick) solid var(--bezel);
+  /* A field you type into: its box IS the affordance, so it takes the live
+     rule. 1.481:1 -> 3.285:1 against the --cabinet fill it encloses. */
+  border: var(--bd-thick) solid var(--bezel-live);
   border-radius: 0;
   font-size: 21px;
   transition: border-color var(--d-fast) var(--ease-out);
@@ -495,6 +515,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transform: none;
 }
 
+/* A disabled control is exempt from 1.4.11, and the exemption doubles as the
+   tell: a live ghost edge is the brighter `--bezel-live`, a dead one drops
+   back to the dark rule AND keeps the .52 fade above. Two separate signals,
+   so a player never has to judge one edge at two opacities. Inputs are never
+   disabled in this client, so only the ghost button needs the step back. */
+.btn--ghost:disabled { border-color: var(--bezel); }
+
 .btn--block { width: 100%; }
 .btn--sm { padding: var(--s2) var(--s3); font-size: 13px; border-radius: var(--r-sm); }
 
@@ -507,10 +534,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   box-shadow: var(--sh-lift);
 }
 
+/* The ghost button has no fill to speak of — the border is the entire button.
+   It is the clearest case for the live rule, and the one that was worst off:
+   cabinet on cabinet, the edge was 1.481:1 against both sides at once. */
 .btn--ghost {
   --btn-bg: var(--cabinet);
   --btn-fg: var(--ui-cyan);
-  border-color: var(--bezel);
+  border-color: var(--bezel-live);
 }
 
 .btn--quiet {
@@ -2556,7 +2586,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: var(--s4);
   background: var(--cabinet);
   color: var(--text);
-  border: var(--bd-thick) solid var(--bezel);
+  /* A popover is a thing you operate, and its edge is what says where it
+     ends and the table underneath begins. The round-over and HOUSE RULES
+     dialogs already draw theirs in cheese (14:1) and are left alone. */
+  border: var(--bd-thick) solid var(--bezel-live);
   border-radius: 0;
   box-shadow: var(--sh-panel);
   opacity: 0;
@@ -2758,7 +2791,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   padding: var(--s3);
   background: var(--cabinet);
   color: var(--text);
-  border: var(--bd-thin) solid var(--bezel);
+  /* Cabinet on cabinet inside the popover: without the live rule these rows
+     had no edge at all, and they are a list you pick one name out of. */
+  border: var(--bd-thin) solid var(--bezel-live);
   border-radius: var(--r-md);
   font-size: 14px;
   font-weight: 700;
@@ -3111,11 +3146,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 /* A quiet way in from home and from the lobby: the zine link's recipe, on a
    button, because it opens a dialog rather than going anywhere. */
+/* The underline is the only thing saying this word is pressable. */
 .quiet-link {
   padding: 0;
   background: none;
   border: 0;
-  border-bottom: 2px solid var(--bezel);
+  border-bottom: 2px solid var(--bezel-live);
   border-radius: 0;
   color: var(--ui-cyan);
   font-family: inherit;
@@ -4886,7 +4922,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: 19px;
   height: 19px;
   background: var(--cabinet-hi);
-  border: var(--bd-thin) solid var(--bezel);
+  /* The head is the whole button as far as finding it goes: its fill is
+     --cabinet-hi on --cabinet, 1.11:1, so the square is only there at all
+     because of this edge. 1.481:1 -> 3.285:1 against the cabinet around it. */
+  border: var(--bd-thin) solid var(--bezel-live);
   transition: border-color var(--d-fast) var(--ease-out);
 }
 
