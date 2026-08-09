@@ -2839,6 +2839,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     font-size: 16px;
   }
   .stage { box-shadow: 8px 8px 0 rgba(0, 0, 0, .55); }
+  .hire__name { font-size: 18px; }
+  .hire__tell { font-size: 21px; min-height: 2.7em; padding: 10px 14px; }
+  .hire__go {
+    width: auto;
+    min-width: 260px;
+    padding: 14px;
+    font-size: 14px;
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
+  }
 }
 
 /* -------------------------------- the hire screen: short window (landscape) */
@@ -2916,15 +2925,67 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .roster-tile--any .roster-tile__window { border-color: rgba(255, 255, 255, .12); }
 
-.roster__tell {
+.hire__name {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* The tell keeps a floor under its height. The six lines are different
+   lengths, and without the reserve the button below moves out from under the
+   cursor on the way to being pressed. */
+.hire__tell {
+  width: 100%;
+  max-width: 560px;
   min-height: 3.1em;
+  margin: 0;
   padding: var(--s2) var(--s3);
   background: var(--console);
   border: var(--bd-thin) solid var(--bezel);
   color: var(--text-dim);
-  font-size: 17px;
-  line-height: 1.35;
+  font-size: 19px;
+  line-height: 1.3;
   text-align: left;
+}
+
+.hire__go {
+  width: 100%;
+  max-width: 560px;
+  min-height: 44px;
+  padding: var(--s3);
+  background: var(--cheese);
+  color: var(--void);
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .5);
+}
+
+.hire__go:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+/* The press is the button going down onto its own shadow. */
+.hire__go:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
+}
+
+.hire__go[disabled] {
+  background: var(--bezel);
+  color: var(--text-mute);
+  cursor: default;
+  box-shadow: none;
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hire__go:not([disabled]):hover { background: var(--cheese-hi); }
 }
 
 @media (hover: hover) and (pointer: fine) {

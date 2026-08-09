@@ -1374,22 +1374,55 @@ function buildRoster() {
   any.textContent = '?';
   stage.append(frameA, frameB, any);
 
-  const grid = document.createElement('div');
-  grid.className = 'roster';
+  const name = document.createElement('p');
+  name.className = 'hire__name';
 
+  // The same `role="status"` paragraph the popover had, with a floor under its
+  // height: `min-height` reserved for three lines means switching regular
+  // never re-flows the button out from under the cursor that is about to
+  // press it.
   const tell = document.createElement('p');
-  tell.className = 'roster__tell';
+  tell.className = 'hire__tell';
   tell.setAttribute('role', 'status');
   tell.textContent = ANYBODY_TELL;
 
-  panel.append(back, title, stage, grid, tell);
+  const go = document.createElement('button');
+  go.className = 'hire__go';
+  go.type = 'button';
+  go.addEventListener('click', hireSelected);
+
+  const grid = document.createElement('div');
+  grid.className = 'roster';
+
+  panel.append(back, title, stage, name, tell, go, grid);
   ui.roster = {
-    panel, grid, tell, stage, frameA, frameB,
+    panel, grid, tell, stage, frameA, frameB, name, go,
     entries: REGULARS.concat([ANYBODY]),
     seated: new Set(),
     active: 0,
   };
   return ui.roster;
+}
+
+/** True when this entry is already at the table. ANYBODY never is. */
+function hireSeated(entry) {
+  return !entry.isAny && ui.roster.seated.has(entry.name.toLowerCase());
+}
+
+/**
+ * The only thing on this screen that sends. Previewing a regular and hiring
+ * one are two different acts, and this is the second one.
+ */
+function hireSelected() {
+  const roster = ui.roster;
+  const entry = roster.entries[roster.active];
+  if (!entry) return;
+  if (hireSeated(entry)) {
+    toast(`${entry.name} is already at the table.`);
+    return;
+  }
+  closeHire();
+  send(entry.isAny ? { type: 'addBot' } : { type: 'addBot', regularId: entry.id });
 }
 
 /**
@@ -1447,6 +1480,13 @@ function hireSelect(n) {
     if (entry.idleFrame) b.src = regularArtB(entry.id);
     b.style.animation = '';
   }
+  roster.name.textContent = entry.name;
+  roster.tell.textContent = entry.tell;
+  const seated = hireSeated(entry);
+  roster.go.disabled = seated;
+  roster.go.textContent = seated
+    ? `${entry.name.toUpperCase()} IS SEATED`
+    : entry.isAny ? 'SEND ANYBODY' : `HIRE ${entry.name.toUpperCase()}`;
 }
 
 /** True while the hire screen is up. */
@@ -1553,14 +1593,13 @@ function seatedRegulars(snapshot) {
 /** Fills the screen from a snapshot. Called on open and on every lobby snapshot. */
 function fillRoster(snapshot) {
   const roster = ui.roster;
-  const seated = seatedRegulars(snapshot);
+  roster.seated = seatedRegulars(snapshot);
   const tiles = new DocumentFragment();
   for (const regular of REGULARS) {
-    tiles.append(rosterTile(regular, seated.has(regular.name.toLowerCase())));
+    tiles.append(rosterTile(regular, roster.seated.has(regular.name.toLowerCase())));
   }
   tiles.append(rosterTile(null, false));
   roster.grid.replaceChildren(tiles);
-  roster.tell.textContent = ANYBODY_TELL;
 }
 
 /**
@@ -1572,6 +1611,10 @@ function fillRoster(snapshot) {
 function refreshRoster(snapshot) {
   if (!hireOpen()) return;
   fillRoster(snapshot);
+  // Re-run the selection against the new seated set: if the regular under
+  // consideration is the one who just sat down, the button has to say so and
+  // stop being pressable before the player presses it.
+  hireSelect(ui.roster.active);
 }
 
 function openRoster(snapshot) {
