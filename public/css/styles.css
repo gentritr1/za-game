@@ -3085,7 +3085,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     color: var(--text);
     white-space: nowrap;
   }
-  .strip__seated::after { content: "SEATED"; }
+  /* Same selector as the base rule, not a shorter one: `IN` is set through
+     `[data-seated]` and would out-specify a bare `.strip__seated::after`. */
+  .strip__tile[data-seated="true"] .strip__seated::after { content: "SEATED"; }
 
   /* The considered tile also takes a rule under it — the marker the cabinet
      uses for a selected thing, at the size the strip can carry. */
@@ -3150,7 +3152,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .strip__win { width: 40px; height: 36px; aspect-ratio: auto; }
   .strip__any { font-size: 12px; }
   .strip__name { display: none; }
-  .strip__seated::after { content: "IN"; }
+  .strip__tile[data-seated="true"] .strip__seated::after { content: "IN"; }
   .strip__tile[aria-current="true"]::after { content: none; }
 }
 
