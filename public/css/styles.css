@@ -3634,10 +3634,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   /* Page 4 parks with the card already dealt and BOTH ways out lit, which is
      the frame that carries the rule: one card off the pile, two things you may
-     do with it. */
-  .deck__drawn {
+     do with it.
+
+     The `!important` is load-bearing, here and on pages 5 and 6, and it is the
+     only one in this block. The cabinet's own reduced-motion rules flatten
+     `transform: none !important` onto every `.card` in the game, which parked
+     all three of these demos on the frame they START from — a card still
+     behind the pile, two cards still off to the side, a hand still full. A
+     parked frame that is the frame before anything happened tells the reader
+     nothing at all. That rule means "nothing may move"; these declarations do
+     not move anything, they are where the demo stands still. */
+  .deck .deck__drawn {
     animation: none;
-    transform: translate3d(calc(var(--demo-card) * 0.8), -4px, 0);
+    transform: translate3d(calc(var(--demo-card) * 0.8), -4px, 0) !important;
   }
 
   .deck__ar--beat-a,
@@ -3645,11 +3654,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   /* Page 5 parks on the hand already spent down and the button already lit:
      the two facts of the page in one frame. */
-  .deck__spent--a,
-  .deck__spent--b {
+  .deck .deck__spent--a,
+  .deck .deck__spent--b {
     animation: none;
     opacity: .16;
-    transform: translate3d(0, -10px, 0);
+    transform: translate3d(0, -10px, 0) !important;
   }
 
   .deck__za-on { animation: none; opacity: 1; }
@@ -3657,10 +3666,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   /* Page 6 parks after the call-out: seat in sauce, both cards landed. */
   .deck__seat--caught::after { animation: none; opacity: 1; }
 
-  .deck__pen {
+  .deck .deck__pen {
     animation: none;
     opacity: 1;
-    transform: translate3d(calc(var(--demo-card) * -0.72), 0, 0);
+    transform: translate3d(calc(var(--demo-card) * -0.72), 0, 0) !important;
   }
 
   /* Page 7 parks at the end of the journey, which is the rule: the arrow has
