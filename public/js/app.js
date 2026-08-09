@@ -3864,6 +3864,10 @@ function visibleRulesOpener() {
 function openRules() {
   if (el.rulesOverlay.classList.contains('is-open')) return;
   buildRulesBody();
+  // The body is built once and kept, so it also keeps wherever it was last
+  // scrolled to — and a rules dialog that opens halfway down the action cards
+  // reads as broken. Every open starts at the goal.
+  el.rulesBody.scrollTop = 0;
   ui.rulesFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // A popover left standing under the overlay would keep its own click-outside
   // and Escape behaviour behind an inert app.
