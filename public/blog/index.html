@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d0f1a">
-<meta name="description" content="THE ZINE - ten traps we hit building ZA!, an arcade card game. One concept per page, plain words, one diagram each.">
-<title>THE ZINE — dev notes from the ZA! kitchen</title>
+<meta name="description" content="THE ZINE - two wings. Ten traps we hit building ZA!, an arcade card game, and three 1970s recipes off the cards the regulars kept behind the counter.">
+<title>THE ZINE — dev notes and Nonna's recipes from the ZA! kitchen</title>
 <link rel="icon" type="image/png" href="../assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,9 +29,15 @@
 
   <div class="cover">
     <h1 class="cover__title">THE ZINE</h1>
-    <p class="cover__pitch">Ten traps we walked into building an arcade card game, each one written out in plain words with the diagram we wish we&rsquo;d had.</p>
+    <p class="cover__pitch">Two wings. Ten traps we walked into building an arcade card game &mdash; and the recipe cards the regulars kept in the drawer under the register.</p>
     <p class="cover__meta">Taped to the parlour counter. Free. Take one.</p>
   </div>
+
+  <section class="wing" aria-labelledby="wing-notes">
+    <div class="wing__head">
+      <h2 class="wing__title" id="wing-notes">DEV NOTES</h2>
+      <p class="wing__note">Ten traps, one diagram each.</p>
+    </div>
 
   <ul class="cards">
 
@@ -194,6 +200,70 @@
     </li>
 
   </ul>
+  </section>
+
+  <section class="wing wing--recipes" aria-labelledby="wing-recipes">
+    <div class="wing__head">
+      <h2 class="wing__title" id="wing-recipes">NONNA&rsquo;S RECIPES</h2>
+      <p class="wing__note">Three cards, three stories, 1970s.</p>
+    </div>
+
+  <ul class="cards">
+
+    <li>
+      <a class="card" href="nonna-sunday-sauce.html">
+        <span class="card__no">Card 01 &middot; Nonna Pina</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A two-handled pot half full of sauce, with three bubbles rising above it.">
+          <title>A pot of sauce with three bubbles over it</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="#ff4d9d"><rect x="84" y="10" width="5" height="5"/><rect x="98" y="4" width="5" height="5"/><rect x="112" y="12" width="5" height="5"/></g>
+          <g fill="#2a3355"><rect x="60" y="30" width="6" height="10"/><rect x="134" y="30" width="6" height="10"/><rect x="66" y="22" width="68" height="5"/></g>
+          <rect x="72" y="27" width="56" height="24" fill="none" stroke="#2a3355" stroke-width="3"/>
+          <rect x="76" y="31" width="48" height="8" fill="#ff2e6b"/>
+        </svg>
+        <h2 class="card__title">Sunday sauce</h2>
+        <p class="card__hook">On at seven, down at four, and nobody touches the knob.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="paulie-friday-dough.html">
+        <span class="card__no">Card 02 &middot; Big Paulie</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A flat lump of dough in a bowl on the left, an arrow, and the same dough risen tall on the right above its dashed original outline.">
+          <title>Flat dough, then risen dough over its own dashed outline</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="#2a3355"><rect x="10" y="44" width="70" height="6"/><rect x="120" y="44" width="70" height="6"/></g>
+          <rect x="26" y="36" width="38" height="8" fill="#ffe14d"/>
+          <path d="M88 40 L112 40 M104 36 L112 40 L104 44" stroke="#3ddc7f" stroke-width="3" fill="none"/>
+          <rect x="136" y="36" width="38" height="8" fill="none" stroke="#2a3355" stroke-width="2" stroke-dasharray="4 3"/>
+          <rect x="136" y="18" width="38" height="26" fill="#ffe14d"/>
+        </svg>
+        <h2 class="card__title">The Friday dough</h2>
+        <p class="card__hook">Everything good on a Friday was made on a Thursday.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="vito-sfincione.html">
+        <span class="card__no">Card 03 &middot; Vito</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A baking tray cut into nine squares. Eight are faded away and the ninth, in the bottom corner, is still there.">
+          <title>Nine squares on a tray, eight gone and one left</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <rect x="58" y="4" width="84" height="48" fill="none" stroke="#2a3355" stroke-width="3"/>
+          <g fill="#ff2e6b" opacity=".22">
+            <rect x="62" y="8" width="22" height="12"/><rect x="89" y="8" width="22" height="12"/><rect x="116" y="8" width="22" height="12"/>
+            <rect x="62" y="22" width="22" height="12"/><rect x="89" y="22" width="22" height="12"/><rect x="116" y="22" width="22" height="12"/>
+            <rect x="62" y="36" width="22" height="12"/><rect x="89" y="36" width="22" height="12"/>
+          </g>
+          <rect x="116" y="36" width="22" height="12" fill="#ff2e6b" stroke="#ffe14d" stroke-width="2"/>
+        </svg>
+        <h2 class="card__title">Sfincione, nine squares</h2>
+        <p class="card__hook">He cuts nine and he sells eight. The ninth is behind the register.</p>
+      </a>
+    </li>
+
+  </ul>
+  </section>
 
 </main>
 
