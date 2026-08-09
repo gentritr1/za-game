@@ -3408,7 +3408,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: var(--ui-cyan);
 }
 
-.deck__seat::after {
+/* The ring is on the caught seat only. Page 7 seats one of these for YOU and
+   one for the other chef, and a blame ring on the base class would light both
+   of them for a rule that is not about blame at all. */
+.deck__seat--caught::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -3440,6 +3443,103 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .deck__pen--b { animation-delay: 220ms; }
+
+/* --- 7 · two at the table -------------------------------------------------- */
+/* A seat with nobody's cards in it is just its plate. */
+.deck__seat--you,
+.deck__seat--next { padding: var(--s3) var(--s2); }
+
+.deck__seat--you::after,
+.deck__seat--next::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 var(--bd-thick) var(--cheese);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The arrow sets off towards the other chef, turns, and arrives back where it
+   started. Rotation is the one honest way to draw a direction changing its
+   mind: the same arrow, pointing the other way, and nothing redrawn. */
+@keyframes deck-turn {
+  0%, 26%   { transform: rotate(0deg); }
+  38%, 88%  { transform: rotate(180deg); }
+  98%, 100% { transform: rotate(0deg); }
+}
+
+.deck__ar--turn { animation: deck-turn 3800ms var(--ease-step) infinite; }
+
+/* YOU lights the moment the arrow is pointing back at it. */
+@keyframes deck-yours {
+  0%, 34%   { opacity: 0; }
+  44%, 88%  { opacity: 1; }
+  98%, 100% { opacity: 0; }
+}
+
+.deck__seat--you::after { animation: deck-yours 3800ms var(--ease-step) infinite; }
+
+/* --- 8 · the kitchen clock -------------------------------------------------- */
+/* The marquee's countdown, in the shape the marquee draws it: a bar that runs
+   out. `--ease-step-5` is the curve this kit keeps for exactly this, so the
+   bar goes in five steps rather than gliding. */
+.deck__clock {
+  position: relative;
+  flex: none;
+  display: block;
+  width: calc(var(--demo-card) * 1.6);
+  height: 20px;
+  padding: 3px;
+  background: var(--console);
+  box-shadow: inset 0 0 0 2px var(--bezel);
+}
+
+.deck__clock-bar {
+  position: absolute;
+  inset: 3px;
+  display: block;
+  background: var(--cheese);
+  transform-origin: left center;
+  animation: deck-tick 3800ms var(--ease-step-5) infinite;
+}
+
+/* The last stretch the marquee counts down. A second bar rather than a colour
+   that changes, because the kit animates transform and opacity and nothing
+   else — both bars run out together and this one fades up over the other. */
+.deck__clock-bar--warn {
+  background: var(--sauce);
+  opacity: 0;
+  animation:
+    deck-tick 3800ms var(--ease-step-5) infinite,
+    deck-warn 3800ms var(--ease-step) infinite;
+}
+
+@keyframes deck-tick {
+  0%, 6%    { transform: scaleX(1); }
+  70%, 92%  { transform: scaleX(0); }
+  100%      { transform: scaleX(1); }
+}
+
+@keyframes deck-warn {
+  0%, 40%   { opacity: 0; }
+  50%, 92%  { opacity: 1; }
+  100%      { opacity: 0; }
+}
+
+/* The card the oven deals when the bar is gone. */
+@keyframes deck-dealt {
+  0%, 62%   { opacity: 0; transform: translate3d(0, -8px, 0); }
+  72%, 92%  { opacity: 1; transform: translate3d(0, 0, 0); }
+  100%      { opacity: 0; transform: translate3d(0, -8px, 0); }
+}
+
+.deck__dealt {
+  opacity: 0;
+  animation: deck-dealt 3800ms var(--ease-step) infinite;
+}
+
+/* And the turn moves on. */
+.deck__seat--next::after { animation: deck-yours 3800ms var(--ease-step) infinite; }
 
 /* --- flipping ------------------------------------------------------------- */
 .deck__nav {
@@ -3555,13 +3655,32 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .deck__za-on { animation: none; opacity: 1; }
 
   /* Page 6 parks after the call-out: seat in sauce, both cards landed. */
-  .deck__seat::after { animation: none; opacity: 1; }
+  .deck__seat--caught::after { animation: none; opacity: 1; }
 
   .deck__pen {
     animation: none;
     opacity: 1;
     transform: translate3d(calc(var(--demo-card) * -0.72), 0, 0);
   }
+
+  /* Page 7 parks at the end of the journey, which is the rule: the arrow has
+     already turned and is pointing back at YOU, and YOU is lit. */
+  .deck__ar--turn { animation: none; transform: rotate(180deg); }
+  .deck__seat--you::after { animation: none; opacity: 1; }
+
+  /* Page 8 parks on the moment the clock runs out: bar down to the last
+     stretch and in sauce, the card already dealt, the turn already gone on.
+     The bar is parked short rather than empty — an empty bar is a bar that
+     was never there, and the countdown is half of what this page says. */
+  .deck__clock-bar {
+    animation: none;
+    transform: scaleX(.16);
+  }
+
+  .deck__clock-bar--warn { animation: none; opacity: 1; }
+
+  .deck__dealt { animation: none; opacity: 1; transform: none; }
+  .deck__seat--next::after { animation: none; opacity: 1; }
 
   .deck__step { transition: none; }
 }

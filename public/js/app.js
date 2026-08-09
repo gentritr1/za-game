@@ -4832,13 +4832,48 @@ function demoCaught() {
   // Three card backs in a row would be three of the same thing. The seat is
   // named, so the hand the cards are landing in is the one thing on the page
   // that cannot be mistaken for the cards landing in it.
-  const seat = rcEl('span', 'deck__seat');
+  const seat = rcEl('span', 'deck__seat deck__seat--caught');
   seat.append(rcPlate('CHEF'), rcBack());
   const penalty = rcEl('span', 'deck__hand deck__hand--pair');
   const one = rcBack('deck__pen deck__pen--a');
   const two = rcBack('deck__pen deck__pen--b');
   penalty.append(one, two);
   stage.append(seat, rcArrow('l', 'deck__ar--beat-b'), penalty);
+  return stage;
+}
+
+/**
+ * 7 · Two at the table. The turn sets off towards the other chef, the Flip
+ * turns it around, and it arrives back where it started — which is the whole
+ * of the rule, drawn rather than argued.
+ */
+function demoTwo() {
+  const stage = rcStage('deck__demo--row');
+  const you = rcEl('span', 'deck__seat deck__seat--you');
+  you.append(rcPlate('YOU'));
+  const flip = rcCard({ id: 'rc-t1', suit: 'basil', kind: 'reverse', value: null });
+  const other = rcEl('span', 'deck__seat');
+  other.append(rcPlate('CHEF'));
+  stage.append(you, flip, rcArrow('r', 'deck__ar--turn'), other);
+  return stage;
+}
+
+/**
+ * 8 · The clock runs down, the oven deals one card, and the turn moves on. The
+ * bar is the marquee's own countdown: it steps in five, on the curve this kit
+ * keeps for exactly that.
+ */
+function demoClock() {
+  const stage = rcStage('deck__demo--row');
+  const dealt = rcBack('deck__dealt');
+  // Two bars, not one that changes colour: the kit animates transform and
+  // opacity and nothing else, so the last stretch is a sauce bar fading up
+  // over the cheese one while both run out together.
+  const clock = rcEl('span', 'deck__clock');
+  clock.append(rcEl('i', 'deck__clock-bar'), rcEl('i', 'deck__clock-bar deck__clock-bar--warn'));
+  const next = rcEl('span', 'deck__seat deck__seat--next');
+  next.append(rcPlate('NEXT'));
+  stage.append(dealt, clock, rcArrow('r', 'deck__ar--beat-b'), next);
   return stage;
 }
 
@@ -4906,6 +4941,26 @@ const RULE_PAGES = [
     // advanceTurn clears the window only on a real change of seat · 291-295
     // dealTo cancels declaredZa and vulnerable above one card.
     demo: demoCaught,
+  },
+  {
+    h: 'Two at the table',
+    line: 'Flip the Pie means you play again.',
+    sr: 'With two chefs left there is no direction to reverse, so Flip the Pie works like a Burnt Slice: you play again.',
+    // game.js:446 twoPlayerGame counts the seats that have not left · 459-467
+    // the reverse branch, which at a table of two advances by 2 and leaves the
+    // direction alone — the same move a Burnt Slice makes.
+    demo: demoTwo,
+  },
+  {
+    h: 'The kitchen clock',
+    line: '45 seconds a turn. Then the oven deals one.',
+    sr: 'Your turn carries 45 seconds — the marquee counts the last ten down, then the oven gives you one card and moves on. Drop off and the table only waits about 12 seconds; your seat is held for 2 minutes.',
+    // rooms.js:22 IDLE_TURN_TIMEOUT_MS = 45000 · 23 IDLE_WARN_MS = 10000, the
+    // stretch the marquee counts · 21 AWAY_TURN_TIMEOUT_MS = 12000 · 24
+    // RECONNECT_GRACE_MS = 120000 · 254-255 armed only for a seat that is not
+    // a bot · 545-576 the tick that fires either one · game.js:529-537
+    // forceSkip, which deals the one card and passes the turn on.
+    demo: demoClock,
   },
 ];
 
