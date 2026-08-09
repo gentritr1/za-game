@@ -26,6 +26,7 @@ const el = {
   app: $('app'),
   shell: document.querySelector('.shell'),
   screens: Array.from(document.querySelectorAll('.screen')),
+  gameScreen: document.querySelector('.screen--game'),
   // home
   formCreate: $('form-create'),
   formJoin: $('form-join'),
@@ -385,7 +386,7 @@ function syncDesynced() {
   disarmLeave();
 }
 
-function handleMessage(message) {
+function handleMessage(message, connectionContext = {}) {
   switch (message.type) {
     case 'joined':
       net.remember(message.youName, message.roomCode, message.token);
@@ -402,8 +403,20 @@ function handleMessage(message) {
       break;
     case 'error':
       toast(message.message);
-      // A failed reconnect means the table is gone. Send the player home.
-      if (!ui.snapshot) {
+      if (connectionContext.rejoinRefused) {
+        // This error answers the automatic rejoin, not a move. The remembered
+        // table is no longer ours: erase it while it is still frozen, close
+        // anything that could keep the home screen inert, and go home. The
+        // connection forgets the rejected credentials after this handler.
+        ui.snapshot = null;
+        closePopovers({ restoreFocus: false });
+        closeRules(false);
+        closeRoundOverlay();
+        resetGameView();
+        showScreen('home');
+      } else if (!ui.snapshot) {
+        // A first join can also fail from the home screen. There is no stale
+        // table to clear, but any remembered live credential is no longer useful.
         net.forget();
         showScreen('home');
       }
@@ -1303,7 +1316,7 @@ function paintIdleCountdown() {
   // aria-hidden: the marquee is a polite live region, and a live region that
   // changes every second stops being read as a warning.
   if (!el.turnWarn.textContent) {
-    el.turnWarn.textContent = `${Math.ceil(warn / 1000)} seconds left, chef.`;
+    el.turnWarn.textContent = `${seconds} seconds left, chef.`;
   }
 }
 
@@ -2815,6 +2828,10 @@ function clearPeek() {
 }
 
 function bindPit() {
+  // At short heights the game screen becomes the vertical scroll container.
+  // Its movement makes the cached viewport-relative rib rectangles stale.
+  if (el.gameScreen) el.gameScreen.addEventListener('scroll', invalidatePit, { passive: true });
+
   el.handPit.addEventListener('pointerdown', (event) => {
     // One measurement opens the session; every move inside it is arithmetic.
     invalidatePit();
@@ -4027,7 +4044,7 @@ function closePopovers(options = {}) {
 
 /** True while any popover, including the hire roster, is on screen. */
 function popoverOpen() {
-  return popoverPanels().some((panel) => panel.classList.contains('is-open'));
+  return popoverPanels().some((panel) => panel && panel.classList.contains('is-open'));
 }
 
 /**
@@ -4925,8 +4942,8 @@ el.opponents.addEventListener('keydown', (event) => {
 el.btnRulesHome.addEventListener('click', openRules);
 el.btnRulesLobby.addEventListener('click', openRules);
 el.btnRulesClose.addEventListener('click', () => closeRules());
-el.pickerCancel.addEventListener('click', closePopovers);
-el.calloutCancel.addEventListener('click', closePopovers);
+el.pickerCancel.addEventListener('click', () => closePopovers());
+el.calloutCancel.addEventListener('click', () => closePopovers());
 // 09 · the host decides. Nothing here is on a clock.
 el.btnNextRound.addEventListener('click', () => send({ type: 'newRound' }));
 el.btnToLobby.addEventListener('click', () => send({ type: 'backToLobby' }));
@@ -4985,7 +5002,10 @@ document.addEventListener('keydown', (event) => {
 
   const first = controls[0];
   const last = controls[controls.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
+  if (event.shiftKey && document.activeElement === modal) {
+    event.preventDefault();
+    last.focus({ preventScroll: true });
+  } else if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus({ preventScroll: true });
   } else if (!event.shiftKey && document.activeElement === last) {

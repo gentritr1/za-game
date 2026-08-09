@@ -91,7 +91,7 @@ export class Connection {
   }
 
   get synchronized() {
-    return this.state === 'synchronized';
+    return this.state === 'synchronized' && !this.awaitingFirstState;
   }
 
   get url() {
@@ -133,8 +133,15 @@ export class Connection {
       } catch {
         return;
       }
-      this.observe(message);
-      this.onMessage(message);
+      const context = this.observe(message);
+      try {
+        this.onMessage(message, context);
+      } finally {
+        // Let the app clear the stale table while it is still frozen, then drop
+        // the credentials that the server just refused. `forget()` also returns
+        // an otherwise healthy open socket to the synchronized home state.
+        if (context && context.rejoinRefused) this.forget();
+      }
     });
 
     socket.addEventListener('close', () => {
@@ -183,10 +190,12 @@ export class Connection {
       return;
     }
     if (message.type === 'error' && this.state === 'joining' && this.awaitingFirstState === false) {
-      // A rejoin the server refused. The seat is gone; stop holding the board
-      // hostage to a `state` that is never coming.
-      this.setState('synchronized');
+      // A rejoin the server refused. Keep the remembered board frozen until
+      // the app has cleared it; the message handler forgets this lost seat
+      // immediately after the app handles this explicit context.
+      return { rejoinRefused: true };
     }
+    return undefined;
   }
 
   /** Remembers how to get back into the room after a reconnect. */
