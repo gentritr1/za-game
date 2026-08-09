@@ -557,6 +557,50 @@ code {
 }
 .anim-walk { animation: zine-walk 5600ms steps(1, end) infinite; }
 
+/* No. 09 — two markers on ONE clock, at one scale, over four turns of the same
+   absent player. The first wait is identical in both rows on purpose: that is
+   the doubt we still pay for. Everything after it is the post.
+   Geometry, in the diagram's own units: 1 second = 1.6px, so 45s = 72px and
+   12s = 19px. Top row 4 x 72 = 288px of travel; bottom row 72 + 3 x 19 = 129px.
+   Game time runs over the first 90% of the cycle and the last 10% is a hold,
+   so the slow marker is actually SEEN arriving before the loop restarts. */
+@keyframes zine-wait-slow {
+  0%    { transform: translateX(0); }
+  22.5% { transform: translateX(72px); }
+  45%   { transform: translateX(144px); }
+  67.5% { transform: translateX(216px); }
+  90%   { transform: translateX(288px); }
+  100%  { transform: translateX(288px); }
+}
+@keyframes zine-wait-fast {
+  0%    { transform: translateX(0); }
+  22.5% { transform: translateX(72px); }
+  28.5% { transform: translateX(91px); }
+  34.5% { transform: translateX(110px); }
+  40.5% { transform: translateX(129px); }
+  100%  { transform: translateX(129px); }
+}
+/* 8000ms puts the shared 45s wait on the game's own 1800ms grid. steps(1, end)
+   because a turn being taken off you is an event, not a slide — the marker
+   sits still for the whole wait and then jumps, which is what waiting is. */
+.anim-wait--slow { animation: zine-wait-slow 8000ms steps(1, end) infinite; }
+.anim-wait--fast { animation: zine-wait-fast 8000ms steps(1, end) infinite; }
+
+/* No. 10 — three chefs travel and the fourth does not, because the fourth was
+   never put back where it came from. The sliders glide (many small steps, so
+   it still reads as pixel movement rather than a smooth ramp); chef 4 has no
+   animation at all and is drawn at its destination in the markup. The contrast
+   IS the bug. 188px is the gap between the dashed origin and the new seat in
+   that diagram; it moves if the drawing moves. */
+@keyframes zine-seat-slide {
+  0%,   15%  { transform: translateX(0); }
+  45%,  65%  { transform: translateX(188px); }
+  95%,  100% { transform: translateX(0); }
+}
+/* Out and back rather than a jump-cut reset: the return leg is another
+   re-sort, so the loop never shows a frame the mechanism would not produce. */
+.anim-seat-slide { animation: zine-seat-slide 6400ms steps(16, end) infinite; }
+
 /* --------------------------------------------------------------- a11y -- */
 :focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
@@ -578,4 +622,17 @@ code {
   /* No. 06: the token stays at the seat it starts on. The shape of the
      seating is what carries the turn order; the token only confirms it. */
   .anim-walk { animation: none !important; }
+
+  /* No. 09: park both markers at the END of their own row — the one frame
+     where the finding is a picture rather than an event. One marker is off
+     the right-hand edge of four full waits; the other stopped less than half
+     way along, on the same clock. */
+  .anim-wait--slow { animation: none !important; transform: translateX(288px); }
+  .anim-wait--fast { animation: none !important; transform: translateX(129px); }
+
+  /* No. 10: park the sliders at their STARTING seats, not their destinations.
+     That is the instant the animation begins — three chefs still at home and
+     the fourth already arrived — which is precisely the bug. Parking them at
+     the destination would put all four in a row and show nothing. */
+  .anim-seat-slide { animation: none !important; transform: translateX(0); }
 }

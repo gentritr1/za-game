@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d0f1a">
-<meta name="description" content="THE ZINE - six traps we hit building ZA!, an arcade card game. One concept per page, plain words, one diagram each.">
+<meta name="description" content="THE ZINE - ten traps we hit building ZA!, an arcade card game. One concept per page, plain words, one diagram each.">
 <title>THE ZINE — dev notes from the ZA! kitchen</title>
 <link rel="icon" type="image/png" href="../assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +29,7 @@
 
   <div class="cover">
     <h1 class="cover__title">THE ZINE</h1>
-    <p class="cover__pitch">Six traps we walked into building an arcade card game, each one written out in plain words with the diagram we wish we&rsquo;d had.</p>
+    <p class="cover__pitch">Ten traps we walked into building an arcade card game, each one written out in plain words with the diagram we wish we&rsquo;d had.</p>
     <p class="cover__meta">Taped to the parlour counter. Free. Take one.</p>
   </div>
 
@@ -123,6 +123,73 @@
         </svg>
         <h2 class="card__title">A roster is not a queue</h2>
         <p class="card__hook">If nobody can read what is already on screen, change the shape, not the labels.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="button-told-to-wait.html">
+        <span class="card__no">No. 07 &middot; Ownership</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="Two switches: the top one is switched back on, the bottom one is left off. Beside them, a door crossed through.">
+          <title>One switch turned back on, one left off, and a locked door</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <rect x="10" y="10" width="28" height="14" fill="none" stroke="#ff2e6b" stroke-width="3"/>
+          <path d="M44 17 L84 17 M76 12 L84 17 L76 22" stroke="#3ddc7f" stroke-width="3" fill="none"/>
+          <rect x="90" y="10" width="28" height="14" fill="#3ddc7f"/>
+          <rect x="10" y="34" width="28" height="14" fill="none" stroke="#ff2e6b" stroke-width="3"/>
+          <path d="M44 41 L84 41" stroke="#2a3355" stroke-width="3" stroke-dasharray="5 4" fill="none"/>
+          <rect x="90" y="34" width="28" height="14" fill="none" stroke="#ff2e6b" stroke-width="3"/>
+          <rect x="150" y="8" width="36" height="40" fill="none" stroke="#ff2e6b" stroke-width="3"/>
+          <path d="M154 12 L182 44 M182 12 L154 44" stroke="#ff2e6b" stroke-width="3"/>
+        </svg>
+        <h2 class="card__title">The button that was told to wait</h2>
+        <p class="card__hook">Two bits of code shared one switch, so neither of them owned it.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="bar-promised-three-seconds.html">
+        <span class="card__no">No. 08 &middot; Honesty</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="A short bar almost drained away, above a long full bar that keeps going off the edge.">
+          <title>A draining bar above the window that was really open</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <rect x="10" y="12" width="80" height="12" fill="none" stroke="#2a3355" stroke-width="3"/>
+          <rect x="10" y="12" width="22" height="12" fill="#ff2e6b"/>
+          <rect x="10" y="34" width="160" height="12" fill="#3ddc7f"/>
+          <path d="M176 40 L194 40" stroke="#3ddc7f" stroke-width="4" stroke-dasharray="5 4"/>
+        </svg>
+        <h2 class="card__title">The bar that promised three seconds</h2>
+        <p class="card__hook">The screen drew a deadline the rules of the game had never agreed to.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="waiter-who-never-learns.html">
+        <span class="card__no">No. 09 &middot; Design</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="Four equally wide blocks above a row of one wide block followed by three narrow ones.">
+          <title>Four long waits above one long wait and three short ones</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="none" stroke="#ff2e6b" stroke-width="3"><rect x="10" y="10" width="40" height="14"/><rect x="54" y="10" width="40" height="14"/><rect x="98" y="10" width="40" height="14"/><rect x="142" y="10" width="40" height="14"/></g>
+          <g fill="none" stroke="#3ddc7f" stroke-width="3"><rect x="10" y="34" width="40" height="14"/><rect x="54" y="34" width="12" height="14"/><rect x="70" y="34" width="12" height="14"/><rect x="86" y="34" width="12" height="14"/></g>
+        </svg>
+        <h2 class="card__title">The waiter who never learns</h2>
+        <p class="card__hook">It waited 45 seconds for someone who had gone. Then it did it again.</p>
+      </a>
+    </li>
+
+    <li>
+      <a class="card" href="last-one-in-the-line.html">
+        <span class="card__no">No. 10 &middot; CSS</span>
+        <svg class="card__teaser" viewBox="0 0 200 56" role="img" aria-label="Three rows in which a box travels from a dashed outline across to a filled box, and a fourth row where the box is already at the far end with no journey behind it.">
+          <title>Three boxes that travel and a fourth already at its destination</title>
+          <rect x="0" y="0" width="200" height="56" fill="#080a12"/>
+          <g fill="none" stroke="#2a3355" stroke-width="2" stroke-dasharray="4 3"><rect x="10" y="4" width="22" height="8"/><rect x="10" y="18" width="22" height="8"/><rect x="10" y="32" width="22" height="8"/></g>
+          <g stroke="#3ddc7f" stroke-width="2" fill="none"><path d="M38 8 L112 8 M104 4 L112 8 L104 12"/><path d="M38 22 L112 22 M104 18 L112 22 L104 26"/><path d="M38 36 L112 36 M104 32 L112 36 L104 40"/></g>
+          <g fill="#3ddc7f"><rect x="120" y="4" width="22" height="8"/><rect x="120" y="18" width="22" height="8"/><rect x="120" y="32" width="22" height="8"/></g>
+          <rect x="10" y="46" width="22" height="8" fill="none" stroke="#ff2e6b" stroke-width="2" stroke-dasharray="4 3"/>
+          <rect x="120" y="46" width="22" height="8" fill="#ff2e6b"/>
+        </svg>
+        <h2 class="card__title">The last one in the line</h2>
+        <p class="card__hook">Everybody slid to their new seat. The last chef teleported.</p>
       </a>
     </li>
 
