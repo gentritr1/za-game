@@ -3601,11 +3601,25 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    keeps the topping off colour alone once the word is gone. Last of the three,
    so it wins on a window that is both wide and short. */
 @media (max-height: 480px) {
-  .deck { --deck-card: 44px; --demo-gap: 6px; --demo-ar: 14px; --demo-h: 68px; }
+  .deck { --deck-card: 44px; --demo-gap: 6px; --demo-ar: 14px; --demo-h: 68px; gap: var(--s2); }
   .deck__h { font-size: 12px; }
+  .deck__line { font-size: 15px; }
   .deck .card__banner { display: none; }
   .deck__step { width: 38px; height: 38px; }
-  .deck { gap: var(--s2); }
+
+  /* Measured at 320x256: the body has 88px to give and one page wants 274, so
+     this screen scrolls whatever is done to it — and left under the page the
+     flip row landed 330px below the fold. It goes above instead, so the one
+     control that decides what the player is looking at is on screen before
+     they scroll at all. Only here: everywhere else the row reads better where
+     it belongs, under the rule it flips. */
+  .deck__nav {
+    order: -1;
+    padding-top: 0;
+    padding-bottom: var(--s2);
+    border-top: 0;
+    border-bottom: var(--bd-thin) solid var(--bezel);
+  }
 }
 
 /* Motion off. Every demo parks on the single frame that carries the most of
