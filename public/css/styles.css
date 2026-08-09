@@ -2908,6 +2908,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   width: 40px;
   height: 36px;
   overflow: hidden;
+  /* The portraits are transparent cutouts now, so every window paints the
+     SAME ground — the token the seat avatars and the stage already use. The
+     baked-in navy each portrait used to carry was a slightly different shade
+     per file, and a row of tiles read as six mismatched squares. */
+  background: var(--cabinet-hi);
 }
 
 .strip__win img {
