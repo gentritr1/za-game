@@ -2848,6 +2848,40 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     font-size: 14px;
     box-shadow: 5px 5px 0 rgba(0, 0, 0, .55);
   }
+
+  /* A centred row rather than a grid, and the names come back beside the
+     windows: six of them side by side is what this width is for. */
+  .strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    max-width: none;
+  }
+  .strip__tile { height: 72px; padding-right: var(--s3); }
+  .strip__win { width: auto; height: 100%; aspect-ratio: 1; flex: none; }
+  .strip__any { font-size: 19px; }
+  .strip__name {
+    display: block;
+    padding-left: 10px;
+    font-size: 19px;
+    line-height: 1;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .strip__seated::after { content: "SEATED"; }
+
+  /* The considered tile also takes a rule under it — the marker the cabinet
+     uses for a selected thing, at the size the strip can carry. */
+  .strip__tile[aria-current="true"]::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    bottom: -11px;
+    height: 5px;
+    background: var(--cheese);
+  }
 }
 
 /* -------------------------------- the hire screen: short window (landscape) */
@@ -2866,64 +2900,105 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .hire__title { position: static; flex-basis: 100%; }
 }
 
-.roster {
+/* ------------------------------------------------------- the filmstrip ---- */
+/* Seven index thumbnails. They show frame A and never animate: the flip is the
+   stage's, and six windows going off at once is the flicker this whole
+   arrangement exists to remove.
+
+   Under 720 it is a 4-column grid of 44px cells — the touch minimum — which
+   wraps seven tiles to two rows and caps at 288px, the 320px phone minus the
+   screen's own padding. */
+.strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: var(--s2);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+  max-width: 288px;
 }
 
-.roster-tile {
+.strip__tile {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--s1);
-  padding: var(--s2);
+  justify-content: center;
+  height: 44px;
+  padding: 0;
   background: var(--cabinet-hi);
   color: var(--text);
   border: var(--bd-thin) solid var(--bezel);
   border-radius: 0;
   font-family: var(--font);
-  font-size: 17px;
-  line-height: 1.1;
-  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform var(--d-press) var(--ease-out), border-color var(--d-fast) var(--ease-out);
+  transition: border-color var(--d-fast) var(--ease-out);
 }
 
-.roster-tile:active,
-.roster-tile.is-pressed { transform: scale(.97); }
-.roster-tile:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+.strip__tile:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
-/* The sprite window. The portraits do not exist yet, so the frame stands in. */
-.roster-tile__window {
+.strip__win {
   position: relative;
-  width: 48px;
-  height: 48px;
-  background: var(--cabinet-hi);
-  border: 2px dashed rgba(255, 255, 255, .2);
+  display: block;
+  width: 40px;
+  height: 36px;
   overflow: hidden;
 }
 
-.roster-tile__name { font-weight: 700; }
+.strip__win img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
 
-.roster-tile.is-seated { opacity: .45; cursor: default; }
-.roster-tile.is-seated:active { transform: none; }
-
-.roster-tile__seated {
+/* ANYBODY has no portrait, at either size: a dashed box with a question mark. */
+.strip__any {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--bezel);
+  color: var(--bezel);
   font-family: var(--font-display);
   font-size: 12px;
-  color: var(--text-mute);
-  letter-spacing: .08em;
 }
 
-.roster-tile--any {
-  border-style: dashed;
-  background: var(--void);
-  color: var(--text-mute);
+/* The considered tile, twice: a cheese border and a cheese rule inside it. */
+.strip__tile[aria-current="true"] {
+  border-color: var(--cheese);
+  box-shadow: inset 0 0 0 3px var(--cheese);
 }
 
-.roster-tile--any .roster-tile__window { border-color: rgba(255, 255, 255, .12); }
+/* A seated regular fades but stays legible. The art is what goes to .4 — the
+   word over it holds its own contrast, because a label nobody can read is not
+   a label. */
+.strip__tile[data-seated="true"] .strip__win img,
+.strip__tile[data-seated="true"] .strip__any { opacity: .4; }
+
+.strip__seated {
+  display: none;
+  position: absolute;
+  inset: auto 0 2px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-mute);
+  text-align: center;
+}
+
+.strip__tile[data-seated="true"] .strip__seated { display: block; }
+.strip__tile[data-seated="true"] .strip__seated::after { content: "IN"; }
+
+/* The name column is the one thing worth keeping from the arrangement that
+   lost; there is no width for it under 720. */
+.strip__name { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .strip__tile:hover { border-color: var(--text-dim); }
+  .strip__tile[aria-current="true"]:hover { border-color: var(--cheese); }
+}
 
 .hire__name {
   margin: 0;
@@ -2986,10 +3061,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 @media (hover: hover) and (pointer: fine) {
   .hire__go:not([disabled]):hover { background: var(--cheese-hi); }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .roster-tile:hover:not(.is-seated) { border-color: var(--cheese); }
 }
 
 .callout-btn {
@@ -4557,7 +4628,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     max-height: 92vh;
     overflow-y: auto;
   }
-  .roster { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-height: 620px) {
@@ -5578,37 +5648,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   }
 }
 
-/* The regulars' portraits fill their roster windows and seat avatars. */
-.roster-tile__portrait {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  image-rendering: pixelated;
-}
-
-/* A regular with a second frame comes alive under consideration: hovering or
-   keyboard-focusing the tile flips their portrait on the cabinet's own
-   two-frame grammar — steps(1, end), opacity only, one hard swap and nothing
-   between. At rest the idle frame is fully off, so a roster of stills stays a
-   roster of stills. Under reduced motion the flip does not run; the pointer
-   still gets frame B as a plain held state, because a swap is a state, not a
-   journey. */
-.roster-tile__portrait--b {
-  opacity: 0;
-}
-
-.roster-tile:hover .roster-tile__portrait--b,
-.roster-tile:focus-visible .roster-tile__portrait--b {
-  animation: roster-idle 1000ms steps(1, end) infinite;
-}
-
-@keyframes roster-idle {
-  0%   { opacity: 0; }
-  50%  { opacity: 1; }
-  100% { opacity: 1; }
-}
+/* The 48px flip is gone with the tile that held it: `.roster-tile__portrait`,
+   its `--b` overlay, the `roster-idle` keyframes and the reduced-motion hold
+   that answered them all pointed at a window too small to read. The stage
+   above carries `za-idle` now, and nothing else on the client ever ran this
+   one — an orphaned keyframe is the callout-drain bug waiting to happen
+   again. */
 
 /* ------------------------------------------------- lobby: player select -- */
 /* §3: seats fill like a player-select screen. */

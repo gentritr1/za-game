@@ -1391,13 +1391,14 @@ function buildRoster() {
   go.type = 'button';
   go.addEventListener('click', hireSelected);
 
-  const grid = document.createElement('div');
-  grid.className = 'roster';
+  const strip = document.createElement('div');
+  strip.className = 'strip';
 
-  panel.append(back, title, stage, name, tell, go, grid);
+  panel.append(back, title, stage, name, tell, go, strip);
   ui.roster = {
-    panel, grid, tell, stage, frameA, frameB, name, go,
+    panel, strip, tell, stage, frameA, frameB, name, go,
     entries: REGULARS.concat([ANYBODY]),
+    tiles: [],
     seated: new Set(),
     active: 0,
   };
@@ -1487,6 +1488,11 @@ function hireSelect(n) {
   roster.go.textContent = seated
     ? `${entry.name.toUpperCase()} IS SEATED`
     : entry.isAny ? 'SEND ANYBODY' : `HIRE ${entry.name.toUpperCase()}`;
+  // Carried as state, not as colour: the cheese border and the bar under the
+  // considered tile are the same fact drawn twice.
+  for (const [i, tile] of roster.tiles.entries()) {
+    tile.setAttribute('aria-current', String(i === n));
+  }
 }
 
 /** True while the hire screen is up. */
@@ -1520,68 +1526,63 @@ function closeHire(options = {}) {
   }
 }
 
-/** One tile. `regular` is null for the ANYBODY tile. */
-function rosterTile(regular, seated) {
+/**
+ * One index thumbnail.
+ *
+ * The filmstrip is the roster demoted: seven small windows whose whole job is
+ * to say who else there is and let you get to them. They show frame A and
+ * never animate — the flip lives on the stage now, and a strip of six of them
+ * going off at once is the flicker this handoff exists to remove.
+ */
+function stripTile(entry, n) {
   const tile = document.createElement('button');
   tile.type = 'button';
-  tile.className = regular ? 'roster-tile' : 'roster-tile roster-tile--any';
-  const line = regular ? regular.tell : ANYBODY_TELL;
+  tile.className = 'strip__tile';
+  const seated = hireSeated(entry);
+  tile.dataset.seated = String(seated);
+  // The stage shows one regular at a time, so every tile carries its own tell
+  // as its label. A screen reader gets the whole roster without previewing it.
+  tile.setAttribute(
+    'aria-label',
+    seated
+      ? `${entry.name} is already at the table. ${entry.tell}`
+      : `Preview ${entry.name}. ${entry.tell}`
+  );
+  tile.setAttribute('aria-current', 'false');
 
-  const window_ = document.createElement('span');
-  window_.className = 'roster-tile__window';
-  window_.setAttribute('aria-hidden', 'true');
-  if (regular) {
+  const win = document.createElement('span');
+  win.className = 'strip__win';
+  win.setAttribute('aria-hidden', 'true');
+  if (entry.isAny) {
+    const mark = document.createElement('span');
+    mark.className = 'strip__any';
+    mark.textContent = '?';
+    win.append(mark);
+  } else {
     const face = document.createElement('img');
-    face.className = 'roster-tile__portrait';
-    face.src = `assets/regulars/${regular.id}.png`;
+    face.src = regularArt(entry.id);
     face.alt = '';
     face.draggable = false;
-    window_.append(face);
-    // The idle frame stacks over the portrait and stays at opacity 0 until
-    // the tile is hovered or focused; the flip itself is CSS. Only built for
-    // regulars flagged as owning the asset.
-    if (regular.idleFrame) {
-      const faceB = document.createElement('img');
-      faceB.className = 'roster-tile__portrait roster-tile__portrait--b';
-      faceB.src = `assets/regulars/${regular.id}-b.png`;
-      faceB.alt = '';
-      faceB.draggable = false;
-      window_.append(faceB);
-    }
+    win.append(face);
   }
+  // IN under 720, SEATED at 720 and over — the word is CSS, because which one
+  // fits is a question about the width and nothing else.
+  const label = document.createElement('span');
+  label.className = 'strip__seated';
+  label.setAttribute('aria-hidden', 'true');
+  win.append(label);
 
   const name = document.createElement('span');
-  name.className = 'roster-tile__name';
-  name.textContent = regular ? regular.name : 'Anybody';
+  name.className = 'strip__name';
+  name.setAttribute('aria-hidden', 'true');
+  name.textContent = entry.name;
 
-  tile.append(window_, name);
-  // The tell is only shown for the tile under the pointer, so every tile
-  // carries it as its own label too. A screen reader gets the whole roster.
-  tile.setAttribute('aria-label', regular ? `Hire ${regular.name}. ${regular.tell}` : `Hire anybody. ${ANYBODY_TELL}`);
+  tile.append(win, name);
 
-  if (seated) {
-    tile.classList.add('is-seated');
-    // Left focusable on purpose: the tell is the tutorial, and a keyboard
-    // player should still be able to read the one for a chef already seated.
-    tile.setAttribute('aria-disabled', 'true');
-    tile.setAttribute('aria-label', `${regular.name} is already at the table. ${regular.tell}`);
-    const label = document.createElement('span');
-    label.className = 'roster-tile__seated';
-    label.textContent = 'Seated';
-    tile.append(label);
-  }
-
-  const describe = () => { ui.roster.tell.textContent = line; };
-  tile.addEventListener('pointerenter', describe);
-  tile.addEventListener('focus', describe);
-  tile.addEventListener('click', () => {
-    if (seated) {
-      toast(`${regular.name} is already at the table.`);
-      return;
-    }
-    closeHire();
-    send(regular ? { type: 'addBot', regularId: regular.id } : { type: 'addBot' });
-  });
+  // Focus previews, so tabbing through the strip gets exactly what hovering
+  // gets. A seated regular still previews: the tell is the tutorial.
+  tile.addEventListener('focus', () => hireSelect(n));
+  tile.addEventListener('click', () => hireSelect(n));
   return tile;
 }
 
@@ -1594,12 +1595,8 @@ function seatedRegulars(snapshot) {
 function fillRoster(snapshot) {
   const roster = ui.roster;
   roster.seated = seatedRegulars(snapshot);
-  const tiles = new DocumentFragment();
-  for (const regular of REGULARS) {
-    tiles.append(rosterTile(regular, roster.seated.has(regular.name.toLowerCase())));
-  }
-  tiles.append(rosterTile(null, false));
-  roster.grid.replaceChildren(tiles);
+  roster.tiles = roster.entries.map((entry, n) => stripTile(entry, n));
+  roster.strip.replaceChildren(...roster.tiles);
 }
 
 /**
@@ -1628,8 +1625,10 @@ function openRoster(snapshot) {
   hireSelect(0);
   show(roster.panel);
   syncAppInert();
-  const first = roster.grid.querySelector('.roster-tile:not(.is-seated)');
-  if (first) first.focus({ preventScroll: true });
+  // The first tile, seated or not. The screen is never in a state with nobody
+  // considered, and a seated regular previews like any other — it is the
+  // hire button that refuses, not the tile.
+  roster.tiles[0].focus({ preventScroll: true });
 }
 
 function tag(kind, text) {
