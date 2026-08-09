@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f1a">
+<meta name="description" content="Every chef in the row slid to their new seat except the last one, who snapped. Measuring something forces the browser to finish the changes it was holding - so each measurement finished the previous chef's, and the last had nobody after it.">
+<title>The last one in the line — THE ZINE</title>
+<link rel="icon" type="image/png" href="../assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="blog.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="masthead__mark" href="index.html">ZA!</a>
+    <span class="masthead__sep" aria-hidden="true">//</span>
+    <span class="masthead__mark">THE ZINE</span>
+    <nav class="masthead__nav" aria-label="Elsewhere">
+      <a href="index.html">Contents</a>
+      <a href="/">Play</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap post">
+
+  <p class="post__kicker">No. 10 &middot; CSS</p>
+  <h1 class="post__title">The last one in the line</h1>
+
+  <p class="post__lede">The row of chefs re-sorted itself and every one of them slid smoothly across to their new seat &mdash; except the last one, who simply teleported.</p>
+
+  <p>When the order of play changes, the chefs along the counter have to re-sort. We did not want them blinking into new places; that is disorienting, and you lose track of who is who. So they walk instead. Each chef is put straight back where they were standing a moment ago, then let go, and the browser slides them across to where they now belong. It is a lovely trick and it costs almost nothing.</p>
+
+  <p>It worked for everybody except whoever happened to be last in the row. They arrived in their new seat instantly, with no journey at all, every single time.</p>
+
+  <h2>The browser keeps a notepad</h2>
+
+  <p>Here is the thing you need to know, and it is really the whole post.</p>
+
+  <p>When you tell a browser to move something, it does not move it there and then. It jots the instruction on a notepad and gets to it in a moment, along with everything else you have asked for, because doing the whole list in one go is enormously faster than doing each one as it arrives.</p>
+
+  <p>But the second you ask it a <em>question</em> &mdash; where is this thing, how wide is it &mdash; the notepad is no use. It cannot answer you out of a list of intentions. So it stops, does everything it was putting off, and only then measures.</p>
+
+  <p>Which means that asking &ldquo;where is this?&rdquo; quietly also means <strong>&ldquo;finish everything you were saving up&rdquo;</strong>.</p>
+
+  <h2>Off by one</h2>
+
+  <p>Our code walked down the row one chef at a time, doing two things to each: measure where they are right now, then write down where they should end up. Read that back with the notepad in mind:</p>
+
+  <ul>
+    <li>measuring chef 2 finishes chef 1&rsquo;s move</li>
+    <li>measuring chef 3 finishes chef 2&rsquo;s move</li>
+    <li>measuring chef 4 finishes chef 3&rsquo;s move</li>
+    <li>&hellip;and then we write chef 4&rsquo;s move, and nobody measures anything ever again</li>
+  </ul>
+
+  <p>Chef 4&rsquo;s instruction was still sitting on the notepad, unread, at the moment the animation began. So chef 4 was never actually put back where they came from. They were just already in the new seat, with nothing behind them to slide from.</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 340 262" role="img" aria-label="Four lanes, one per chef. Chefs 1, 2 and 3 slide from a dashed box on the left to a new position on the right. Chef 4 is drawn already at the right-hand position and never moves; its dashed starting box on the left stays empty. Below, four lines show the loop being off by one: measure 2 finishes write 1, measure 3 finishes write 2, measure 4 finishes write 3, and write 4 has nothing to finish it.">
+      <title>Three chefs sliding to their new seats while the fourth is already there</title>
+
+      <text x="6" y="14" font-family="'Press Start 2P', monospace" font-size="13" fill="#ffe14d">THE ROW RE-SORTS</text>
+
+      <!-- lane 1 -->
+      <text x="6" y="44" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">chef 1</text>
+      <rect x="66" y="26" width="56" height="26" fill="none" stroke="#2a3355" stroke-width="2" stroke-dasharray="5 4"/>
+      <g class="anim anim-seat-slide">
+        <rect x="66" y="26" width="56" height="26" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+        <text x="90" y="45" font-family="'VT323', monospace" font-size="18" fill="#3ddc7f">1</text>
+      </g>
+
+      <!-- lane 2 -->
+      <text x="6" y="78" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">chef 2</text>
+      <rect x="66" y="60" width="56" height="26" fill="none" stroke="#2a3355" stroke-width="2" stroke-dasharray="5 4"/>
+      <g class="anim anim-seat-slide">
+        <rect x="66" y="60" width="56" height="26" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+        <text x="90" y="79" font-family="'VT323', monospace" font-size="18" fill="#3ddc7f">2</text>
+      </g>
+
+      <!-- lane 3 -->
+      <text x="6" y="112" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">chef 3</text>
+      <rect x="66" y="94" width="56" height="26" fill="none" stroke="#2a3355" stroke-width="2" stroke-dasharray="5 4"/>
+      <g class="anim anim-seat-slide">
+        <rect x="66" y="94" width="56" height="26" fill="#080a12" stroke="#3ddc7f" stroke-width="2"/>
+        <text x="90" y="113" font-family="'VT323', monospace" font-size="18" fill="#3ddc7f">3</text>
+      </g>
+
+      <!-- lane 4: never left, because it was never put back -->
+      <text x="6" y="146" font-family="'VT323', monospace" font-size="17" fill="#96a3c9">chef 4</text>
+      <rect x="66" y="128" width="56" height="26" fill="none" stroke="#ff2e6b" stroke-width="2" stroke-dasharray="5 4"/>
+      <text x="130" y="146" font-family="'VT323', monospace" font-size="16" fill="#ff2e6b">empty</text>
+      <rect x="254" y="128" width="56" height="26" fill="#080a12" stroke="#ff2e6b" stroke-width="2"/>
+      <text x="278" y="147" font-family="'VT323', monospace" font-size="18" fill="#ff2e6b">4</text>
+
+      <text x="6" y="182" font-family="'Press Start 2P', monospace" font-size="13" fill="#96a3c9">THE LOOP, OFF BY ONE</text>
+
+      <g font-family="'VT323', monospace" font-size="17" fill="#3ddc7f">
+        <text x="6" y="204">measure 2 finishes write 1</text>
+        <text x="6" y="222">measure 3 finishes write 2</text>
+        <text x="6" y="240">measure 4 finishes write 3</text>
+      </g>
+      <text x="6" y="258" font-family="'VT323', monospace" font-size="17" fill="#ff2e6b">write 4: nothing finishes it.</text>
+    </svg>
+    <figcaption>Three chefs travel; the fourth is already home before the animation starts, and its old seat never had anybody in it to leave.</figcaption>
+  </figure>
+
+  <h2>One more question, asked once</h2>
+
+  <p>The fix is a single line, placed after the loop instead of inside it: ask the browser one deliberately pointless question about the row. That question clears the notepad, chef 4&rsquo;s move lands like everybody else&rsquo;s, and the whole line slides together.</p>
+
+  <h2>The family resemblance</h2>
+
+  <p>This is the second time this zine has caught the same shape. Over in <a href="two-pizzas-at-once.html">Two pizzas at once</a>, one mural covered the one beneath it &mdash; not because anything in the code said so, but as a free side effect of the pictures being solid. Nobody had asked for it, and it quietly stopped the day the pictures went see-through.</p>
+
+  <p>Same story here. Each measurement was finishing the previous chef&rsquo;s work for free. Nobody had asked for that either, and it ran out exactly one chef early.</p>
+
+  <div class="house-rule">
+    <p class="house-rule__tag">HOUSE RULE</p>
+    <p class="house-rule__text">If you measure and change in the same loop, the final change is still floating when the loop ends. Measure once more, after it.</p>
+  </div>
+
+</main>
+
+<nav class="wrap pager" aria-label="Post navigation">
+  <span class="pager__prev"><a href="waiter-who-never-learns.html"><span class="pager__dir">&larr; PREV</span>The waiter who never learns</a></span>
+  <span class="pager__up"><a href="index.html">All ten posts</a></span>
+  <span class="pager__empty">That is the last one. Thanks for reading.</span>
+</nav>
+
+<footer class="zine-foot">
+  <div class="wrap">
+    <p>The long version, with commit hashes: <a href="https://github.com/gentritr1/za-game/blob/main/docs/KITCHEN-LOG.md">The Kitchen Log</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

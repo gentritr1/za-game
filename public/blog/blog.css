@@ -586,6 +586,21 @@ code {
 .anim-wait--slow { animation: zine-wait-slow 8000ms steps(1, end) infinite; }
 .anim-wait--fast { animation: zine-wait-fast 8000ms steps(1, end) infinite; }
 
+/* No. 10 — three chefs travel and the fourth does not, because the fourth was
+   never put back where it came from. The sliders glide (many small steps, so
+   it still reads as pixel movement rather than a smooth ramp); chef 4 has no
+   animation at all and is drawn at its destination in the markup. The contrast
+   IS the bug. 188px is the gap between the dashed origin and the new seat in
+   that diagram; it moves if the drawing moves. */
+@keyframes zine-seat-slide {
+  0%,   15%  { transform: translateX(0); }
+  45%,  65%  { transform: translateX(188px); }
+  95%,  100% { transform: translateX(0); }
+}
+/* Out and back rather than a jump-cut reset: the return leg is another
+   re-sort, so the loop never shows a frame the mechanism would not produce. */
+.anim-seat-slide { animation: zine-seat-slide 6400ms steps(16, end) infinite; }
+
 /* --------------------------------------------------------------- a11y -- */
 :focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
 
@@ -614,4 +629,10 @@ code {
      way along, on the same clock. */
   .anim-wait--slow { animation: none !important; transform: translateX(288px); }
   .anim-wait--fast { animation: none !important; transform: translateX(129px); }
+
+  /* No. 10: park the sliders at their STARTING seats, not their destinations.
+     That is the instant the animation begins — three chefs still at home and
+     the fourth already arrived — which is precisely the bug. Parking them at
+     the destination would put all four in a row and show nothing. */
+  .anim-seat-slide { animation: none !important; transform: translateX(0); }
 }
