@@ -112,12 +112,21 @@
            and a static arrow takes over under prefers-reduced-motion. -->
       <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
         <span class="marquee__mark" aria-hidden="true">ZA!</span>
-        <span class="turn-label" id="turn-text">Waiting…</span>
-        <!-- The last ten seconds of a turn. The digits are aria-hidden because
-             a polite live region that changes every second is a siren, not a
-             warning; the one sentence in #turn-warn is what gets announced,
-             once, when the window opens. -->
-        <span class="turn-count" id="turn-count" aria-hidden="true"></span>
+        <!-- The label and the countdown are ONE grid item, not two. The strip
+             is a three-track grid, and below 520px the chevron chase is the
+             third of those tracks — so a countdown standing on its own became
+             a fourth child, wrapped to a second row, and grew the strip by
+             23px the moment the digits appeared. Sharing the label's line
+             keeps the marquee at three children whether the clock is running
+             or not. -->
+        <span class="marquee__line">
+          <span class="turn-label" id="turn-text">Waiting…</span>
+          <!-- The last ten seconds of a turn. The digits are aria-hidden because
+               a polite live region that changes every second is a siren, not a
+               warning; the one sentence in #turn-warn is what gets announced,
+               once, when the window opens. -->
+          <span class="turn-count" id="turn-count" aria-hidden="true"></span>
+        </span>
         <span class="sr-only" id="turn-warn"></span>
         <span class="marquee__dir" id="dir-chase" aria-hidden="true">
           <span class="za-chev">▸</span>
