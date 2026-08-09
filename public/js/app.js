@@ -597,9 +597,25 @@ function closeRoundOverlay() {
   const returnTarget = ui.roundFocusReturn;
   ui.roundFocusReturn = null;
   requestAnimationFrame(() => {
-    if (returnTarget && returnTarget.isConnected && !returnTarget.closest('[inert]')) {
+    // `closePopovers` guards this handback with three things; this one had two.
+    // The missing one is `offsetParent`: connected and not inert still admits a
+    // control the last snapshot has since hidden — `#btn-pass` and
+    // `#btn-callout` are `display: none` whenever they do not apply — and
+    // `focus()` on a display:none element does nothing at all.
+    //
+    // The unconditional `return` under it was the other half. It spent the
+    // handback whether or not the handback happened, so the btnLeaveGame
+    // fallback below could never run: focus was left on <body> exactly when the
+    // dialog that had been holding it went away. Returning only once focus has
+    // actually landed also covers what `offsetParent` cannot see — a screen
+    // leaves on `visibility`, not `display`, so a control on the screen we just
+    // came from still reports an offsetParent and still refuses focus.
+    if (
+      returnTarget && returnTarget.isConnected && !returnTarget.closest('[inert]')
+      && returnTarget.offsetParent !== null
+    ) {
       returnTarget.focus({ preventScroll: true });
-      return;
+      if (returnTarget.contains(document.activeElement)) return;
     }
     const fallback = ui.screen === 'game' ? el.btnLeaveGame : el.btnLeaveLobby;
     if (fallback && !fallback.hidden) fallback.focus({ preventScroll: true });
@@ -3823,11 +3839,21 @@ function commitPlay(card, topping, slot) {
   // when the server's next snapshot lands. So the landing place is booked here
   // by position in the rail and spent at the end of `renderHand`.
   const at = ui.nearRow.findIndex((entry) => entry.card && entry.card.id === card.id);
+
+  // The card only leaves once the message is actually out. `send` returns false
+  // for a move that was dropped — the gate is holding an earlier move, or the
+  // socket is down — and a dropped move brings no snapshot, so nothing would
+  // ever come to re-lay this rail. Dressing the card first meant a refused play
+  // left `is-leaving` on a card that is still in the hand: `dressCard` puts
+  // `disabled` back on the next render but never touches the class, so the card
+  // stayed at `opacity: 0` with `pointer-events: none` — a hole in the hand for
+  // the rest of the round. Nothing is spent on a move that did not happen.
+  if (!send({ type: 'play', cardId: card.id, topping: topping || undefined })) return;
+
   bookFocus({ kind: 'play', at: at < 0 ? 0 : at });
   flyToDiscard(node);
   node.classList.add('is-leaving');
   node.disabled = true;
-  send({ type: 'play', cardId: card.id, topping: topping || undefined });
 }
 
 /**
@@ -5586,6 +5612,32 @@ el.btnLeaveGame.addEventListener('click', () => {
     return;
   }
   disarmLeave();
+
+  // A confirmed leave has to land somewhere. Across a dead line the `leaveRoom`
+  // is simply dropped — `send` toasts and returns false — and the player is held
+  // at a table they have already decided twice to walk away from, with no route
+  // to the one screen this cabinet must always be able to reach. So an
+  // unsynchronized confirm leaves LOCALLY: the seat credentials go, the board is
+  // cleared and Home comes up. The server side of it is unchanged from closing
+  // the tab — the seat sits out its own reconnect grace and is then collected.
+  // The wire path below is untouched for a connection that can still carry it,
+  // because a leave the server hears about ends the round properly.
+  if (!net.synchronized) {
+    net.forget();
+    ui.snapshot = null;
+    closePopovers({ restoreFocus: false });
+    closeRules(false);
+    closeRoundOverlay();
+    resetGameView();
+    showScreen('home');
+    // `forget()` only re-states the connection when the socket is still open.
+    // Across a dead one the banner would go on offering to get us back to a
+    // seat that no longer exists, until the next reconnect happened to redraw
+    // it. Home is not a table: say what is actually true now.
+    handleStatus(net.state);
+    return;
+  }
+
   send({ type: 'leaveRoom' });
 });
 
