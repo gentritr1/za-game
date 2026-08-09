@@ -4648,12 +4648,13 @@ function panelShell(side) {
 /**
  * The mural in its frame, as a two-frame arcade loop: frame A under, frame B
  * over, B flipping on and off in whole frames. The vinyl is transparent, so the
- * panel's checker reads through both.
+ * panel's checker reads through both — and with nothing painted under the art,
+ * the mural is on the cabinet side rather than in a box on it.
  *
- * The dashed window IS the frame in every state, so a mural that fails to load
- * leaves the handoff's placeholder rather than a broken-image box — the panels
- * were designed to read correctly either way, and a missing frame B just leaves
- * frame A holding still.
+ * The dashed window is the placeholder for a mural that never arrived, so it is
+ * drawn only then: an `error` on either frame marks the window broken and the
+ * handoff's dashed frame and SIDE ART note come back for that window alone. A
+ * missing frame B still just leaves frame A holding still.
  */
 function artWindow(stem) {
   const frame = document.createElement('div');
@@ -4672,6 +4673,10 @@ function muralFrame(frame, file, which) {
   img.decoding = 'async';
   img.addEventListener('error', () => {
     img.remove();
+    // The window is short a frame, so it stops being a bare mural and puts the
+    // placeholder back on: dashed frame, cabinet fill, SIDE ART. This window
+    // only — the other panel keeps its clean checker.
+    frame.classList.add('is-broken');
     // A two-frame loop with one frame left is not a loop, it is a blink: the
     // survivor stops flipping and simply holds. Both frames animate now (A
     // counter-phases B because the vinyl is transparent), so the survivor
