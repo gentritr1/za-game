@@ -89,6 +89,13 @@ const el = {
   btnNextRound: $('btn-next-round'),
   btnToLobby: $('btn-to-lobby'),
   roundWait: $('round-wait'),
+  // house rules
+  rulesOverlay: $('overlay-rules'),
+  rulesDialog: $('rules-dialog'),
+  rulesBody: $('rules-body'),
+  btnRulesClose: $('btn-rules-close'),
+  btnRulesHome: $('btn-rules-home'),
+  btnRulesLobby: $('btn-rules-lobby'),
   // chrome
   toast: $('toast'),
   connBanner: $('conn-banner'),
@@ -189,6 +196,11 @@ const ui = {
   focusIntent: null, // { kind: 'play' | 'draw', cardId }
   keyboardActive: false, // the last input was a key, not a pointer
   roster: null, // the hire panel, built once on first use
+  // THE HOUSE RULES: the body is static, so it is built on the first open and
+  // kept; the screw is built at boot like the sound one.
+  rulesBuilt: false,
+  rulesFocusReturn: null,
+  btnRules: null,
   // Everything the receipts are made of. Filled in from snapshots as they
   // arrive, because none of it is on the wire as a number.
   tab: null,
@@ -405,11 +417,32 @@ function handleMessage(message) {
 function show(node) { node.classList.add('is-open'); }
 function hide(node) { node.classList.remove('is-open'); }
 
+/**
+ * There are two modals now, and only one `#app` to hide behind them. A modal
+ * lives outside `#app` and makes it inert; whoever closes last is the one that
+ * gives the app back, so the flag is derived from what is open rather than
+ * written by each dialog in turn.
+ */
+function syncAppInert() {
+  el.app.inert =
+    el.overlay.classList.contains('is-open') || el.rulesOverlay.classList.contains('is-open');
+}
+
+/** The dialog that owns the tab order right now. Null when neither is open. */
+function openModal() {
+  if (el.rulesOverlay.classList.contains('is-open')) return el.rulesDialog;
+  if (el.overlay.classList.contains('is-open')) return el.dialog;
+  return null;
+}
+
 function openRoundOverlay() {
   if (el.overlay.classList.contains('is-open')) return;
+  // The round is the news; the rules can wait. Its focus is not returned,
+  // because this dialog is about to claim focus for itself.
+  closeRules(false);
   ui.roundFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   show(el.overlay);
-  el.app.inert = true;
+  syncAppInert();
   requestAnimationFrame(() => {
     const firstAction = !el.btnNextRound.hidden
       ? el.btnNextRound
@@ -423,7 +456,7 @@ function openRoundOverlay() {
 function closeRoundOverlay() {
   const wasOpen = el.overlay.classList.contains('is-open');
   hide(el.overlay);
-  el.app.inert = false;
+  syncAppInert();
   if (!wasOpen) return;
   const returnTarget = ui.roundFocusReturn;
   ui.roundFocusReturn = null;
@@ -4516,6 +4549,240 @@ function paintMuteToggle() {
   button.setAttribute('aria-pressed', String(on));
 }
 
+// ============================================================ HOUSE RULES ===
+/**
+ * The rules the server actually enforces, written out once.
+ *
+ * Every line here was read off `server/game.js` and `server/rooms.js` rather
+ * than off the README, and the citation is kept beside it: if a rule moves,
+ * the line that describes it is one grep away. Nothing in this overlay asks
+ * the server anything — it is the same text for everybody, at every phase.
+ */
+const RULES = [
+  {
+    h: 'Empty your box',
+    p: 'Put down your last card and the round is yours. The win is counted <b>before</b> the card takes effect, so a +4 that empties your box still wins and the chef beside you keeps a clean hand.',
+    // game.js:398-401 — the length-0 check returns before applyCardEffect().
+  },
+  {
+    h: 'Shout ZA!',
+    p: 'The <b>ZA!</b> button is legal the moment you are down to <b>two cards or fewer</b>, and you may hit it on anybody\'s turn, not only your own.',
+    // game.js:540-556 declareZa (hand.length > 2 refused) · viewFor 633-635.
+  },
+  {
+    h: 'Caught quiet',
+    p: 'Lay down your second-to-last card without shouting and any other chef can call you out: <b>2 cards</b> back in your hand. The window closes when the turn really leaves your seat and comes back — at a table of two a Burnt Slice brings it straight back, so you are still catchable — and picking up cards for any reason cancels a shout you already made.',
+    // game.js:403-406 vulnerable · 47 + 559-578 callOut/CALLOUT_PENALTY
+    // · 311-322 advanceTurn clears it only on a real change of seat
+    // · 291-295 dealTo cancels declaredZa and vulnerable above one card.
+  },
+  {
+    h: 'Matching',
+    p: 'Play a card that shares the <b>topping in play</b>, or the <b>same number</b> as the card in the oven, or the <b>same symbol</b> — a Burnt Slice goes on any Burnt Slice, whatever the topping. While a wild sits on top there is no symbol to match: only the topping the chef named, or another wild, will do.',
+    // game.js:208-222 canPlay — suit, number-on-number, kind-on-kind, and the
+    // `!isWild(top)` guard that switches symbol matching off over a wild.
+  },
+  {
+    h: 'The card you just drew',
+    p: 'Nothing fits? Take one card off the dough pile. If it can be played you may play <b>that card and nothing else</b>, or keep it and pass; if it cannot be played your turn ends by itself.',
+    // game.js:484-511 drawCard · 225-235 playableCardIds under drawnCard
+    // · 379-381 playCard refuses any other card · 514-523 passTurn.
+  },
+  {
+    h: 'Two at the table',
+    p: 'With two chefs left there is no direction to reverse, so <b>Flip the Pie works like a Burnt Slice</b>: you play again.',
+    // game.js:446 twoPlayerGame · 458-467 the reverse branch.
+  },
+];
+
+/** The five action cards, each drawn by renderCard at rib size. */
+const RULE_CARDS = [
+  {
+    card: { id: 'rules-skip', suit: 'pepperoni', kind: 'skip', value: null },
+    name: 'Burnt Slice',
+    what: 'The next chef gets the burnt bit and misses a turn.',
+    // game.js:449-457 — advanceTurn(2).
+  },
+  {
+    card: { id: 'rules-reverse', suit: 'basil', kind: 'reverse', value: null },
+    name: 'Flip the Pie',
+    what: 'Play turns around and runs the other way.',
+    // game.js:458-467 — direction *= -1.
+  },
+  {
+    card: { id: 'rules-draw2', suit: 'cheese', kind: 'draw2', value: null },
+    name: 'Extra Toppings +2',
+    what: 'The next chef takes two cards and misses a turn.',
+    // game.js:469-477 — dealTo(victim, 2) then advanceTurn(2).
+  },
+  {
+    card: { id: 'rules-wild', suit: null, kind: 'wild', value: null },
+    name: "Chef's Choice",
+    what: 'Goes on anything. You name the topping in play.',
+    // game.js:211 canPlay · 385-387 a topping is required · 391.
+  },
+  {
+    card: { id: 'rules-wild4', suit: null, kind: 'wild4', value: null },
+    name: 'The Whole Pie +4',
+    what: 'The next chef takes four and misses a turn, and you name the topping.',
+    // game.js:469-477 — same branch as +2, count 4.
+  },
+];
+
+const RULES_TAIL = [
+  {
+    h: 'No stacking',
+    p: 'A +2 or a +4 is dealt the moment it lands and the turn skips straight past the chef who took it, so there is no answering one with your own.',
+    // game.js:469-477 — the cards are dealt inside the effect and
+    // advanceTurn(2) follows; the state carries no pending draw to pass on.
+  },
+  {
+    h: 'The kitchen clock',
+    p: 'Your turn carries <b>45 seconds</b> — the marquee counts the last ten down, then the oven gives you one card and moves on. Drop off and the table only waits about <b>12 seconds</b>; your seat is held for <b>2 minutes</b>.',
+    // rooms.js:21 AWAY_TURN_TIMEOUT_MS = 12000 · 189 armed only for a seat
+    // that is not a bot and not connected · 438-449 the tick that fires it
+    // · game.js:529-537 forceSkip deals one card · rooms.js:22 + 394-399
+    // RECONNECT_GRACE_MS = 120000.
+  },
+];
+
+/**
+ * Built once, on the first open. Nothing here changes with the snapshot, so a
+ * rebuild would only throw away the scroll position the player was reading at.
+ */
+function buildRulesBody() {
+  if (ui.rulesBuilt) return;
+  ui.rulesBuilt = true;
+
+  const frag = new DocumentFragment();
+  const section = (rule) => {
+    const sec = document.createElement('section');
+    sec.className = 'rules__sec';
+    const head = document.createElement('h3');
+    head.className = 'rules__h';
+    head.textContent = rule.h;
+    const body = document.createElement('p');
+    body.className = 'rules__p';
+    body.innerHTML = rule.p; // fixed strings from this file, no player text
+    sec.append(head, body);
+    return sec;
+  };
+
+  for (const rule of RULES) frag.append(section(rule));
+
+  const cards = section({
+    h: 'The action cards',
+    p: 'The first three come in all four toppings; the two wilds have none.',
+  });
+  const list = document.createElement('div');
+  list.className = 'rules__cards';
+  for (const entry of RULE_CARDS) {
+    const row = document.createElement('div');
+    row.className = 'rules__card';
+    const face = renderCard(entry.card, { size: 'rib' });
+    // The frame is the illustration of the line beside it. Read out, it would
+    // say the card's name a second time.
+    face.setAttribute('aria-hidden', 'true');
+    face.removeAttribute('role');
+    face.removeAttribute('aria-label');
+    const text = document.createElement('p');
+    text.className = 'rules__p';
+    const name = document.createElement('b');
+    name.className = 'rules__card-name';
+    name.textContent = `${entry.name} — `;
+    const what = document.createElement('span');
+    what.className = 'rules__card-what';
+    what.textContent = entry.what;
+    text.append(name, what);
+    row.append(face, text);
+    list.append(row);
+  }
+  cards.append(list);
+  frag.append(cards);
+
+  for (const rule of RULES_TAIL) frag.append(section(rule));
+
+  const foot = document.createElement('p');
+  foot.className = 'rules__p rules__foot';
+  foot.append(document.createTextNode('How all of this was built, and what broke on the way: '));
+  const zine = document.createElement('a');
+  zine.className = 'quiet-link';
+  zine.href = 'blog/index.html';
+  // A new tab, because the game is a live socket and this dialog opens over it.
+  zine.target = '_blank';
+  zine.rel = 'noopener';
+  zine.textContent = 'THE ZINE';
+  foot.append(zine, document.createTextNode('.'));
+  frag.append(foot);
+
+  el.rulesBody.replaceChildren(frag);
+}
+
+/** The opener to hand focus back to when the one that opened it is gone. */
+function visibleRulesOpener() {
+  const openers = [ui.btnRules, el.btnRulesLobby, el.btnRulesHome];
+  return openers.find((node) => node && node.isConnected && node.offsetParent !== null) || null;
+}
+
+function openRules() {
+  if (el.rulesOverlay.classList.contains('is-open')) return;
+  buildRulesBody();
+  // The body is built once and kept, so it also keeps wherever it was last
+  // scrolled to — and a rules dialog that opens halfway down the action cards
+  // reads as broken. Every open starts at the goal.
+  el.rulesBody.scrollTop = 0;
+  ui.rulesFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  // A popover left standing under the overlay would keep its own click-outside
+  // and Escape behaviour behind an inert app.
+  closePopovers();
+  show(el.rulesOverlay);
+  syncAppInert();
+  sound.play('menu-blip');
+  // The dialog itself, not the first control: it carries the accessible name,
+  // so the title is what gets announced before the rules are read.
+  requestAnimationFrame(() => el.rulesDialog.focus({ preventScroll: true }));
+}
+
+function closeRules(restoreFocus = true) {
+  const wasOpen = el.rulesOverlay.classList.contains('is-open');
+  hide(el.rulesOverlay);
+  syncAppInert();
+  if (!wasOpen) return;
+  const target = ui.rulesFocusReturn;
+  ui.rulesFocusReturn = null;
+  if (!restoreFocus) return;
+  // One frame late: `#app` is inert until the class change has been applied,
+  // and focus() on anything inside an inert subtree is dropped on the floor.
+  requestAnimationFrame(() => {
+    const back =
+      target && target.isConnected && !target.closest('[inert]') && target.offsetParent !== null
+        ? target
+        : visibleRulesOpener();
+    if (back) back.focus({ preventScroll: true });
+  });
+}
+
+/**
+ * The fourth screw. Built here rather than in index.html for the same reason
+ * the sound screw is: the markup keeps exactly the ids it has. Same 19px head
+ * and VT323 label as its neighbours; only the slot angle is its own.
+ */
+function buildRulesScrew() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'screw screw--rules';
+  const head = document.createElement('span');
+  head.className = 'screw__head';
+  head.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.className = 'screw__label';
+  label.textContent = 'RULES';
+  button.append(head, label);
+  button.addEventListener('click', openRules);
+  ui.btnRules = button;
+  el.btnLeaveGame.parentNode.insertBefore(button, el.btnLeaveGame);
+}
+
 // ================================================================ EVENTS ===
 el.formCreate.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -4655,6 +4922,9 @@ el.opponents.addEventListener('keydown', (event) => {
   calloutFromSeat(seat);
 });
 
+el.btnRulesHome.addEventListener('click', openRules);
+el.btnRulesLobby.addEventListener('click', openRules);
+el.btnRulesClose.addEventListener('click', () => closeRules());
 el.pickerCancel.addEventListener('click', closePopovers);
 el.calloutCancel.addEventListener('click', closePopovers);
 // 09 · the host decides. Nothing here is on a clock.
@@ -4687,14 +4957,29 @@ document.addEventListener('visibilitychange', () => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closePopovers(true);
-  if (event.key !== 'Tab' || !el.overlay.classList.contains('is-open')) return;
+  if (event.key === 'Escape') {
+    // The rules sit over everything, so they answer Escape first. The
+    // popovers under them are already closed and behind an inert app.
+    if (el.rulesOverlay.classList.contains('is-open')) {
+      closeRules();
+      return;
+    }
+    // Escape is a retraction: the popover goes instantly, no exit animation.
+    closePopovers(true);
+  }
 
-  const controls = Array.from(el.dialog.querySelectorAll('button:not([disabled]):not([hidden])'))
-    .filter((control) => control.offsetParent !== null);
+  // One trap, whichever modal is open. The round-over dialog holds nothing but
+  // buttons, so widening the selector to links and the rules' scroll region
+  // leaves its tab order exactly as it was.
+  const modal = openModal();
+  if (event.key !== 'Tab' || !modal) return;
+
+  const controls = Array.from(
+    modal.querySelectorAll('button:not([disabled]):not([hidden]), a[href], [tabindex="0"]')
+  ).filter((control) => control.offsetParent !== null);
   if (controls.length === 0) {
     event.preventDefault();
-    el.dialog.focus({ preventScroll: true });
+    modal.focus({ preventScroll: true });
     return;
   }
 
@@ -4779,6 +5064,7 @@ function boot() {
   // The live region exists from boot: a region inserted in the same tick as
   // its first sentence is the one announcement some readers swallow.
   announcerNode();
+  buildRulesScrew();
   bindPit();
 
   const saved = localStorage.getItem('za.name');

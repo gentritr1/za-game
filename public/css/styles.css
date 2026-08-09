@@ -3013,6 +3013,122 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .dialog__actions { display: flex; gap: var(--s2); width: 100%; }
 .dialog__actions .btn { flex: 1; }
 
+/* ----------------------------------------------------------- house rules -- */
+/* The same cabinet as the round-over dialog — cabinet fill, cheese keyline,
+   hard shadow, zero radii — in a taller, wider box. Everything about the
+   entry, the exit and reduced motion is inherited from `.overlay`/`.dialog`,
+   so the rules can never drift away from the dialog the player already knows.
+
+   The three rows are fixed head, elastic body, fixed foot. The scroll is on
+   the body alone: `.dialog` keeps its `overflow: hidden`, which is what
+   guarantees there is no second axis to scroll on any screen. */
+.dialog--rules {
+  max-width: 640px;
+  /* The overlay is a fixed grid with `--s4` of padding, so its content box is
+     a definite height and 100% is exactly "as tall as the screen allows". */
+  max-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: stretch;
+  gap: var(--s3);
+  padding: var(--s4) var(--s3) var(--s3);
+  text-align: left;
+}
+
+/* Press Start 2P is fixed pitch at roughly one em a glyph: HOUSE RULES at the
+   dialog's own 24px would be 264px of word on a 320px screen. */
+.dialog__title--rules {
+  font-size: 16px;
+  text-align: center;
+  text-shadow: 3px 3px 0 var(--sauce);
+}
+
+.rules {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--s1) var(--s2);
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.32;
+  color: var(--text);
+  scrollbar-width: thin;
+  scrollbar-color: var(--bezel) transparent;
+}
+
+.rules:focus-visible { outline: var(--bd-thin) solid var(--ui-cyan); outline-offset: 2px; }
+
+.rules__sec + .rules__sec { margin-top: var(--s3); }
+
+/* Never below 12px on screen, per the kit. */
+.rules__h {
+  margin-bottom: 2px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: .04em;
+  color: var(--cheese);
+}
+
+.rules__p { color: var(--text-dim); }
+.rules__p b { color: var(--text); font-weight: normal; }
+
+/* One action card a row: the frame renderCard made, its name, its one line. */
+.rules__cards { display: grid; gap: var(--s2); margin-top: var(--s2); }
+
+.rules__card {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* `.card` takes its width from `--card-w`; a rib sets no width of its own, so
+   the two-glyph indexes (+2, <>, +4) get the wider frame the pit gives them. */
+.rules__card .card--rib { --card-w: 20px; margin: 0 auto; }
+.rules__card .card--rib[data-glyphs="2"] { --card-w: 28px; }
+
+.rules__card-name { color: var(--cheese); }
+.rules__card-what { color: var(--text-dim); }
+
+.rules__foot {
+  margin-top: var(--s3);
+  padding-top: var(--s2);
+  border-top: var(--bd-thin) solid var(--bezel);
+  color: var(--text-mute);
+}
+
+/* A short window gives the body every pixel the chrome can spare. */
+@media (max-height: 480px) {
+  .dialog--rules { padding: var(--s2) var(--s3) var(--s2); gap: var(--s2); }
+  .dialog__title--rules { font-size: 12px; }
+}
+
+@media (min-width: 480px) {
+  .dialog--rules { padding: var(--s6) var(--s6) var(--s4); gap: var(--s4); }
+  .dialog__title--rules { font-size: 20px; }
+  .rules__card { grid-template-columns: 36px minmax(0, 1fr); }
+}
+
+/* A quiet way in from home and from the lobby: the zine link's recipe, on a
+   button, because it opens a dialog rather than going anywhere. */
+.quiet-link {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid var(--bezel);
+  border-radius: 0;
+  color: var(--ui-cyan);
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color var(--d-fast) var(--ease-out), border-color var(--d-fast) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quiet-link:hover { color: var(--text); border-bottom-color: var(--ui-cyan); }
+}
+
 /* ------------------------------------------------------ toast / banners -- */
 .toast {
   position: fixed;
@@ -4775,7 +4891,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* The slot. One 11x3 bar, turned per control: flat for the code, canted for
-   sound, upright for leave. */
+   sound, upright for leave, and canted the other way for the rules. Four
+   screws, four angles, 45 degrees apart — no two heads read alike. */
 .screw__head::before {
   content: "";
   display: block;
@@ -4787,6 +4904,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .screw--code .screw__head::before { transform: rotate(0deg); }
 .screw--sound .screw__head::before { transform: rotate(45deg); }
 .screw--leave .screw__head::before { transform: rotate(90deg); }
+.screw--rules .screw__head::before { transform: rotate(135deg); }
 
 /* 03 · armed. One press asks, the next one leaves, and four seconds of nothing
    puts it back. Colour only — no new box, no ring, no border-radius — because
