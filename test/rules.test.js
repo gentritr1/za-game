@@ -879,6 +879,84 @@ test('any action winds the idle clock back up', () => {
   });
 });
 
+test('the second turn in a row costs the table the short clock, not the full one', () => {
+  withTimings({ idleTurn: 4000, idleStruck: 1000, idleWarn: 10000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    const seat = room.findSeat(game.currentPlayer(room.game).id);
+    room.scheduleTimers(true);
+    assert.strictEqual(seat.idleStrikes, 0, 'everybody starts with the benefit of the doubt');
+
+    // First expiry: they were given, and have now spent, the full 4s.
+    const t0 = Date.now();
+    manager.tickRoom(room, t0 + 4500);
+    assert.strictEqual(seat.idleStrikes, 1, 'the doubt has been answered once');
+
+    // Bring the same seat back on turn and re-arm exactly as a turn change does.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const budget = room.idleDueAt - Date.now();
+    assert.ok(
+      budget <= 1000 + 50 && budget > 0,
+      `a struck seat waits out the short clock, got ${budget}ms (full price would be ~4000)`
+    );
+
+    // And the warning came down with it: ten seconds of warning on a one
+    // second turn is not a warning.
+    const warn = room.snapshotFor(seat.id).turnIdleWarnMs;
+    assert.strictEqual(warn, 500, `the warning is half the clock in play, got ${warn}`);
+
+    // It really does fire early: half of the OLD clock is already past the new one.
+    const serial = room.game.turnSerial;
+    manager.tickRoom(room, Date.now() + 2000);
+    assert.notStrictEqual(room.game.turnSerial, serial, 'the table moved on at the short clock');
+    assert.strictEqual(seat.idleStrikes, 2, 'and it stays struck while they stay away');
+  });
+});
+
+test('one move makes a struck player an ordinary player again', () => {
+  withTimings({ idleTurn: 4000, idleStruck: 1000 }, () => {
+    const manager = new RoomManager();
+    manager.stop();
+    const created = manager.createRoom('Ana', {});
+    const room = created.room;
+    manager.joinRoom(room.code, 'Bo', {});
+    assert.ok(room.startRound().ok);
+
+    const seat = room.findSeat(game.currentPlayer(room.game).id);
+    room.scheduleTimers(true);
+    manager.tickRoom(room, Date.now() + 4500);
+    assert.strictEqual(seat.idleStrikes, 1);
+    assert.strictEqual(
+      room.snapshotFor(seat.id).seats.find((s) => s.id === seat.id).idleSkipped, true,
+      'and the table can see it'
+    );
+
+    // They come back and do something — anything. `draw` is the cheapest move
+    // that always exists, and it goes through the real action path.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const acted = manager.applyAction(room, seat.id, { type: 'draw' });
+    assert.ok(acted.ok, `the action itself must land: ${acted.error || ''}`);
+    assert.strictEqual(seat.idleStrikes, 0, 'one move is the whole proof they are here');
+    assert.strictEqual(
+      room.snapshotFor(seat.id).seats.find((s) => s.id === seat.id).idleSkipped, false,
+      'and the table stops flagging them'
+    );
+
+    // Their next turn is back at full price.
+    room.game.turnIndex = room.game.players.findIndex((p) => p.id === seat.id);
+    room.scheduleTimers(true);
+    const budget = room.idleDueAt - Date.now();
+    assert.ok(budget > 1000 + 50, `back to the full clock, got ${budget}ms`);
+  });
+});
+
 // ------------------------------------------------------- the file server -----
 test('the file server refuses a NUL byte instead of throwing', () => {
   const handler = createStaticHandler(path.join(__dirname, '..', 'public'));

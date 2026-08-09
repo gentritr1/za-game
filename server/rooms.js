@@ -20,6 +20,10 @@ const BOT_THINK_MS = 800; // pause before a bot with no regular takes its turn
 const BOT_QUICK_MS = 300; // follow-up pause for a shout or a call-out
 const AWAY_TURN_TIMEOUT_MS = 12000; // skip the turn of a player who is away
 const IDLE_TURN_TIMEOUT_MS = 45000; // skip the turn of a player who is here but still
+// The same, for a player whose last turn already ran out. Deliberately its own
+// number rather than a reuse of `AWAY_TURN_TIMEOUT_MS`: the two rules answer
+// the same evidence today and should be tunable apart tomorrow.
+const IDLE_STRUCK_TIMEOUT_MS = 12000;
 const IDLE_WARN_MS = 10000; // the last stretch of that, counted down on screen
 const RECONNECT_GRACE_MS = 120000; // time to come back before the seat is freed
 const EMPTY_ROOM_TTL_MS = 60000; // floor on how long a room with nobody in it lives
@@ -38,6 +42,7 @@ const MAX_ROOMS = 2000; // stops one client from filling the memory with lobbies
 const TIMINGS = {
   awayTurn: AWAY_TURN_TIMEOUT_MS,
   idleTurn: IDLE_TURN_TIMEOUT_MS,
+  idleStruck: IDLE_STRUCK_TIMEOUT_MS,
   idleWarn: IDLE_WARN_MS,
   reconnectGrace: RECONNECT_GRACE_MS,
   emptyRoomTtl: EMPTY_ROOM_TTL_MS,
@@ -79,6 +84,7 @@ class Room {
     this.botDueAt = 0;
     this.awayDueAt = 0;
     this.idleDueAt = 0;
+    this.idleWarnMs = 0; // how much of the clock in play is the warning
     this.awayTurnSerial = -1;
     this.emptySince = Date.now();
     // Who dealt last, and how many rounds this room has dealt. See
@@ -122,6 +128,9 @@ class Room {
       disconnectedAt: null,
       wins: 0,
       calloutWindow: null, // bots decide once per call-out window
+      // Consecutive turns this seat has had taken off it by the idle clock.
+      // Any action they take puts it back to nothing. See `idleClockFor`.
+      idleStrikes: 0,
     };
     this.seats.push(seat);
     if (!this.hostId && !isBot) this.hostId = seat.id;
@@ -270,6 +279,40 @@ class Room {
     }
   }
 
+  /**
+   * How long this seat gets, and how much of it is the warning.
+   *
+   * The 45 seconds buys benefit of the doubt: they might be reading the table
+   * or choosing a topping. Once a turn has actually run out, that doubt has
+   * been answered, and charging the table the full 45 again on every lap is a
+   * tax on the people who are still here — four players, one of them gone, ten
+   * laps, and the round spends seven and a half minutes waiting for a chair.
+   *
+   * So it is two stages and no more. Full price once; after that the short
+   * clock, until the moment they touch anything, which makes them an ordinary
+   * player again with the full 45 back. There is no third rung, no kick and no
+   * conversion to a bot: this decides how long a turn waits, and nothing else.
+   *
+   * The warning scales with the clock in play. A fixed ten seconds against a
+   * twelve second turn is not a warning, it is the whole turn painted red.
+   */
+  idleClockFor(seat) {
+    const ms = seat && seat.idleStrikes > 0 ? TIMINGS.idleStruck : TIMINGS.idleTurn;
+    return { ms, warn: Math.min(TIMINGS.idleWarn, Math.round(ms / 2)) };
+  }
+
+  /** Puts the connected-idle clock on the seat, or takes it off entirely. */
+  armIdleClock(seat) {
+    if (!seat || seat.isBot || !seat.connected) {
+      this.idleDueAt = 0;
+      this.idleWarnMs = 0;
+      return;
+    }
+    const clock = this.idleClockFor(seat);
+    this.idleDueAt = Date.now() + clock.ms;
+    this.idleWarnMs = clock.warn;
+  }
+
   /** Resets the bot delay and both turn timers after any change of turn. */
   scheduleTimers(force = false) {
     if (this.phase !== 'playing' || !this.game || this.game.status !== 'playing') {
@@ -286,7 +329,7 @@ class Room {
     const seat = this.findSeat(current.id);
     this.botDueAt = seat && seat.isBot ? Date.now() + botPauseFor(seat) : 0;
     this.awayDueAt = seat && !seat.isBot && !seat.connected ? Date.now() + TIMINGS.awayTurn : 0;
-    this.idleDueAt = seat && !seat.isBot && seat.connected ? Date.now() + TIMINGS.idleTurn : 0;
+    this.armIdleClock(seat);
   }
 
   /**
@@ -302,14 +345,22 @@ class Room {
    * change the turn serial, so `scheduleTimers` correctly declines to re-arm,
    * and this still has to.
    */
-  touchIdleTimer() {
+  touchIdleTimer(actorId = null) {
+    // Whoever just did something is demonstrably at the table, so their record
+    // of missed turns is wiped — not decremented. One move is the whole proof.
+    // This runs before the early return: acting on the last card of a round
+    // still clears the strikes it earned.
+    if (actorId) {
+      const actor = this.findSeat(actorId);
+      if (actor) actor.idleStrikes = 0;
+    }
     if (this.phase !== 'playing' || !this.game || this.game.status !== 'playing') {
       this.idleDueAt = 0;
+      this.idleWarnMs = 0;
       return;
     }
     const current = game.currentPlayer(this.game);
-    const seat = current ? this.findSeat(current.id) : null;
-    this.idleDueAt = seat && !seat.isBot && seat.connected ? Date.now() + TIMINGS.idleTurn : 0;
+    this.armIdleClock(current ? this.findSeat(current.id) : null);
   }
 
   // -- per player view -----------------------------------------------------
@@ -332,13 +383,19 @@ class Room {
       // and a client that reads a duration can tick it down on its own between
       // snapshots. Null whenever nobody is on a connected-idle clock.
       turnIdleMsLeft: this.idleDueAt ? Math.max(0, this.idleDueAt - Date.now()) : null,
-      turnIdleWarnMs: this.idleDueAt ? TIMINGS.idleWarn : null,
+      // The warning that belongs to the clock actually running, not the house
+      // default: a struck seat is on a short turn and gets a short warning.
+      turnIdleWarnMs: this.idleDueAt ? this.idleWarnMs : null,
       seats: this.seats.map((s) => ({
         id: s.id,
         name: s.name,
         isBot: s.isBot,
         connected: s.connected,
         wins: s.wins,
+        // Additive. True for a seat the table has already moved on without,
+        // and which has not touched anything since, so the room can show why
+        // the turns are going past so quickly.
+        idleSkipped: s.idleStrikes > 0,
       })),
       game: this.game ? game.viewFor(this.game, seatId) : null,
     };
@@ -505,8 +562,9 @@ class RoomManager {
     if (result.ok) {
       room.finishRoundIfOver();
       room.scheduleTimers();
-      // Something happened, so the player on turn is not the one holding it up.
-      room.touchIdleTimer();
+      // Something happened, so the player on turn is not the one holding it up
+      // — and whoever did it is no longer a seat anybody is waiting on.
+      room.touchIdleTimer(seatId);
     }
     return result;
   }
@@ -603,6 +661,10 @@ class RoomManager {
       ) {
         room.idleDueAt = 0;
         const current = game.currentPlayer(room.game);
+        // The doubt this seat was given has now been answered once. From here
+        // their turns are on the short clock until they act.
+        const struck = room.findSeat(current.id);
+        if (struck) struck.idleStrikes += 1;
         game.forceSkip(room.game, current.id, `${current.name} took too long. Turn skipped.`);
         room.scheduleTimers(true);
         room.finishRoundIfOver();
