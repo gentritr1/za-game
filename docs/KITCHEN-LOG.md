@@ -93,6 +93,30 @@ true and rAF never fires, the condition that produced the bug. The FLIP cleanup
 got the same belt: a 300 ms timer behind the rAF, or a strip comes back from the
 background holding its inverted offsets.
 
+### Three broken rulers in one afternoon
+
+*2026-08-09 — the contrast pass's own report.*
+
+**What we saw.** A check asking whether every button had a visible enough
+outline returned a confident answer three times, and was wrong three times.
+
+**What we almost did.** Believe the first one. Each answer was a clean number
+with no error attached to it — the same trap as the p95 above, three times in a
+row.
+
+**What it actually was.** Three different breaks in the same ruler. First it
+skipped elements that are invisible to screen readers but still *drawn* on
+screen. Then it missed outlines painted as shadows rather than borders. Then it
+read the home screen's buttons while the game screen was the one actually
+showing, because the pane was in the background. Only the fourth answer was
+true.
+
+**The counter.** Every one of the three was caught the same way, and it is the
+cheapest check there is: **predict how many things the pass SHOULD find, then
+compare that against how many it found.** A count that disagrees with the
+prediction is a broken instrument, not a finding — and unlike the result itself,
+the count is something you can work out before you run anything.
+
 ---
 
 ## II. CSS that lies politely
@@ -194,6 +218,33 @@ tiles sharing that row** stretched; the tray was being sized item by item.
 
 **The counter.** **`grid-auto-rows: 1fr`** — the module owns the height, not the
 item. A nickname chip now grows every seat together instead of one.
+
+### The seat that snapped while everyone else slid
+
+*2026-08-09 — commit `6b146c3`.*
+
+**What we saw.** The opponent row re-sorts with a FLIP: every seat is put back
+where it just was, then released so it slides to its new place. Every seat slid
+except the last one, which snapped, every time.
+
+**What we almost did.** Suspect the easing, then the transform, then the seat
+itself — three places that were all correct.
+
+**What it actually was.** The loop measured and wrote in the same pass: read
+`offsetLeft`, then write the inverse transform. A layout read forces the browser
+to commit the style writes it had been batching, so **each pass's read was
+committing the PREVIOUS seat's write.** The final write had no read after it and
+was still uncommitted when the release ran — so the last seat was never put back
+where it came from. It was already at its destination with nothing to travel
+from, which is not a broken animation but an absent one.
+
+**The counter.** **One more layout read after the loop** — a bare
+`void el.opponents.offsetLeft` — before the release. The rule that kills the
+class: **if you measure and mutate in the same loop, the final mutation is still
+in flight when the loop ends.** Direct sibling of "The stagger that one
+`offsetWidth` killed" three entries up, and instructive as a pair: there a forced
+read fired too early and resolved `@starting-style` before the delays landed;
+here the same forced read never fired at all. Same lever, opposite failures.
 
 ---
 
@@ -315,7 +366,7 @@ wrote. Verify the base before building on it.
 
 ## IV. Design decisions that came from playtests
 
-Two of the best changes here came from someone playing the game and asking a
+Three of the best changes here came from someone playing the game and asking a
 short question.
 
 ### The pit that compressed nothing
@@ -366,6 +417,109 @@ hard-swap path came out, verified by asserting every seat's
 `offsetLeft`/`offsetTop` and the pile's rect byte-identical across a turn
 advance and a direction flip.
 
+### The doubt we paid for twice
+
+*2026-08-09 — owner's observation; commit `013c678`.*
+
+**What we saw.** A player wanders off. The table waits 45 seconds, plays the
+turn for them — and then waits the full 45 seconds again on their next turn, and
+the next, for as long as the round lasts.
+
+**What we almost did.** Nothing. The number was deliberate and we still like it:
+45 seconds is generous on purpose, and shortening it across the board would
+punish the player who is simply thinking.
+
+**What it actually was.** The long wait buys **benefit of the doubt** — maybe
+they are reading their hand — and that is worth real money, because it is what
+stops the game feeling like it is shoving you. But the first expiry *answers*
+the question the wait exists to ask, and the table went on paying for it anyway.
+Four chefs with one away turns a ten-lap round into roughly seven and a half
+minutes of three present players watching nothing happen, in a game where taking
+a turn takes a couple of seconds.
+
+**The counter.** **Buy the doubt once.** `IDLE_TURN_TIMEOUT_MS` (45 s) on the
+first quiet turn, `IDLE_STRUCK_TIMEOUT_MS` (12 s) on every turn after one has
+actually expired, and any action at all resets `idleStrikes`, so a player who
+touches anything is a full-price player again instantly — no penalty box to
+climb out of. The generous case is untouched; only the answered one is cheap.
+
+---
+
+## V. The interface makes a promise the game has to keep
+
+Two controls this cycle told players something the rules had never agreed to.
+Both were believed without question, because a screen is a far more immediate
+authority than a rulebook, and neither of them errored.
+
+### The control that nobody owned
+
+*2026-08-09 — introduced by the reconnect work (`cdeaa47`), fixed in `1bd364c`;
+found independently by two reviewers.*
+
+**What we saw.** PASS did nothing. The marquee read "Your turn — play it or
+pass", the button sat there at full size looking exactly like every working
+button in the game, and pressing it put **zero** messages on the wire. The turn
+could only be ended by letting it time out.
+
+**What we almost did.** Treat it as a fresh regression in the reconnect work and
+go looking at the socket. It was neither fresh nor the socket: `connect()` opens
+every page load in `connecting`, so the freeze ran on the ordinary boot path,
+and both buttons were dead for the whole of every session since the day it
+landed.
+
+**What it actually was.** `syncDesynced` switches off ZA!, CALL OUT, PASS and
+the dough pile while the connection is out, then returns early on the way back
+on the understanding that "the `state` that unfroze us re-enables the rest".
+That was only ever true of the controls something re-enables. ZA! and the dough
+pile are re-derived from `canDeclareZa` and `canDraw` on every snapshot and so
+healed by accident; PASS and CALL OUT were only ever assigned `.hidden`, and
+nothing on earth turned them back on. **Two pieces of code shared one switch, so
+neither of them owned it.**
+
+**The counter.** `renderActionBar` now states `disabled` for all four outright,
+both ways, on every snapshot: **`hidden` says whether the move exists,
+`disabled` says whether it can be made**, and no control depends on being
+revived by somebody else's early return. The pending-action gate sits on top of
+that single rule rather than beside it — it holds `inert` and never touches
+`disabled` — so the two cannot fight over one switch. The guard is deliberately
+source-level: anything the freeze switches off must be assigned `.disabled`
+somewhere outside it, confirmed failing on the previous commit.
+
+**Why it hid for weeks, which is the other half of the lesson.** CALL OUT has a
+**second door** — clicking an opponent's seat reaches the same handler — so the
+*feature* kept working perfectly while its *button* was dead, and nobody
+connected the two. PASS has no second door, and that is the only reason this was
+ever found. **A spare entrance hides a locked front door.**
+
+### The bar that promised a deadline
+
+*2026-08-09 — commit `bfae864`.*
+
+**What we saw.** The call-out window drew a bar that drained to empty over
+3000 ms in five countable steps — seeking the animation gives scaleX 1.0, 0.8,
+0.6, 0.4, 0.0 — and every player read it as "you have three seconds".
+
+**What we almost did.** Correct the number. Five seconds, or ten, or an honest
+countdown of the real thing.
+
+**What it actually was.** There is no timer, and there never had been. A chef
+stays `vulnerable` from the play that leaves them on one card until the turn
+genuinely leaves their seat and comes back (`advanceTurn`, the `next !== from`
+condition); searching the whole rules file for anything that reads a clock turns
+up exactly one `Date.now()`, and it stamps a log line. The window was still open
+at six seconds and at thirty. So for twenty-seven of those thirty seconds the
+bar had been talking players out of a legal move. And the number could not be
+corrected, because the honest length is unknowable in advance — it depends
+entirely on what the other players do next.
+
+**The counter.** **The bar keeps its shape, its colour and its place, and stops
+moving.** It exists while `calloutTargets` names the seat and vanishes when it
+stops, so its *lifetime* is the signal and nothing about it can imply an ending.
+The five rising beeps went with it — a countdown in sound to the same absent
+deadline — while the single note on the opening stayed, because a window nobody
+notices is its own kind of lie. **Do not let the picture promise something the
+rules do not keep.**
+
 ---
 
 ## House rules
@@ -380,6 +534,7 @@ The transferable one-liners. Each cost us something.
   judge it.
 - Size assertions use `offsetWidth`/`offsetHeight`; rects lie mid-animation.
 - Verify in the environment that produced the bug, not a friendlier one.
+- Predict the count a check should return before you read the answer it gives.
 
 **CSS**
 - A present-but-unusable custom property never falls back. Gate arithmetic
@@ -392,6 +547,17 @@ The transferable one-liners. Each cost us something.
 - Transparent frames in a two-frame loop must counter-phase.
 - `grid-auto-rows: 1fr` when the module should own the height, not the item.
 - Layout-mode flips listen to `matchMedia`, never to rAF behind a resize.
+- Measure and mutate in one loop and the last mutation is still in flight. Take
+  one more read after it.
+
+**Interface**
+- Every control's `disabled` has exactly one owner, restated every render. Two
+  owners is none.
+- `hidden` says whether a move exists; `disabled` says whether it can be made.
+  Never let one stand in for the other.
+- A second entrance hides a locked front door — exercise the control, not just
+  the feature it reaches.
+- Nothing on screen may drain unless the rules actually hold a clock.
 
 **Process**
 - Shell cwd persists between calls. `git -C` and absolute paths, always.
@@ -407,3 +573,5 @@ The transferable one-liners. Each cost us something.
 - If people cannot read what is already on screen, the visual language is
   throwing it away — change the shape, not the labels.
 - The right structural fix usually deletes code.
+- Benefit of the doubt is worth buying once, not every turn. A wait that has
+  already expired has answered the question it was asking.
