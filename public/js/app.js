@@ -162,6 +162,17 @@ const REGULARS = [
 
 const ANYBODY_TELL = 'Whoever is free walks in. Somebody always is.';
 
+/**
+ * The seventh face on the hire screen. ANYBODY is not a regular — the server
+ * takes an `addBot` with no `regularId` and picks — so it is kept beside
+ * `REGULARS` rather than in it. `REGULARS` is the poster on the wall and stays
+ * exactly as written.
+ */
+const ANYBODY = { id: null, name: 'Anybody', tell: ANYBODY_TELL, isAny: true };
+
+const regularArt = (id) => `assets/regulars/${id}.png`;
+const regularArtB = (id) => `assets/regulars/${id}-b.png`;
+
 /** The regular sitting under this seat name, or null for a plain chef bot. */
 function regularByName(name) {
   const key = String(name || '').toLowerCase();
@@ -1337,6 +1348,29 @@ function buildRoster() {
   title.className = 'hire__title';
   title.textContent = "WHO'S COMING IN?";
 
+  // The stage. 192px is the size the idle frames were drawn at, and the only
+  // size at which the gesture in them reads as a gesture: at the 48px the
+  // roster tile gave them, a movement 24 source pixels wide was six pixels of
+  // screen and the flip looked like the tile blinking. Never scaled up, and
+  // never scaled down anywhere but the filmstrip.
+  const stage = document.createElement('div');
+  stage.className = 'stage';
+  const frameA = document.createElement('img');
+  frameA.className = 'stage__frame';
+  frameA.alt = '';
+  frameA.draggable = false;
+  const frameB = document.createElement('img');
+  frameB.className = 'stage__frame stage__frame--b';
+  frameB.alt = '';
+  frameB.draggable = false;
+  // ANYBODY has no portrait: the stage becomes the same dashed box the
+  // filmstrip tile uses, one size up.
+  const any = document.createElement('div');
+  any.className = 'stage__any';
+  any.setAttribute('aria-hidden', 'true');
+  any.textContent = '?';
+  stage.append(frameA, frameB, any);
+
   const grid = document.createElement('div');
   grid.className = 'roster';
 
@@ -1345,9 +1379,28 @@ function buildRoster() {
   tell.setAttribute('role', 'status');
   tell.textContent = ANYBODY_TELL;
 
-  panel.append(back, title, grid, tell);
-  ui.roster = { panel, grid, tell };
+  panel.append(back, title, stage, grid, tell);
+  ui.roster = {
+    panel, grid, tell, stage, frameA, frameB,
+    entries: REGULARS.concat([ANYBODY]),
+    seated: new Set(),
+    active: 0,
+  };
   return ui.roster;
+}
+
+/**
+ * Puts one regular on the stage. Everything else the screen shows about them
+ * hangs off this in the steps below; for now it is the portrait and the
+ * ANYBODY box.
+ */
+function hireSelect(n) {
+  const roster = ui.roster;
+  const entry = roster.entries[n];
+  if (!entry) return;
+  roster.active = n;
+  roster.stage.dataset.any = String(Boolean(entry.isAny));
+  if (!entry.isAny) roster.frameA.src = regularArt(entry.id);
 }
 
 /** True while the hire screen is up. */
@@ -1483,6 +1536,7 @@ function openRoster(snapshot) {
   ui.hireReturn = el.btnAddBot;
 
   fillRoster(snapshot);
+  hireSelect(0);
   show(roster.panel);
   syncAppInert();
   const first = roster.grid.querySelector('.roster-tile:not(.is-seated)');
