@@ -260,6 +260,7 @@ const ui = {
   // ---- measurements cached against `layoutToken()`. Each holds the token it
   // was taken under; none is ever cleared by hand.
   paintedScreen: '', // the room actually in the DOM, set only by `paintScreen`
+  handMetrics: null, // { token, cardW, railW } — the near rail's two numbers
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -2506,8 +2507,27 @@ function handSortKey(card) {
  * a notch change or a resize moves the answer without anybody keeping a copy
  * of the numbers. (Runtime truth — the chamber-size lesson.)
  */
-function handFitsOpen(count) {
-  if (!count) return true;
+/**
+ * The two numbers the near rail is laid out from: the width one card gets, and
+ * the width the rail has to give. Both are set by the stylesheet — the notch
+ * breakpoints size the card, the shell's cap sizes the rail — so both move only
+ * when the viewport does, or when a different room is painted.
+ *
+ * They used to be taken fresh on every snapshot, from two places in the same
+ * render: this probe, which appends a hidden slot to the live rail and removes
+ * it again, and `layoutNear`, which measured the first real slot. That is a DOM
+ * mutation and two forced layouts per snapshot for a pair of numbers that had
+ * not moved since the last resize.
+ *
+ * Measured once per `layoutToken()` and shared. The probe's card and a real
+ * near-rail slot are the same element in the same parent and measure the same:
+ * verified on the probe at notch 3, real slot 116, real card 116, probe slot
+ * 116, probe card 116.
+ */
+function handMetrics() {
+  const token = layoutToken();
+  if (ui.handMetrics && ui.handMetrics.token === token) return ui.handMetrics;
+
   let probe = ui.nearProbe;
   if (!probe) {
     probe = document.createElement('div');
@@ -2519,8 +2539,15 @@ function handFitsOpen(count) {
   el.handNear.append(probe);
   const cardW = probe.firstElementChild.offsetWidth || 84;
   probe.remove();
+  ui.handMetrics = { token, cardW, railW: el.hand.clientWidth };
+  return ui.handMetrics;
+}
+
+function handFitsOpen(count) {
+  if (!count) return true;
+  const { cardW, railW } = handMetrics();
   // The same 8px gap and 16px of side padding `layoutNear` works with.
-  return count * cardW + (count - 1) * 8 + 16 <= el.hand.clientWidth;
+  return count * cardW + (count - 1) * 8 + 16 <= railW;
 }
 
 function renderHand(snapshot, view, yourTurn) {
@@ -3102,10 +3129,13 @@ function layoutNear(entries) {
   }
 
   // The live width, not the configured one: the rail forces 84px on every
-  // screen and this is the only place that can tell whether it got it.
-  const cardWidth = entries[0].slot.offsetWidth || 84;
+  // screen and this is the only place that can tell whether it got it. Both
+  // numbers come off the one measurement `handFitsOpen` already took this
+  // render — same card, same rail, same viewport.
+  const { cardW, railW } = handMetrics();
+  const cardWidth = cardW;
   // `.hand` carries 8px of side padding, so this is the room the cards get.
-  const available = Math.max(el.hand.clientWidth - 16, cardWidth);
+  const available = Math.max(railW - 16, cardWidth);
 
   // Cards overlap only under pressure. Every card that CAN stand clear does —
   // a five-card hand on a monitor spreads at full 8px gaps; the same hand on
