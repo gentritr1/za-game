@@ -1,4 +1,4 @@
-ZA! — TABLE PROTOTYPE (playtest build, pass 5)
+ZA! — TABLE PROTOTYPE (playtest build, pass 6)
 
 Open ZA-Table-Prototype.html in any browser. No install, no server, works offline.
 
@@ -22,6 +22,12 @@ Pick a scenario from the dropdown beside RESET TABLE, or use the URL:
 FREEZE ON (or ?freeze=1) stops the table on each teaching beat — Skip, +2,
 Reverse, a penalty landing — until you press CONTINUE. Use it to ask the
 question against the frame the tester actually saw.
+
+In participant mode a frozen table says only PAUSED: no button, no instruction
+to inspect anything. Resume with the C key from wherever you are sitting. In participant mode the
+freeze shows only PAUSED, with no facilitator wording and no button: resume by
+pressing the C key on the tester's device, or hand it back and press CONTINUE in
+a researcher window.
 
 HOW TO RUN THE TEST
 Say nothing beforehand. Hand it over and let them play.
@@ -57,13 +63,29 @@ NOTES FOR THE TESTER
 - Action cards say what they do: ↻ REVERSE, ⊘ SKIP, +2 DRAW TWO. The topping is
   the border and the corner mark.
 - The travelling order ticket means only "the turn is moving here". It is not ZA.
-- A long hand scrolls sideways; the faded right edge means there is more.
+- A long hand scrolls sideways. The faded edges follow the scroll position, and
+  the swipe line retires once they have swiped once.
+- Screen readers get the event ribbon on a polite channel and timed ZA
+  opportunities on an assertive one, with the reason attached to the button.
+- Focus moves onto each new decision: CALL ZA NOW, CALL OUT NOW, PLAY IT, and
+  the first topping in the Wild picker.
 
 The table sizes itself to the window. Checked at 390×667, 390×720, 390×844 and
 1280×780: nothing scrolls, and the active seat, the match target, the hand and
 DRAW A CARD are always above the fold. Cards never fall below 54 px wide.
 
-CHANGED SINCE PASS 4
+CHANGED SINCE PASS 5
+On phone a ZA window, callout, drawn-card decision or freeze now REPLACES the
+hand instead of pushing the ring up, and the Match plaque collapses to a
+one-line chip — no seat can overlap it · the overflow cue follows the scroll
+(right fade only while there is more to the right, left fade once you have
+moved, and the swipe line retires after the first swipe) · a polite live region
+carries the event line and an assertive one carries the two timed opportunities,
+each CTA described by its visible reason · focus moves to PLAY IT and to the
+first topping in the Wild picker · a frozen beat says only PAUSED to the
+participant.
+
+CHANGED IN PASS 4
 One central announcement at a time — playing a card dismisses YOUR TURN before
 any effect is shown, and reduced-motion Reverse uses that same channel · timed
 windows say ACT NOW, never HANDS OFF, keep their buttons on one line, and hold
@@ -76,9 +98,9 @@ YOU PLAYED TO 1 WITHOUT ZA) · the Match plaque stacks on phone so it can never
 collide with the side seats.
 
 STILL WORTH ONE HUMAN PASS
-Tab-then-Enter on a real phone and a real keyboard, and a swipe across a
-ten-card hand on a touchscreen. Both are implemented through click activation
-with a 10 px drag guard, but neither can be faithfully simulated in a harness.
+Tab-then-Enter on a real keyboard, a swipe across a ten-card hand on a
+touchscreen, and one run with an actual screen reader. All three are implemented,
+but none can be faithfully simulated in a harness.
 
 FOR IMPLEMENTATION
 Port the visual grammar, not this engine. Legality, ZA availability,
