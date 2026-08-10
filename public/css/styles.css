@@ -4905,12 +4905,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .marquee__dir { font-size: 12px; gap: 1px; }
   .screws { gap: var(--s1) var(--s3); }
 
-  /* The centre stack on a phone. The plaque keeps its whole sentence — it is
-     the sentence that earns its room — and gives up the padding and four
-     points of type around it. The body may wrap here and nowhere else: below
-     520px the chefs are a queue in their own grid row, so a stacked plaque
-     cannot reach them, and the only thing wrapping costs is height it takes
-     back from the gaps. */
+  /* The centre stack on a small screen. The plaque keeps its whole sentence —
+     it is the sentence that earns its room — and gives up the padding and four
+     points of type around it. Between 520px and 720px the chefs are still
+     around a counter, so the body may wrap: a plaque that grows sideways there
+     grows towards the two seats on the walls. */
   .table-center { gap: var(--s1); padding-bottom: var(--s2); }
   .plaque { padding: 4px 10px; gap: 2px; }
   .plaque__body { flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
@@ -4922,6 +4921,58 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .dir-chip { font-size: 15px; padding: 1px 7px; }
   .dir-chip__glyph { width: 15px; height: 15px; }
   .narration { font-size: 15px; }
+
+  /* --- pass 6 · on a phone the plaque collapses to a chip ------------------
+     One line: MATCH · <topping> OR <this>. The stacked block was three lines
+     of a felt that does not have three lines to give — the felt is the grid's
+     1fr row and the hand zone grows with the hand, and height is the axis that
+     runs out first on a phone. Laid flat the same sentence costs 25px instead
+     of 62px and reads left to right, which is how it is spoken.
+
+     Width is free here in a way it is not one breakpoint up: below 520px the
+     chefs are a queue in their own grid row, so nothing the chip does
+     sideways can reach a seat. `nowrap` is therefore a promise, not a risk —
+     the chip is one line at every width this client supports, and the type
+     steps down once more at 380px so it stays one line on the narrow phones
+     too. */
+  @media (max-width: 519.98px) {
+    .plaque {
+      flex-direction: row;
+      align-items: center;
+      gap: var(--s2);
+      padding: 3px 10px;
+    }
+
+    .plaque__head {
+      /* Kept, and kept small. It is the only word that says what the numbers
+         under it are FOR, which is the entire complaint this pass answers;
+         eight pixels of Press Start 2P is a cheap price for the sentence
+         still being a sentence. */
+      flex: none;
+      font-size: 7px;
+      letter-spacing: .1em;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .plaque__body {
+      flex-wrap: nowrap;
+      gap: var(--s2);
+    }
+
+    .plaque__name,
+    .plaque__value { font-size: 20px; }
+    .plaque__or { font-size: 15px; }
+  }
+
+  @media (max-width: 379.98px) {
+    .plaque__head { font-size: 6px; }
+    .plaque__name,
+    .plaque__value { font-size: 17px; }
+    .plaque__or { font-size: 13px; }
+    .plaque__emblem { width: 15px; height: 15px; }
+    .plaque__mark { width: 14px; height: 14px; }
+  }
 
   /* The attract logotype steps down to the mobile plate. */
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }

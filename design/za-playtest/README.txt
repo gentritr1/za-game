@@ -128,6 +128,27 @@ MATCH PLAQUE
   alternative is not a topping and must not read as one.
 - Printed form is aria-hidden; one spoken sentence carries it instead. Four
   nodes and a conjunction read out in sequence is a list, not a condition.
+- PASS 6, the phone chip. Below 520px the plaque lays flat: MATCH, topping
+  icon, topping, OR, and the alternative, all on one line. It is one line at
+  every width and for every content this deck can produce — measured at 320px,
+  where the widest sentence the game has (MATCH · PEPPERONI OR DRAW TWO) is
+  260px in a 320px window, and the other three worst cases are 205-251px. The
+  type steps down once more below 380px so that stays true.
+- The chip KEEPS the word MATCH, at 7px, which the pass-6 note does not
+  require. It is the only word that says what the two things under it are for,
+  and it costs width, which below 520px is the axis we have — the chefs are a
+  queue in their own grid row there, so nothing the chip does sideways can
+  reach a seat. Drop it if the spec meant it dropped.
+- Our reason for the chip is not the prototype's. Its phone plaque grows
+  towards side seats; ours cannot, because our phone has no side seats. What
+  the chip buys here is HEIGHT: 31.7px against the stacked block's 41.8px,
+  measured side by side in the same frame, and the felt is short by tens of
+  pixels on a phone (see KNOWN, NOT FIXED).
+- The pass-6 prototype at design/za-playtest/ does NOT render this chip. Loaded
+  fresh at 390x667, 390x844 and 430x932 its plaque is still the stacked block,
+  80.4 x 62px, `flex-direction: column` on both the plaque and its body. The
+  README says chip and the running reference says stack; this port followed the
+  README and the written brief.
 
 DIRECTION
 - The prototype's word is CLOCKWISE / COUNTER-CLOCKWISE and the server's is
@@ -193,3 +214,18 @@ KNOWN, NOT FIXED
   over the seats, so a squeeze rides the piles up into the portraits instead of
   feeding the plaque and the direction chip to an opaque hand zone. Fixing the
   budget properly means touching the hand zone, which belongs to the hand pass.
+- Which is also why "no seat can overlap the chip" is only PARTLY true at
+  390x667. The chip is bottom-pinned and already sits as low as the felt goes;
+  the queue seats reach 29.8px below its top in the squeezed state, so the
+  overlap left is exactly the felt's shortfall and nothing to do with the
+  chip's size. Paired sampling at 390x667, four chefs, twelve ticks, both forms
+  measured in the same frame: chip overlaps in 10 of 12, stacked in 12 of 12,
+  and where the stacked block was 5px into the seats the chip is clear. The
+  chip removes precisely the 10.1px it saves in height. At 390x844 — eight
+  chefs, the crowded table — the chip overlaps nothing at all.
+- Two levers inside the centre column were measured and NOT pulled, because
+  they move the wrong thing: hiding the pile labels below 520px, and dropping
+  the pile card width to 68px. Both were tried live and moved the chip's top by
+  0.0px — the stack is pinned from the bottom, so shrinking the piles lowers
+  the piles, not the plaque. Only felt height clears the rest, and roughly 30px
+  of it does.
