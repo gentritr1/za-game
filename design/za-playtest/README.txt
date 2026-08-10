@@ -1,4 +1,4 @@
-ZA! — TABLE PROTOTYPE (playtest build, pass 6)
+ZA! — TABLE PROTOTYPE (playtest build, pass 7)
 
 Open ZA-Table-Prototype.html in any browser. No install, no server, works offline.
 
@@ -23,11 +23,11 @@ FREEZE ON (or ?freeze=1) stops the table on each teaching beat — Skip, +2,
 Reverse, a penalty landing — until you press CONTINUE. Use it to ask the
 question against the frame the tester actually saw.
 
-In participant mode a frozen table says only PAUSED: no button, no instruction
-to inspect anything. Resume with the C key from wherever you are sitting. In participant mode the
-freeze shows only PAUSED, with no facilitator wording and no button: resume by
-pressing the C key on the tester's device, or hand it back and press CONTINUE in
-a researcher window.
+In participant mode a frozen table says only PAUSED — no facilitator wording, no
+button, nothing telling the tester which frame to study. Resume it three ways:
+the CONTINUE button (researcher mode), the C key, or a one-second press on the
+PAUSED panel itself. The long press is the one that works on a phone with no
+keyboard; a second browser window cannot resume the tester's device.
 
 HOW TO RUN THE TEST
 Say nothing beforehand. Hand it over and let them play.
@@ -74,7 +74,23 @@ The table sizes itself to the window. Checked at 390×667, 390×720, 390×844 an
 1280×780: nothing scrolls, and the active seat, the match target, the hand and
 DRAW A CARD are always above the fold. Cards never fall below 54 px wide.
 
-CHANGED SINCE PASS 5
+CHANGED SINCE PASS 6
+Picking a Wild is now a decision panel like a drawn card: the played Wild is
+shown once, the four toppings sit in a labelled 2×2 group, and on phone the hand
+and DRAW step aside · the two-card ZA lesson is one row on phone, keeping its two
+cards while the consequence moves to the footer · seat density and pile size are
+derived from the measured stage rather than an estimate, so a panel can never
+leave the ring positioned against height it has already taken · accepting a drawn
+Wild clears the draw decision before the picker opens, so PLAY IT and KEEP & PASS
+can never sit beside PICK THE NEXT TOPPING · drawing or opening a Wild clears the
+YOUR TURN banner immediately · a frozen phone can be resumed by a one-second
+press on the PAUSED panel · the hand header now names what is actually there —
+ZA WINDOW, CALLOUT WINDOW, PICK A TOPPING, DRAW DECISION, TABLE PAUSED.
+
+Verified at 390×667 and 390×720 with every panel open: no element overlaps
+another, nothing is clipped, and no state overflows the frame.
+
+CHANGED IN PASS 5
 On phone a ZA window, callout, drawn-card decision or freeze now REPLACES the
 hand instead of pushing the ring up, and the Match plaque collapses to a
 one-line chip — no seat can overlap it · the overflow cue follows the scroll
