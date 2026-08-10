@@ -144,20 +144,58 @@
       <div class="opponents" id="opponents"></div>
 
       <div class="table-center">
-        <button class="pile pile--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
-          <span class="pile__label">Dough pile</span>
-          <span class="pile__slot" id="draw-slot"></span>
-          <span class="pile__count" id="draw-count">0</span>
-        </button>
+        <div class="table-center__piles">
+          <button class="pile pile--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
+            <span class="pile__label">Dough pile</span>
+            <span class="pile__slot" id="draw-slot"></span>
+            <span class="pile__count" id="draw-count">0</span>
+          </button>
 
-        <div class="pile pile--discard">
-          <span class="pile__label">The oven</span>
-          <span class="pile__slot" id="discard-slot"></span>
-          <span class="topping-now" id="topping-now">
-            <i class="topping-now__emoji" aria-hidden="true">🍕</i>
-            <b class="topping-now__name">Pepperoni</b>
-          </span>
+          <div class="pile pile--discard">
+            <span class="pile__label">The oven</span>
+            <span class="pile__slot" id="discard-slot"></span>
+          </div>
         </div>
+
+        <!-- THE MATCH PLAQUE states the condition in words: this topping, OR
+             this number — or, when a special is face up, OR this effect. It is
+             derived entirely from `currentTopping` and `topCard`, the same two
+             fields the server computes legality from, so it can restate the
+             rule without ever deciding it.
+
+             Under the piles, not over them: from 520px up the seats and the
+             centre column share one grid cell, and the top of that cell is
+             where people are sitting. The prototype puts the plaque above
+             because its chefs are below it; ours are around it. -->
+        <div class="plaque" id="match-plaque" data-mode="match">
+          <!-- Printed and spoken are two forms of one sentence, not two
+               sentences. Laid out, "MATCH · BASIL · OR · 7" is four nodes and
+               a word doing the work of a conjunction; read out in sequence it
+               is a list. So the printed form stays out of the accessibility
+               tree entirely and #plaque-spoken says the whole thing once. -->
+          <span class="plaque__head" id="plaque-head" aria-hidden="true">Match</span>
+          <span class="plaque__body" aria-hidden="true">
+            <span class="plaque__topping">
+              <i class="plaque__emblem" id="plaque-emblem" aria-hidden="true"></i>
+              <b class="plaque__name" id="plaque-name">Pepperoni</b>
+            </span>
+            <span class="plaque__alt" id="plaque-alt">
+              <span class="plaque__or" aria-hidden="true">or</span>
+              <b class="plaque__value" id="plaque-value">0</b>
+            </span>
+          </span>
+          <span class="sr-only" id="plaque-spoken"></span>
+        </div>
+
+        <!-- The direction of play, in the word for it, at every width. The
+             marquee's chevron chase and the token walking the counter are both
+             pictures of this; below 520px the chase is hidden and above it the
+             token is the only carrier, so neither is on screen at all sizes.
+             This is, and it is never inside anybody else's box. -->
+        <p class="dir-chip" id="dir-chip" data-dir="1">
+          <span class="dir-chip__glyph" id="dir-chip-glyph" aria-hidden="true"></span>
+          <b class="dir-chip__word" id="dir-chip-word">Clockwise</b>
+        </p>
       </div>
 
       <aside class="log" id="log">
@@ -167,6 +205,15 @@
     </div>
 
     <footer class="hand-zone">
+      <!-- THE NARRATION LINE. One event, in the fewest words that still name
+           who it happened to: "CARMELA DRAWS 2 — SKIPPED". It is the tail of
+           the server's own chatter, shortened here and never invented here —
+           the log stays in the kitchen-chatter panel in full, and this is the
+           one line of it a player reads without looking away from their hand.
+           It is not a live region: the marquee above already is one, and two
+           of them talking over each other is nobody being heard. -->
+      <p class="narration" id="narration" aria-hidden="true"></p>
+
       <div class="hand-bar">
         <button class="btn btn--za" id="btn-za" type="button">
           <span data-icon="slice" aria-hidden="true">🍕</span> ZA!

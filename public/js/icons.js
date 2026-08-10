@@ -85,6 +85,20 @@ const DRAWINGS = {
     <rect x="8.6" y="8.4" width="11" height="12.8" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/>
     <path d="M5.6 15.4 C4.7 15.4 4.2 14.8 4.2 14 L4.2 4.6 C4.2 3.8 4.8 3.2 5.6 3.2 L13.6 3.2 C14.4 3.2 15 3.8 15 4.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
   `,
+  // ⊘ · the skip. A ring with a bar across it, the sign every player already
+  // reads as "not you". Monochrome: the card's keyline carries the topping.
+  skip: `
+    <circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="2.6"/>
+    <path d="M6.1 17.9 L17.9 6.1" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="butt"/>
+  `,
+  // ↻ · the reverse. One loop with a head on it — a single arrow turning back
+  // on itself, which is what a reverse does to the running order. Deliberately
+  // NOT the two-arrow `cycle` glyph: that one says "direction of play" on the
+  // table and the two must never be confused for one another.
+  reverse: `
+    <path d="M18.6 9.6 A7.4 7.4 0 1 1 12 4.6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M11.4 0.9 L11.4 8.3 L5.6 4.6 Z" fill="currentColor"/>
+  `,
   // Two arrows chasing each other: the direction of play.
   cycle: `
     <path d="M6.4 9.2 A6.6 6.6 0 0 1 18 10.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
