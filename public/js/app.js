@@ -10,6 +10,7 @@ import {
   renderCard,
   isWild,
   describeCard,
+  matchValue,
   suitToken,
   cardIndex,
   TOPPING_META,
@@ -67,6 +68,12 @@ const el = {
   handPit: $('hand-pit'),
   handNear: $('hand-near'),
   handPeek: $('hand-peek'),
+  handFade: $('hand-fade'),
+  handSwipe: $('hand-swipe'),
+  handSelf: $('hand-self'),
+  handCount: $('hand-count'),
+  handState: $('hand-state'),
+  moments: $('moments'),
   btnZa: $('btn-za'),
   btnCallout: $('btn-callout'),
   btnCalloutText: $('btn-callout-text'),
@@ -188,6 +195,18 @@ const ui = {
   handOrder: [], // the sorted hand as card ids, so a promotion lands in its place
   nearRow: [], // the near rail as last laid out, for a resize to re-space it
   peekPointer: -1, // the pointer id currently scrubbing the pit, or -1
+  // A swipe across the hand is not a play. `handDrag` remembers where the
+  // pointer went down and whether it travelled far enough to be a drag; the
+  // click that follows is refused on that evidence. See `bindHandRow`.
+  handDrag: null,
+  swipeHintDone: false, // the swipe line is said once per session
+  // Which of the four phases the hand is in, and until when the turn is still
+  // visibly leaving your seat. Both are display state; neither decides a move.
+  handPhase: '',
+  turnMovingUntil: 0,
+  turnMovingTimer: 0,
+  prevTurnId: null,
+  momentFocused: null, // the CTA a window already handed focus to
   peekCardId: null, // which rib the peek is showing
   pitGeom: null,    // the strip's geometry, measured once per scrub session
   seatNodes: new Map(), // playerId -> seat element
@@ -281,7 +300,7 @@ const ui = {
   // ---- measurements cached against `layoutToken()`. Each holds the token it
   // was taken under; none is ever cleared by hand.
   paintedScreen: '', // the room actually in the DOM, set only by `paintScreen`
-  handMetrics: null, // { token, cardW, railW } — the near rail's two numbers
+  handMetrics: null, // { token, railW } — the width the row is spaced against
   seatBox: null,     // { token, width, height, port } — the felt the token walks
   queueArrangement: '', // the queue's seats in rank order; unchanged means nothing slid
 };
@@ -456,6 +475,50 @@ function syncPending() {
   // accessibility tree, and who is playing is exactly what a player wants read
   // to them while they wait for their own move to land.
   if (el.opponents) el.opponents.classList.toggle('is-held', held);
+  // The strip over the hand says RESOLVING for exactly as long as this gate
+  // holds. It has to move on the same frame the lock does — a label that waits
+  // for the next snapshot to catch up is the contradiction it exists to stop.
+  repaintHandState();
+  relockHand();
+}
+
+/**
+ * Re-states every card's lock from the phase, without re-laying the row.
+ *
+ * `renderHand` only runs on a snapshot, and the move gate arms in between: for
+ * the whole of the round trip the cards were still `disabled = false` and
+ * still saying "— playable", and only the `inert` above kept them from being
+ * pressed. Inert is a good lock and a bad statement — it takes the subtree out
+ * of the accessibility tree entirely, so the truthful name nobody could read
+ * was not read either way. The lock and the name now move together.
+ */
+function relockHand() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view || !view.players) return;
+  const yourTurn = view.turnPlayerId === snapshot.youId && view.status === 'playing';
+  const acting = handPhase(view, yourTurn) === 'await';
+  const playable = new Set(view.playableCardIds);
+  for (const [id, slot] of ui.handSlots) {
+    const card = ui.handCards.get(id);
+    const node = slot.firstElementChild;
+    if (!card || !node) continue;
+    dressCard(node, card, yourTurn && playable.has(card.id), acting);
+  }
+  // The dough pile is the hand's other half — the move you make when no card
+  // fits — so it takes its lock from the same phase, off the same function
+  // `renderPiles` uses. Two restatements of ONE derivation, never two rules.
+  const canDraw = canDrawNow(view, yourTurn);
+  el.drawPile.disabled = !canDraw;
+  el.drawPile.setAttribute(
+    'aria-label',
+    canDraw ? 'Draw a card from the dough pile' : 'Dough pile — not available yet'
+  );
+}
+
+/** The dough pile's one condition, read by both places that state it. */
+function canDrawNow(view, yourTurn) {
+  return handPhase(view, yourTurn) === 'await' && !view.mustPlayDrawnCard;
 }
 
 const CONN_FIRST = 'Knocking on the kitchen door…';
@@ -524,6 +587,12 @@ function syncDesynced() {
   // An armed screw across a dropped line would forfeit the round on the press
   // that was only meant to ask. It starts again from Leave.
   disarmLeave();
+  // Nothing on this screen may still read YOUR TURN over a board that has
+  // stopped answering, and no card may still offer itself. The connection is a
+  // phase like any other, and the hand takes its lock from the phase. (The way
+  // back is the snapshot: it re-derives both outright, which is the rule.)
+  repaintHandState();
+  relockHand();
 }
 
 function handleMessage(message, connectionContext = {}) {
@@ -1075,9 +1144,19 @@ function resetGameView() {
   ui.dealing = true;
   el.flyLayer.replaceChildren();
   el.hand.dataset.mode = 'review';
+  el.hand.dataset.pit = '0';
+  el.hand.classList.remove('is-overflowing');
   el.handPit.replaceChildren();
   el.handNear.replaceChildren();
   labelPit(0, false);
+  // Every window belongs to a round; none of them survives the table.
+  el.moments.replaceChildren();
+  ui.momentFocused = null;
+  ui.callouts.clear();
+  ui.turnMovingUntil = 0;
+  ui.prevTurnId = null;
+  clearTimeout(ui.turnMovingTimer);
+  showSwipeCue(false);
   el.opponents.replaceChildren();
   el.logList.replaceChildren();
   el.discardSlot.replaceChildren();
@@ -1761,6 +1840,10 @@ function renderGame(snapshot) {
   const yourTurn = view.turnPlayerId === snapshot.youId && view.status === 'playing';
 
   animateTableDiff(snapshot, view);
+  // Before anything is drawn: the strip over the hand and every card's
+  // `disabled` are derived from the phase, and the phase has to know whether
+  // the turn is still walking away from your seat.
+  trackTurnMove(snapshot, view);
   renderTurnBanner(snapshot, view, yourTurn);
   renderDirection(view);
   renderOpponents(snapshot, view);
@@ -1768,6 +1851,8 @@ function renderGame(snapshot) {
   renderPiles(view, yourTurn);
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
+  renderMoments(snapshot, view);
+  paintHandState(snapshot, view, yourTurn);
   renderLog(view);
   syncCabinet(snapshot);
   syncShout(view);
@@ -2779,16 +2864,32 @@ function openCalloutWindow(playerId, isMine) {
   drain.append(fill);
 
   if (isMine) {
-    // You have no chef panel of your own, so your window lives on the rail
-    // above the hand, where the ZA! button that closes it already is.
+    // You have no chef panel of your own, so your window lives over the hand,
+    // with the other contextual moments and the move on it as a real button.
+    // It is built here rather than in `renderMoments` because its life is an
+    // OPENING and a CLOSING with three different outcomes, not a state to be
+    // re-derived — and because the relief at the end of it is the point.
     const box = document.createElement('div');
-    box.className = 'callout-self';
-    const label = document.createElement('span');
-    label.className = 'callout-self__label';
-    label.textContent = 'Shout ZA! — they can call you out';
-    box.append(label, drain);
-    el.handZone.append(box);
+    box.className = 'moment moment--self moment--alarm';
+    const words = document.createElement('div');
+    words.className = 'moment__words';
+    const label = document.createElement('b');
+    label.className = 'moment__title';
+    label.textContent = 'YOU PLAYED TO 1 WITHOUT ZA';
+    const sub = document.createElement('span');
+    sub.className = 'moment__sub';
+    sub.textContent = 'Shout it before anyone notices.';
+    words.append(label, sub, drain);
+    const cta = document.createElement('button');
+    cta.type = 'button';
+    cta.className = 'moment__cta';
+    cta.textContent = 'CALL ZA NOW';
+    cta.onclick = declareZa;
+    box.append(words, cta);
+    // First in the strip: it is the only window that is about YOUR cards.
+    el.moments.prepend(box);
     entry.node = box;
+    focusMoment(cta);
     // The window is a dashed sauce box and a steady bar, and it is the one
     // moment where not knowing costs you cards. `syncCalloutWindows` only
     // opens a window that is not already open, so this is once per arising
@@ -2845,9 +2946,17 @@ function closeCalloutWindow(playerId, how) {
   }
 
   if (entry.mine && entry.node) {
+    if (ui.momentFocused && entry.node.contains(ui.momentFocused)) ui.momentFocused = null;
     if (how === 'clean') {
       entry.node.classList.add('is-safe');
-      entry.node.firstElementChild.textContent = 'Safe — nobody was listening';
+      const title = entry.node.querySelector('.moment__title');
+      const sub = entry.node.querySelector('.moment__sub');
+      const cta = entry.node.querySelector('.moment__cta');
+      if (title) title.textContent = 'SAFE — NOBODY WAS LISTENING';
+      if (sub) sub.remove();
+      // The move is gone, so the button goes with it rather than sitting there
+      // as a control for a window that has closed.
+      if (cta) cta.remove();
       sound.play('relieved-chime');
       setTimeout(() => entry.node.remove(), 900);
       return;
@@ -2868,9 +2977,16 @@ function renderPiles(view, yourTurn) {
     );
   }
   el.drawCount.textContent = String(view.drawPileCount);
-  const canDraw = yourTurn && !view.mustPlayDrawnCard;
+  const canDraw = canDrawNow(view, yourTurn);
   el.drawPile.disabled = !canDraw;
   el.drawPile.classList.toggle('is-ready', canDraw);
+  // Disabled already takes it out of the tab order; the name says the same
+  // thing out loud, so a reader is told why rather than just finding a control
+  // that will not answer. Same words the locked cards use.
+  el.drawPile.setAttribute(
+    'aria-label',
+    canDraw ? 'Draw a card from the dough pile' : 'Dough pile — not available yet'
+  );
 
   // discard pile: only rebuild when the top card changes
   const top = view.topCard;
@@ -2983,30 +3099,51 @@ function handSortKey(card) {
  * verified on the probe at notch 3, real slot 116, real card 116, probe slot
  * 116, probe card 116.
  */
+/**
+ * THE DENSITY POLICY, as three numbers.
+ *
+ * A card is 84px when there is room for 84px, and it gives that room up one
+ * pixel at a time down to a hard floor of 54px — the width the comprehension
+ * prototype was checked at on a 390px phone, and the width under which the
+ * corner index, the window and the banner stop being readable at arm's length.
+ * Under the floor nothing shrinks and nothing overlaps: the rail scrolls.
+ *
+ * The rail used to overlap dead cards up to 55% instead, which is the same
+ * trade made the other way — it keeps the whole hand on one screen by making
+ * most of it unreadable and un-aimable. A card you cannot see whole is a card
+ * you cannot learn from, and on your turn every card is a teaching tap.
+ */
+/** The pit's density policy, superseded by the row. See `renderHand`. */
+const PIT_ENGAGES = false;
+
+const HAND_CARD_MAX = 84;
+const HAND_CARD_MIN = 54;
+const HAND_GAP = 8;
+
+/** The widest every card can be and still share `available` at `HAND_GAP`. */
+function handCardWidth(count, available) {
+  if (count <= 1) return HAND_CARD_MAX;
+  const fair = Math.floor((available - (count - 1) * HAND_GAP) / count);
+  return Math.max(HAND_CARD_MIN, Math.min(HAND_CARD_MAX, fair));
+}
+
+/** The one number the row is spaced against: the rail inside `.hand`'s 8px. */
 function handMetrics() {
   const token = layoutToken();
   if (ui.handMetrics && ui.handMetrics.token === token) return ui.handMetrics;
-
-  let probe = ui.nearProbe;
-  if (!probe) {
-    probe = document.createElement('div');
-    probe.className = 'hand-slot';
-    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;';
-    probe.append(renderCard(null, { size: 'hand' }));
-    ui.nearProbe = probe;
-  }
-  el.handNear.append(probe);
-  const cardW = probe.firstElementChild.offsetWidth || 84;
-  probe.remove();
-  ui.handMetrics = { token, cardW, railW: el.hand.clientWidth };
+  ui.handMetrics = { token, railW: el.hand.clientWidth };
   return ui.handMetrics;
+}
+
+/** Room in the rail for the cards, once `.hand`'s side padding is paid. */
+function handRoom() {
+  return Math.max(handMetrics().railW - 16, HAND_CARD_MIN);
 }
 
 function handFitsOpen(count) {
   if (!count) return true;
-  const { cardW, railW } = handMetrics();
-  // The same 8px gap and 16px of side padding `layoutNear` works with.
-  return count * cardW + (count - 1) * 8 + 16 <= railW;
+  const available = handRoom();
+  return count * handCardWidth(count, available) + (count - 1) * HAND_GAP <= available;
 }
 
 function renderHand(snapshot, view, yourTurn) {
@@ -3015,13 +3152,27 @@ function renderHand(snapshot, view, yourTurn) {
   const fresh = [];
   const pit = [];
   const near = [];
+  const woke = []; // cards the new top card just brought back to life
+  // Whether the hand is yours to act with THIS INSTANT. It is the same
+  // question `handPhase` answers, asked before the row is dressed, because
+  // every card's `disabled` and every card's spoken name hang off it: a hand
+  // that cannot be played must not contain a single control that says it can.
+  const acting = handPhase(view, yourTurn) === 'await';
 
-  // THE OPEN KITCHEN. The pit exists to compress a hand that does not fit;
-  // when the whole hand stands full size with room to spare, compressing it
-  // anyway is just hiding cards. So the pit only engages under pressure:
-  // while everything fits, dead cards stand in the row dimmed — the way they
-  // did before the pit existed — and the strip stays empty and collapsed.
-  const open = handFitsOpen(view.hand.length);
+  // THE OPEN KITCHEN, AND WHY IT IS SHUT.
+  //
+  // The pit was the old density policy: dead cards dropped to 20px ribs so the
+  // live ones could stand at 84px, and it engaged only when the hand did not
+  // fit. The redesign answers the same question the other way — every card
+  // stands in one row at a shared width with a 54px floor, and the row scrolls
+  // past it — because a 20px rib cannot be tapped, cannot be read, and above
+  // all cannot explain itself: on your turn a card that does not match is a
+  // teaching tap, and the pit had no way to be tapped.
+  //
+  // The strip, its scrub, its peek and its promotion are left standing and
+  // wired. This switch is the whole of the change and flipping it back gives
+  // the pit its hand again.
+  const open = PIT_ENGAGES ? handFitsOpen(view.hand.length) : true;
   el.hand.dataset.open = open ? '1' : '0';
 
   const sortedHand = [...view.hand].sort((a, b) => handSortKey(a) - handSortKey(b) || (a.id < b.id ? -1 : 1));
@@ -3071,7 +3222,12 @@ function renderHand(snapshot, view, yourTurn) {
       fresh.push({ slot, delay, promotes: isPlayable && landsInPit });
     }
 
-    dressCard(slot.firstElementChild, card, isPlayable);
+    // A card that has just become playable in a row that is not moving is the
+    // only promotion the row has left, so it keeps the pit's snap.
+    const node = slot.firstElementChild;
+    const rose = !isFresh && isPlayable && node && node.classList.contains('is-dimmed');
+    dressCard(node, card, isPlayable, acting);
+    if (rose) woke.push(slot);
     (wantsNear ? near : pit).push({ card, slot });
   }
 
@@ -3087,20 +3243,26 @@ function renderHand(snapshot, view, yourTurn) {
   // Not your turn: nothing is live, so nothing stands up. The near rail keeps
   // no room at all and the whole hand sits in the pit at review width.
   el.hand.dataset.mode = yourTurn ? 'turn' : 'review';
+  // Whether there is a pit at all this render. The review rules that collapse
+  // the near rail belong to the two-rail hand and must not reach a row that IS
+  // the hand — `:empty` alone cannot say it, because the rail is the sibling.
+  el.hand.dataset.pit = pit.length ? '1' : '0';
 
   // The pit is filled first: a card demoting out of the near rail has to be
   // out of it before the near rail is spaced, or the gap would close twice.
   fillRail(el.handPit, pit.map((e) => e.slot), 'rib');
   // The ribs just moved, so any cached scrub geometry describes the old strip.
   invalidatePit();
-  const raised = fillRail(el.handNear, near.map((e) => e.slot), 'hand');
+  const raised = fillRail(el.handNear, near.map((e) => e.slot), 'hand').concat(woke);
   layoutNear(near);
   labelPit(pit.length, yourTurn);
 
   // The promotion is the one thing in the hand that animates on its own. It
   // can only happen on a snapshot where the top card changed or the turn did,
   // because that is the only thing that can change what is playable — the near
-  // rail therefore holds still for the whole of your turn by construction.
+  // rail therefore holds still for the whole of your turn by construction. In
+  // the row it is the same event without the move: a card that was dead and is
+  // now live snaps in place rather than climbing out of a strip.
   if (raised.length && wantsMotion()) {
     for (const slot of raised) restartAnimation(slot.firstElementChild, 'is-promoting', 'promote');
     setTimeout(() => {
@@ -3153,26 +3315,39 @@ function renderHand(snapshot, view, yourTurn) {
 }
 
 /**
- * The playable state of one card: the ring, the dim, and what it answers to.
+ * The playable state of one card: the ring, the dim, what it answers to, and
+ * what it is called out loud.
  *
- * A dead card is not `disabled`. The scrub is pointer-only, so a keyboard has
- * to be able to reach the half of the hand it cannot drag across; a rib stays
- * in the tab order, says it is disabled, and takes no pointer (the stylesheet
- * puts `pointer-events: none` on it, because the strip around it is the
- * control). The click handler refuses anything that is not playable anyway.
+ * LOCKING IS SEMANTIC, NOT VISUAL. Outside the phase where the server is
+ * waiting for your move, every card is genuinely `disabled` — which takes it
+ * out of the tab order in the same attribute — and says so in its name: a card
+ * that is dimmed but focusable and silently inert is a control that lies to
+ * exactly the player least able to check. `aria-disabled` was doing that job
+ * on its own: it tells a reader "not now" while leaving the button reachable,
+ * pressable and unanswering.
+ *
+ * ON YOUR TURN, A CARD THAT DOES NOT MATCH IS NOT DISABLED. It is the whole
+ * teaching surface of the game: the reason a card cannot go on the pile is the
+ * one rule new players arrive without, and the only cheap moment to say it is
+ * the moment they reach for it. So it stays enabled, keeps its place in the
+ * tab order, and answers a press with the reason — see `refuseCard`.
  */
-function dressCard(node, card, isPlayable) {
+function dressCard(node, card, isPlayable, acting) {
   if (!node) return;
   node.classList.toggle('is-playable', isPlayable);
   node.classList.toggle('is-dimmed', !isPlayable);
-  node.disabled = false;
-  if (isPlayable) {
-    node.removeAttribute('aria-disabled');
-    node.setAttribute('aria-label', `Play ${describeCard(card)}`);
-  } else {
-    node.setAttribute('aria-disabled', 'true');
-    node.setAttribute('aria-label', describeCard(card));
+  const name = describeCard(card);
+  // Nothing here is ever `aria-disabled`: either the control is disabled, and
+  // says it in the attribute that also takes it out of the tab order, or it is
+  // genuinely live and answers.
+  node.removeAttribute('aria-disabled');
+  if (!acting) {
+    node.disabled = true;
+    node.setAttribute('aria-label', `${name} — not available yet`);
+    return;
   }
+  node.disabled = false;
+  node.setAttribute('aria-label', isPlayable ? `Play ${name} — playable` : `${name} — does not match`);
 }
 
 /**
@@ -3561,92 +3736,146 @@ function bindPit() {
   });
 }
 
+/** How far a pointer may travel between down and up and still be a tap. */
+const DRAG_GUARD_PX = 10;
+/** A drag older than this is not the one this click came out of. */
+const DRAG_GUARD_MS = 1200;
+
 /**
- * How far one card may hide behind the next. It is the floor, not the resting
- * value: the near rail overlaps 24% past four cards and only ever goes past
- * that to keep a very live hand on the screen. Nothing shrinks either way.
+ * A SWIPE ACROSS THE HAND IS NOT A PLAY.
+ *
+ * The row scrolls under the thumb, and the thumb starts on a card, so the
+ * gesture that reads the far end of the hand ends with a click on whatever was
+ * under the finger. `click` is the activation the cards answer to on purpose —
+ * it is the one event a mouse, a touch and Enter/Space all produce — so the
+ * refusal is evidence-based rather than a second event path: the pointer's
+ * travel is measured, and a click that came out of a travelled pointer is
+ * dropped.
+ *
+ * The verdict is stamped with a time. Without it, a drag that ends in no click
+ * at all (the browser took the gesture for the scroll) would leave the guard
+ * armed, and the next Enter on a keyboard — which has no pointer at all —
+ * would be eaten by a swipe from a minute ago.
  */
-const MAX_OVERLAP = 0.55;
+function bindHandRow() {
+  el.handNear.addEventListener('pointerdown', (event) => {
+    ui.handDrag = { x: event.clientX, y: event.clientY, at: Date.now(), moved: false };
+  }, { passive: true });
+
+  el.handNear.addEventListener('pointerup', (event) => {
+    const start = ui.handDrag;
+    if (!start) return;
+    if (Math.abs(event.clientX - start.x) > DRAG_GUARD_PX ||
+        Math.abs(event.clientY - start.y) > DRAG_GUARD_PX) {
+      start.moved = true;
+      start.at = Date.now();
+    }
+  }, { passive: true });
+
+  // Scrolling the row is the one thing the swipe line asks for, so the line
+  // goes the moment it happens — by thumb, by trackpad or by the keyboard's
+  // own `scrollIntoView` walking the rail.
+  el.handNear.addEventListener('scroll', retireSwipeCue, { passive: true });
+}
+
+/** True while the click now being handled came out of a swipe. */
+function draggedNotTapped() {
+  const drag = ui.handDrag;
+  if (!drag || !drag.moved) return false;
+  ui.handDrag = null;
+  return Date.now() - drag.at < DRAG_GUARD_MS;
+}
 
 /** VT323 at 13px runs 5.3px a character; 8px is the 6px inset and a pixel of air. */
 const BANNER_CH = 5.3;
 const BANNER_PAD = 8;
 
 /**
- * Spaces the near rail and decides what each banner can finish saying.
+ * Spaces the row and decides what its banners can finish saying.
  *
- * Full 84px cards with 8px gaps and no overlap at all up to four. Past four
- * they overlap 24%. They never shrink, and there is no density step to fall
- * back to — the pit is what makes the room.
+ * One width for every card, chosen so the whole hand fits if it can: 84px with
+ * room, down to the 54px floor under pressure, and the rail scrolls under
+ * that. No overlap at any size — a card standing behind another cannot be read
+ * or aimed at, and the whole point of the row is that every card can be.
  */
 function layoutNear(entries) {
   ui.nearRow = entries;
   const total = entries.length;
   if (!total) {
     el.handNear.classList.remove('is-scrolling');
+    showSwipeCue(false);
     return;
   }
 
-  // The live width, not the configured one: the rail forces 84px on every
-  // screen and this is the only place that can tell whether it got it. Both
-  // numbers come off the one measurement `handFitsOpen` already took this
-  // render — same card, same rail, same viewport.
-  const { cardW, railW } = handMetrics();
-  const cardWidth = cardW;
-  // `.hand` carries 8px of side padding, so this is the room the cards get.
-  const available = Math.max(railW - 16, cardWidth);
+  const available = handRoom();
+  const cardWidth = handCardWidth(total, available);
+  // The rail owns the width; every slot and every card in it reads this one
+  // property, so nothing has to be written per card and nothing can disagree.
+  el.handNear.style.setProperty('--hand-card-w', `${cardWidth}px`);
 
-  // Cards overlap only under pressure. Every card that CAN stand clear does —
-  // a five-card hand on a monitor spreads at full 8px gaps; the same hand on
-  // a phone overlaps exactly as much as the width demands and no more. This
-  // is not a density step: the cards never shrink, they only hide further.
-  let gap = 8;
-  const needed = total * cardWidth + (total - 1) * gap;
-  if (needed > available && total > 1) {
-    gap = Math.floor((available - total * cardWidth) / (total - 1));
-    gap = Math.max(gap, -Math.round(cardWidth * MAX_OVERLAP));
-  }
-
-  // MAX_OVERLAP is a floor, and a floor can be too high. Twelve live cards want
-  // 502px of rail at full overlap and a 375px phone has 335 — the far cards
-  // used to sit off the edge of a screen that clips, unreachable by thumb and
-  // by Tab. Nothing shrinks and nothing hides further than the floor, so the
-  // rail scrolls instead: every card stays 84px, and every card stays gettable.
-  const rides = total * cardWidth + (total - 1) * gap;
-  el.handNear.classList.toggle('is-scrolling', total > 1 && rides > available);
+  // Past the floor the row is simply wider than the screen, and it scrolls.
+  // Nothing is hidden behind anything and nothing is off a clipped edge:
+  // every card stays whole, reachable by thumb and by Tab.
+  const rides = total * cardWidth + (total - 1) * HAND_GAP;
+  const overflows = total > 1 && rides > available;
+  el.handNear.classList.toggle('is-scrolling', overflows);
+  el.hand.classList.toggle('is-overflowing', overflows);
+  showSwipeCue(overflows);
 
   entries.forEach(({ slot }, index) => {
-    slot.style.setProperty('--overlap', `${gap}px`);
+    slot.style.setProperty('--overlap', `${HAND_GAP}px`);
     slot.style.zIndex = String(index + 1);
   });
 
-  labelNear(entries, cardWidth, gap);
+  labelNear(entries, cardWidth);
 }
 
 /**
- * 04 · a banner is centred across 84px, but a card the next card covers only
- * exposes its leftmost strip, and a centred label in it is always cut
- * mid-word. A covered card prints the three-letter suit token, left-aligned
- * into the strip it actually has. The full label is kept for the card nothing
- * covers — the last one in the rail. Nothing is placed in a strip it cannot
- * finish in, so a strip too narrow even for the token prints nothing.
+ * 04 · what the banner across the bottom of a card can finish saying at the
+ * width the row settled on. The banner is VT323 at a fixed 13px whatever the
+ * card is, so this is arithmetic on the card's width and nothing else.
+ *
+ * The whole row agrees. `Pepperoni` needs 56px and `Cheese` needs 40, so a
+ * per-card answer at a 54px width would print one suit in full beside another
+ * in a three-letter token — two alphabets in one hand. If the longest label in
+ * the row does not fit, every card falls to its token together; if the token
+ * does not fit either, nothing is printed, because nothing is ever placed in a
+ * strip it cannot finish in.
  */
-function labelNear(entries, cardWidth, gap) {
-  entries.forEach(({ slot, card }, index) => {
+function labelNear(entries, cardWidth) {
+  const fits = (text) => Boolean(text) && cardWidth >= text.length * BANNER_CH + BANNER_PAD;
+  const full = (slot) => {
+    const node = slot.firstElementChild;
+    const label = node && node.querySelector('.card__banner-full');
+    return label ? label.textContent : '';
+  };
+
+  const printsFull = entries.every(({ slot }) => fits(full(slot)));
+  const printsToken = !printsFull && entries.every(({ card }) => fits(suitToken(card)));
+
+  entries.forEach(({ slot }) => {
     const node = slot.firstElementChild;
     if (!node) return;
-    const last = index === entries.length - 1;
-    const exposed = last ? cardWidth : Math.min(cardWidth, cardWidth + gap);
-    const fits = (text) => exposed >= text.length * BANNER_CH + BANNER_PAD;
-    const full = node.querySelector('.card__banner-full');
-    const covered = !last && gap < 0;
-    const token = suitToken(card);
-
-    const printsFull = !covered && fits(full ? full.textContent : '');
-    const printsToken = !printsFull && fits(token);
     node.classList.toggle('is-tokened', printsToken);
     node.classList.toggle('is-unlabelled', !printsFull && !printsToken);
   });
+}
+
+/**
+ * The scroll cue's second half. The fade at the right edge is a class on the
+ * hand and lives as long as the overflow does; the line under it is said once
+ * per session and retired the moment the player scrolls, because it is asking
+ * for exactly one thing and it stops being information the moment it is done.
+ */
+function showSwipeCue(overflowing) {
+  if (!el.handSwipe) return;
+  el.handSwipe.hidden = !overflowing || ui.swipeHintDone;
+}
+
+function retireSwipeCue() {
+  if (ui.swipeHintDone) return;
+  ui.swipeHintDone = true;
+  if (el.handSwipe) el.handSwipe.hidden = true;
 }
 
 function renderActionBar(snapshot, view, yourTurn) {
@@ -3695,7 +3924,276 @@ function renderActionBar(snapshot, view, yourTurn) {
   el.btnPass.hidden = !view.canPass;
   el.btnPass.disabled = !view.canPass;
 
+  // A refusal is written straight onto this line and stays until the board
+  // moves — no snapshot follows a tap the server never heard about, so nothing
+  // else would ever come to clear it. The next real one does, both ways.
   el.handHint.textContent = handHint(view, yourTurn, me);
+  el.handHint.classList.remove('is-refused');
+}
+
+// ================================================== THE PHASE YOU ARE IN ===
+/**
+ * ONE ANSWER TO "CAN I MOVE RIGHT NOW", AND EVERYTHING READS IT.
+ *
+ * The strip over your hand, every card's `disabled`, and every card's spoken
+ * name all come out of this function, so the label and the lock cannot
+ * disagree — which is the whole point. A hand that says YOUR TURN over cards
+ * that refuse to answer is not a cosmetic fault: it is the interface telling a
+ * player the game is broken at the exact moment they are trying to learn it.
+ *
+ * None of the five is a rule. Four are facts the snapshot states outright
+ * (playing or not, whose turn, and the connection), and the fifth is this
+ * client's own move gate — `armPending`, which is already the thing that makes
+ * the hand zone inert while your intent is on the wire. The turn-moving beat
+ * is the only one with a clock on it, and it clocks an animation this client
+ * runs, never anything the rules do.
+ */
+const TURN_MOVE_MS = 320;
+
+function handPhase(view, yourTurn) {
+  if (!net.synchronized) return 'offline';
+  if (!view || view.status !== 'playing') return 'over';
+  if (ui.pendingAt) return 'resolving';
+  if (yourTurn) return 'await';
+  if (ui.turnMovingUntil > Date.now()) return 'moving';
+  return 'waiting';
+}
+
+/**
+ * The turn visibly leaving your seat. It starts when a snapshot says the turn
+ * that was yours is now somebody else's, and it lasts as long as the token
+ * takes to walk — a statement about this client's animation, and about
+ * nothing else. It exists so the beat between your card landing and the next
+ * chef being live has a name of its own instead of borrowing "wait your turn".
+ */
+function trackTurnMove(snapshot, view) {
+  const now = view.status === 'playing' ? view.turnPlayerId : null;
+  const was = ui.prevTurnId;
+  ui.prevTurnId = now;
+  if (!was || was === now) return;
+  if (was !== snapshot.youId || now === snapshot.youId) return;
+  ui.turnMovingUntil = Date.now() + TURN_MOVE_MS;
+  clearTimeout(ui.turnMovingTimer);
+  // The beat ends on a clock, so something has to come back and say so: no
+  // snapshot is owed at the end of an animation.
+  ui.turnMovingTimer = setTimeout(() => {
+    ui.turnMovingUntil = 0;
+    repaintHandState();
+  }, TURN_MOVE_MS);
+}
+
+const PHASE_WORD = {
+  await: 'YOUR TURN',
+  resolving: 'RESOLVING',
+  moving: 'TURN MOVING',
+  waiting: 'WAIT YOUR TURN',
+  over: 'ROUND OVER',
+  offline: 'RECONNECTING',
+};
+
+/**
+ * The strip over your own cards. You have no chef panel around the counter, so
+ * this is the only place that says what phase YOU are in.
+ *
+ * The one invariant: it may never read YOUR TURN while the hand is locked. It
+ * says RESOLVING while your move is in the air, TURN MOVING while the turn
+ * walks away from your seat, and WAIT YOUR TURN — or YOU'RE NEXT — while
+ * somebody else is up.
+ *
+ * ACT NOW outranks all of the waiting words. While a call-out or a shout is
+ * legal there is something for you to do on a turn that is not yours, and a
+ * strip that still said WAIT YOUR TURN over an open window would be talking a
+ * player out of a legal move — which is what the draining bar used to do.
+ */
+function paintHandState(snapshot, view, yourTurn) {
+  const phase = handPhase(view, yourTurn);
+  ui.handPhase = phase;
+  const me = view.players.find((p) => p.id === snapshot.youId);
+  const count = me ? me.cardCount : (view.hand || []).length;
+
+  let word = PHASE_WORD[phase] || '';
+  if (phase === 'await' && view.mustPlayDrawnCard) word = 'DRAWN CARD ONLY';
+  if (phase === 'waiting' && youAreNext(snapshot, view)) word = "YOU'RE NEXT";
+  if ((phase === 'waiting' || phase === 'moving') && momentIsOpen(snapshot, view)) word = 'ACT NOW';
+
+  el.handSelf.dataset.phase = phase;
+  el.handSelf.classList.toggle('is-live', phase === 'await');
+  el.handSelf.classList.toggle('is-urgent', word === 'ACT NOW');
+  if (el.handState.textContent !== word) el.handState.textContent = word;
+  const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
+  if (el.handCount.textContent !== cards) el.handCount.textContent = cards;
+}
+
+/** Re-states the strip from the last snapshot, for the beats that end on a clock. */
+function repaintHandState() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view || !el.handState) return;
+  paintHandState(snapshot, view, view.turnPlayerId === snapshot.youId && view.status === 'playing');
+}
+
+/**
+ * Whether the turn arrives at your seat next, read off the same three things
+ * the counter is drawn from: who is playing, which way the play is going, and
+ * where everybody is sitting. The server does not publish a next player and
+ * this does not invent one — a Burnt Slice the current chef has not played yet
+ * is not knowable by anybody, and the snapshot after it says so itself.
+ */
+function youAreNext(snapshot, view) {
+  const seats = view.players.filter((p) => !p.left);
+  if (seats.length < 2) return false;
+  const at = seats.findIndex((p) => p.id === view.turnPlayerId);
+  const you = seats.findIndex((p) => p.id === snapshot.youId);
+  if (at < 0 || you < 0 || at === you) return false;
+  const step = view.direction === -1 ? -1 : 1;
+  return seats[(at + step + seats.length) % seats.length].id === snapshot.youId;
+}
+
+// ======================================================== TIMED MOMENTS ===
+/**
+ * THE WINDOWS, AND THE ONE THING THEY ARE NOT ALLOWED TO DO.
+ *
+ * Three contextual actions arrive on somebody else's schedule: the shout at
+ * two cards, the shout that saves you after you played to one without it, and
+ * the call-out on a chef who forgot. Each gets a strip over the hand with the
+ * move on it as a real button.
+ *
+ * NOTHING IN HERE RUNS ON A CLOCK. A window exists exactly while the server
+ * still says its move is legal — `calloutTargets` for the call-out,
+ * `canDeclareZa` and `vulnerable` for the two shouts — and it goes when that
+ * stops. The client has no idea how long any of them lasts, because the answer
+ * depends entirely on what the other chefs do next, and the last thing here
+ * that implied otherwise spent twenty-seven of thirty seconds talking players
+ * out of a legal move.
+ */
+function momentIsOpen(snapshot, view) {
+  if (!view || view.status !== 'playing') return false;
+  if ((view.calloutTargets || []).length) return true;
+  return ui.callouts.has(snapshot.youId);
+}
+
+function renderMoments(snapshot, view) {
+  const live = view.status === 'playing';
+  const me = view.players.find((p) => p.id === snapshot.youId);
+  const targets = live ? (view.calloutTargets || []) : [];
+
+  syncMoment('callout', targets.length > 0, () => {
+    const names = targets
+      .map((id) => (view.players.find((p) => p.id === id) || {}).name)
+      .filter(Boolean);
+    const one = names.length === 1;
+    return {
+      tone: 'alarm',
+      title: `${one ? names[0].toUpperCase() : 'THEY'} FORGOT ZA — CALL THEM OUT`,
+      sub: one
+        ? `${names[0]} is on one card and never said it.`
+        : `${names.join(' and ')} are on one card and never said it.`,
+      cta: 'CALL OUT NOW',
+      // One target is the move itself; several is a choice, and the list that
+      // already exists is where a choice is made.
+      press: () => (one ? calloutPlayer(targets[0]) : openCalloutPopover()),
+      grabs: true,
+    };
+  });
+
+  // The teaching strip. It is the one window that does NOT take focus: it
+  // comes up on every turn you spend at two cards, and a control that jumps
+  // under the keyboard twice a round is not a teacher, it is a nuisance.
+  syncMoment('za', Boolean(live && view.canDeclareZa && me && me.cardCount === 2), () => ({
+    tone: 'cheese',
+    title: 'CALL ZA BEFORE YOU PLAY',
+    sub: '2 cards → call ZA before playing. Forget = +2.',
+    cta: 'CALL ZA',
+    press: declareZa,
+    grabs: false,
+  }));
+}
+
+/**
+ * Builds, updates or removes one window. The copy is rewritten every snapshot
+ * and the button's handler with it, so a window that stays open across a turn
+ * cannot end up firing at a chef who is no longer the one named on it.
+ */
+function syncMoment(kind, wanted, build) {
+  let node = el.moments.querySelector(`.moment--${kind}`);
+  if (!wanted) {
+    if (node) {
+      if (ui.momentFocused && node.contains(ui.momentFocused)) ui.momentFocused = null;
+      node.remove();
+    }
+    return;
+  }
+
+  const spec = build();
+  const fresh = !node;
+  if (fresh) {
+    node = document.createElement('div');
+    node.className = `moment moment--${kind} moment--${spec.tone}`;
+    const words = document.createElement('div');
+    words.className = 'moment__words';
+    words.append(
+      Object.assign(document.createElement('b'), { className: 'moment__title' }),
+      Object.assign(document.createElement('span'), { className: 'moment__sub' })
+    );
+    const cta = document.createElement('button');
+    cta.type = 'button';
+    cta.className = 'moment__cta';
+    node.append(words, cta);
+    el.moments.append(node);
+  }
+
+  const title = node.querySelector('.moment__title');
+  const sub = node.querySelector('.moment__sub');
+  const cta = node.querySelector('.moment__cta');
+  if (title.textContent !== spec.title) title.textContent = spec.title;
+  if (sub.textContent !== spec.sub) sub.textContent = spec.sub;
+  if (cta.textContent !== spec.cta) cta.textContent = spec.cta;
+  // One handler, replaced rather than stacked: `onclick` cannot accumulate.
+  cta.onclick = spec.press;
+  if (spec.grabs) focusMoment(cta);
+}
+
+/**
+ * A window that opens hands the keyboard its own button, once. It is the only
+ * moment in the game where not knowing costs cards, and it is worth exactly
+ * one focus move — repeated on every snapshot it would pin the caret to the
+ * strip for as long as the window lasted.
+ *
+ * It never takes focus off a dialog or off another window's button: those are
+ * both places a player is already deciding something.
+ */
+function focusMoment(cta) {
+  if (!cta || ui.momentFocused === cta) return;
+  if (popoverOpen() || el.overlay.classList.contains('is-open')) return;
+  if (el.moments.contains(document.activeElement)) return;
+  ui.momentFocused = cta;
+  try {
+    cta.focus({ preventScroll: true });
+  } catch {
+    cta.focus();
+  }
+}
+
+/**
+ * THE SHOUT HAS ONE OWNER. The ZA! button on the bar and the CALL ZA on a
+ * window are two doors onto the same move, and a second entrance is how the
+ * dead PASS button hid for weeks: the feature kept working through the other
+ * door while its own control did nothing. Both doors call this, and this reads
+ * the server's own `canDeclareZa` rather than either button's state.
+ */
+function declareZa() {
+  const view = ui.snapshot && ui.snapshot.game;
+  if (!view || !view.canDeclareZa) return;
+  send({ type: 'za' });
+  playShout();
+}
+
+/** Same arrangement for the call-out: one place that checks, three doors in. */
+function calloutPlayer(id) {
+  const view = ui.snapshot && ui.snapshot.game;
+  if (!id || !view || !(view.calloutTargets || []).includes(id)) return;
+  closePopovers();
+  send({ type: 'callout', targetId: id });
 }
 
 function handHint(view, yourTurn, me) {
@@ -4187,13 +4685,60 @@ function spendFocusIntent(fresh, near) {
 // =============================================================== ACTIONS ===
 function onCardActivate(card, slot) {
   const node = slot.firstElementChild;
-  if (!node.classList.contains('is-playable')) return;
+  if (!node || node.disabled) return;
+  // The row scrolls under the thumb, and the thumb starts on a card.
+  if (draggedNotTapped()) return;
+  if (!node.classList.contains('is-playable')) {
+    refuseCard(node);
+    return;
+  }
 
   if (isWild(card)) {
     openPicker(card, slot);
     return;
   }
   commitPlay(card, null, slot);
+}
+
+/**
+ * THE ILLEGAL TAP, ANSWERED IN WORDS.
+ *
+ * A card that will not go on the pile used to do nothing at all when it was
+ * pressed, which teaches a player exactly one thing: that the game is broken.
+ * The rule it is enforcing — match the topping, match the number, or play a
+ * wild — is the only rule the game has, and this is the moment it is being
+ * asked about.
+ *
+ * Every word of the answer is read off the snapshot the server sent. Nothing
+ * here decides whether the card is legal: the server already said so in
+ * `playableCardIds`, and this only reads back what the pile is asking for.
+ * Only the tapped card refuses; the rest of the row does not flinch.
+ */
+function refuseCard(node) {
+  const view = ui.snapshot && ui.snapshot.game;
+  const text = matchDemand(view);
+  el.handHint.textContent = text;
+  el.handHint.classList.add('is-refused');
+  announce(text);
+  sound.play('sizzle-buzz');
+  if (!wantsMotion()) return;
+  restartAnimation(node, 'is-refusing', 'card-refuse');
+  setTimeout(() => node.classList.remove('is-refusing'), 300);
+}
+
+/**
+ * What the pile is asking for, in the words the card would have to answer in.
+ *
+ * The topping comes from `currentTopping`, which is the chosen colour after a
+ * wild rather than the top card's own suit — the one place these two disagree
+ * is exactly the one a player gets wrong. A wild on top has no number to match,
+ * so none is offered: the sentence never names a way in that is not there.
+ */
+function matchDemand(view) {
+  if (!view) return "DOESN'T MATCH — that card cannot go on this pile.";
+  const meta = TOPPING_META[view.currentTopping];
+  const wants = [meta ? meta.label.toUpperCase() : '', matchValue(view.topCard).toUpperCase()];
+  return `DOESN'T MATCH — need ${wants.filter(Boolean).join(', ')}, or a Wild.`;
 }
 
 function commitPlay(card, topping, slot) {
@@ -6036,8 +6581,7 @@ el.drawPile.addEventListener('click', () => {
 el.btnPass.addEventListener('click', () => send({ type: 'pass' }));
 el.btnZa.addEventListener('click', () => {
   if (el.btnZa.disabled) return;
-  send({ type: 'za' });
-  playShout();
+  declareZa();
 });
 el.btnCallout.addEventListener('click', openCalloutPopover);
 
@@ -6051,11 +6595,7 @@ el.btnCallout.addEventListener('click', openCalloutPopover);
  * call-out the server would reject.
  */
 function calloutFromSeat(node) {
-  const id = node && node.dataset.id;
-  const view = ui.snapshot && ui.snapshot.game;
-  if (!id || !view || !(view.calloutTargets || []).includes(id)) return;
-  closePopovers();
-  send({ type: 'callout', targetId: id });
+  calloutPlayer(node && node.dataset.id);
 }
 
 el.opponents.addEventListener('click', (event) => {
@@ -6153,20 +6693,37 @@ document.addEventListener('pointerdown', (event) => {
   closePopovers();
 });
 
+/**
+ * The row re-spaces on the resize itself, not behind the frame.
+ *
+ * Everything else in the resize handler rides a `requestAnimationFrame`, and a
+ * pane that is hidden or backgrounded has rAF throttled away entirely: the
+ * event arrives and the work behind it never runs. That was survivable while
+ * every card in the hand was 84px at every width and only the overlap moved.
+ * The width IS the policy now — a row still at a phone's 54px on a monitor, or
+ * still at 84px on a phone, is the density policy not applying at all — so the
+ * one cheap read it needs happens on the spot. Same lesson as the breakpoint
+ * that never fired, one layer down.
+ */
+function resizeHandRow() {
+  const view = ui.snapshot && ui.snapshot.game;
+  if (!view || !view.hand) return;
+  // A width change can open or close the kitchen — the pit engages only under
+  // pressure, and pressure is a function of width. The full render moves the
+  // cards between rails; a plain relayout covers the rest.
+  if (PIT_ENGAGES && el.hand.dataset.open !== (handFitsOpen(view.hand.length) ? '1' : '0')) {
+    const yourTurn = view.turnPlayerId === ui.snapshot.youId && view.status === 'playing';
+    renderHand(ui.snapshot, view, yourTurn);
+    return;
+  }
+  layoutNear(ui.nearRow);
+}
+
 let resizeFrame = 0;
 window.addEventListener('resize', () => {
+  resizeHandRow();
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
-    // A width change can open or close the kitchen — the pit engages only
-    // under pressure, and pressure is a function of width. The full render
-    // moves the cards between rails; a plain relayout covers the rest.
-    const view = ui.snapshot && ui.snapshot.game;
-    if (view && view.hand && el.hand.dataset.open !== (handFitsOpen(view.hand.length) ? '1' : '0')) {
-      const yourTurn = view.turnPlayerId === ui.snapshot.youId && view.status === 'playing';
-      renderHand(ui.snapshot, view, yourTurn);
-    } else {
-      layoutNear(ui.nearRow);
-    }
     // The pit's height moves when it re-wraps, and the peek hangs off it.
     invalidatePit();
     if (ui.peekCardId) {
@@ -6218,6 +6775,7 @@ function boot() {
   announcerNode();
   buildRulesScrew();
   bindPit();
+  bindHandRow();
 
   const saved = localStorage.getItem('za.name');
   if (saved) el.inputName.value = saved;

@@ -167,6 +167,26 @@
     </div>
 
     <footer class="hand-zone">
+      <!-- YOUR STRIP. You have no chef panel of your own around the counter,
+           so the one place that says what phase YOU are in is here, over your
+           own cards. The word is derived from the snapshot and the local
+           move-gate and it may never contradict the lock: while the hand is
+           disabled it can say RESOLVING, TURN MOVING or WAIT YOUR TURN, but
+           never YOUR TURN. -->
+      <div class="hand-self" id="hand-self">
+        <span class="hand-self__label">YOUR HAND</span>
+        <span class="hand-self__count" id="hand-count"></span>
+        <span class="hand-self__state" id="hand-state"></span>
+      </div>
+
+      <!-- THE MOMENTS. Contextual windows that only exist while the server
+           says the move behind them is legal: the ZA teaching strip at two
+           cards, the recovery window when you played to one without shouting,
+           and the call-out window while `calloutTargets` names somebody.
+           Nothing in here runs on a clock — see "the bar that promised a
+           deadline" in the kitchen log. -->
+      <div class="moments" id="moments"></div>
+
       <div class="hand-bar">
         <button class="btn btn--za" id="btn-za" type="button">
           <span data-icon="slice" aria-hidden="true">🍕</span> ZA!
@@ -178,15 +198,26 @@
         <span class="hand-bar__hint" id="hand-hint"></span>
       </div>
 
-      <!-- THE PIT. Dead cards drop into the rib strip; only the cards you can
-           actually play stand up full size in the near rail below it. The peek
-           is a sibling of both, not a child of the strip: it lands over the
-           near rail and must not be clipped by it. -->
-      <div class="hand" id="hand" data-mode="review">
+      <!-- THE ROW. Every card in your hand stands in the near rail at the same
+           size, whether you can play it or not: a card you cannot read is a
+           card you cannot learn from, and a dead card on your turn is a
+           teaching tap. Cards shrink from 84px toward a hard 54px floor to
+           fit, and past the floor the rail scrolls — it never shrinks below
+           the floor and it never overlaps. The pit strip below is kept for the
+           density policy it used to hold (see PIT_ENGAGES in app.js); while
+           the row is the policy it stays empty and CSS collapses it. -->
+      <div class="hand" id="hand" data-mode="review" data-pit="0">
         <div class="hand__pit" id="hand-pit" role="group" aria-label="No dead cards"></div>
-        <div class="hand__near" id="hand-near" role="group" aria-label="Cards you can play"></div>
+        <div class="hand__near" id="hand-near" role="group" aria-label="Your hand"></div>
         <div class="hand__peek" id="hand-peek" aria-hidden="true" hidden></div>
+        <!-- The scroll cue: the row runs out under this fade rather than
+             stopping at an edge that looks like the end of the hand. -->
+        <span class="hand__fade" id="hand-fade" aria-hidden="true"></span>
       </div>
+
+      <!-- Said once per session, the first time the hand is wider than the
+           screen, and retired the moment the player scrolls it. -->
+      <p class="hand-swipe" id="hand-swipe" hidden>SWIPE THE HAND — MORE CARDS TO THE RIGHT</p>
 
       <!-- THE BEZEL RAIL. Room code, sound and leave used to crowd the top
            edge next to the marquee. They are cabinet hardware, not gameplay,
