@@ -85,3 +85,89 @@ Port the visual grammar, not this engine. Legality, ZA availability,
 vulnerability, callout windows, penalties and turn progression must keep coming
 from the server; this build decides them locally only so it can be played
 offline.
+
+================================================================================
+AS SHIPPED — TABLE GRAMMAR (match plaque · turn geography · effect faces ·
+narration), ported into the styled client on 2026-08-10.
+
+The spec above is left verbatim. Where the port had to decide something the
+prototype could not know about, the decision and its reason are here.
+
+MATCH PLAQUE
+- Under the piles, not above them. From 520px up the chefs and the centre
+  column share one grid cell and the top of that cell is where people are
+  sitting; the prototype's chefs sit below its plaque, ours sit around it.
+- The plaque replaces the old IN PLAY · <TOPPING> badge outright rather than
+  standing beside it. Two statements of the same fact, one of them half the
+  rule, is the thing this pass exists to remove.
+- Wording follows the prototype: MATCH / <topping> OR <number>, MATCH /
+  <topping> OR <effect>, CURRENT TOPPING / <topping> on a wild. The topping is
+  drawn in its own colour and the alternative in plain ink, because the
+  alternative is not a topping and must not read as one.
+- Printed form is aria-hidden; one spoken sentence carries it instead. Four
+  nodes and a conjunction read out in sequence is a list, not a condition.
+
+DIRECTION
+- The prototype's word is CLOCKWISE / COUNTER-CLOCKWISE and the server's is
+  "play runs to the left / right". Both are true of different things: the
+  server describes a real table from above, the chip describes this screen.
+  `direction: 1` seats the next chef down the left wall, so play runs
+  bottom -> left -> top -> right, which on a clock face is 6 -> 9 -> 12 -> 3.
+  Clockwise. The visually-hidden announcement was changed to match the chip so
+  a screen reader and the screen do not use two vocabularies for one fact.
+- The chip is a third carrier, not a replacement: the marquee's chevron chase
+  (below 520px) and the token walking the counter (520px and up) both stay.
+  Neither is on screen at every width, which is why the word exists.
+
+TURN GEOGRAPHY
+- The seat ordinal chip already existed and was drawn only in the phone queue.
+  On the counter it now appears for exactly two ranks — NOW and NEXT — and
+  stays hidden for 03 and up. Position is the ordinal on a counter; "whose
+  turn" and "who is next" were the two it could not answer.
+- It is placed last in the seat, not over the portrait: the ZA! / FORGOT!
+  badge already owns the space above the head.
+
+EFFECT-FIRST CARD FACES
+- Skip, Reverse and Draw Two lead with a drawn glyph in the sprite window and
+  the effect word on the banner. The generated sprite stays behind the glyph —
+  the art is unchanged, the reading order is not.
+- Press Start 2P has no glyph for the symbols the prototype types, so the two
+  that need drawing are drawn as inline SVG in the game's icon set. `+2` is
+  typed, because it is already the picture of itself.
+- The parlour names (Burnt Slice, Flip the Pie, Extra Toppings) leave the
+  banner and stay in the spoken label, the chatter and the rule book. The
+  spoken label gains the effect word after the name: "Basil Flip the Pie,
+  reverse".
+- The topping steps back to the keyline colour PLUS the corner suit letter,
+  which effect cards now show at every size. A topping is never colour alone.
+- A COVERED card in the near rail still prints its three-letter SUIT token,
+  not an effect token. The rail measures whether a token fits using the same
+  function that produces it; changing one without the other is two copies of
+  one number, and the rail is another agent's floor. The big glyph carries the
+  effect on a covered card.
+
+NARRATION
+- Shortened from the server's log, never composed from scratch. Each event is
+  recognised by a phrase the server writes in every one of its phrasings —
+  never by the emoji, which carries joiners and variation selectors, and never
+  by a whole sentence, which `pick()` swaps. Names and numbers come from the
+  snapshot the line arrived with. An unrecognised line prints the server's own
+  words with the decoration stripped.
+- The LAST log entry is the one shown. The server writes cause then
+  consequence, so the last entry is the penalty landing, the order turning, the
+  seat losing its turn — which is the news, and which is what the prototype
+  shows.
+- "YOU PLAYED TO 1 WITHOUT ZA" is not ported. Nothing in the log marks it; it
+  is a property of the snapshot (`vulnerable`), and the call-out window already
+  draws it. Inventing a log line for it would be the client keeping score.
+
+KNOWN, NOT FIXED
+- The felt is the grid's `1fr` row and the hand zone grows with the hand. On a
+  short window the felt is smaller than the piles alone — measured on the
+  PRE-CHANGE build at 390x667: the discard pile ran to y=293.6 against a hand
+  zone starting at y=265, and the topping badge under it was entirely covered.
+  This pass does not fix that budget; it makes the squeeze land somewhere
+  survivable. The centre column is pinned to the BOTTOM of the felt and paints
+  over the seats, so a squeeze rides the piles up into the portraits instead of
+  feeding the plaque and the direction chip to an opaque hand zone. Fixing the
+  budget properly means touching the hand zone, which belongs to the hand pass.
