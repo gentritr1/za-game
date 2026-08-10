@@ -2275,6 +2275,260 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: var(--text-dim);
 }
 
+/* The reason a card would not go on the pile, written where the hand already
+   talks. Sauce, because it is a refusal, and it stays until the board moves. */
+.hand-bar__hint.is-refused {
+  color: var(--sauce-hi);
+  letter-spacing: .04em;
+}
+
+/* --- your strip ---------------------------------------------------------- */
+/* You have no chef panel around the counter, so this is the one place that
+   says what phase YOU are in. It never contradicts the lock under it: while
+   the cards are disabled it can read RESOLVING, TURN MOVING, WAIT YOUR TURN or
+   ACT NOW, and never YOUR TURN. */
+.hand-self {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-height: 20px;
+}
+
+/* Nothing in the strip breaks mid-phrase. "YOUR HAND" over three lines beside
+   "14 / cards" is not a label, it is a column — the strip wraps as whole
+   pieces or not at all. DRAWN CARD ONLY is the longest word it ever carries
+   and it is what the sizes are set against at 390px. */
+.hand-self__label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: .1em;
+  white-space: nowrap;
+  color: var(--ui-cyan);
+}
+
+.hand-self__count {
+  font-size: var(--fs-label);
+  letter-spacing: .06em;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.hand-self__state {
+  margin-left: auto;
+  padding: 3px 6px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+/* Your turn inverts the word onto bone; a window that wants an answer inverts
+   it onto sauce. Both are the same shape, so the strip never reflows. */
+.hand-self.is-live .hand-self__state {
+  color: var(--void);
+  background: var(--text);
+}
+
+.hand-self.is-urgent .hand-self__state {
+  color: var(--void);
+  background: var(--sauce);
+}
+
+/* --- the moments --------------------------------------------------------- */
+/* One strip per contextual action, stacked over the hand. Every one of them
+   exists exactly while the server still says its move is legal, and not one
+   of them holds a clock. */
+.moments {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.moments:empty { display: none; }
+
+.moment {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s1) var(--s2);
+  background: var(--console);
+  border: var(--bd-thin) solid var(--bezel);
+}
+
+.moment--alarm { border-color: var(--sauce); }
+.moment--cheese { border-color: var(--cheese); }
+
+.moment__words {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.moment__title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: .06em;
+}
+
+.moment--alarm .moment__title { color: var(--sauce-hi); }
+.moment--cheese .moment__title { color: var(--cheese); }
+
+.moment__sub {
+  font-size: var(--fs-label);
+  line-height: 1.25;
+  color: var(--text-dim);
+}
+
+/* THE CTA IS ONE LINE. It is the move, and a move that wraps to two rows at
+   390px reads as a paragraph with a border. It never shrinks and it never
+   wraps: the words beside it give up their width first, and 44px of height is
+   the floor everything else in the cabinet already stands on. */
+.moment__cta {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px var(--s2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: var(--void);
+  background: var(--sauce);
+  border: none;
+  box-shadow: var(--sh-lift);
+  cursor: pointer;
+}
+
+.moment--cheese .moment__cta { background: var(--cheese); }
+
+/* THE LESSON IS ONE ROW ON A PHONE. The heading becomes the sentence, in the
+   body face so a whole clause fits beside the button, and it never wraps into
+   a second row — the consequence moved to the hint line under the hand rather
+   than growing this strip past the cards it is advice about. */
+@media (max-width: 519.98px) {
+  .moment--za { flex-wrap: nowrap; }
+
+  .moment--za .moment__title {
+    font-family: var(--font);
+    font-size: var(--fs-label);
+    line-height: 1.2;
+    letter-spacing: .04em;
+  }
+}
+.moment--cyan .moment__cta { background: var(--ui-cyan); }
+.moment--cyan { border-color: var(--ui-cyan); }
+.moment--cyan .moment__title { color: var(--ui-cyan); }
+
+/* The other answer. Quiet on purpose: keeping the card and passing is a real
+   move and never the one being recommended, so it is a bordered ghost rather
+   than a second fill competing with the first. Same 44px floor, same one line. */
+.moment__alt {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px var(--s2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: transparent;
+  border: 2px solid var(--bezel);
+  cursor: pointer;
+}
+
+.moment__cta:focus-visible,
+.moment__alt:focus-visible {
+  outline: 2px solid var(--ui-cyan);
+  outline-offset: 3px;
+}
+
+/* --- the topping picker, as a panel ---------------------------------------- */
+/* It is the same furniture as the drawn-card decision, laid out downwards
+   instead of across: the wild that was played, the question, then the four
+   answers in a named 2x2. It stacks because the group is the widest thing in
+   it and a 2x2 beside a card face at 390px would put two toppings off the
+   screen. */
+.moment--wild {
+  align-items: center;
+  gap: var(--s2);
+}
+
+.moment--bone { border-color: var(--text); }
+.moment--bone .moment__title { color: var(--text); }
+
+/* The card sits beside the question and its answers. Stacked above them this
+   panel is 250px tall, and on a 667px phone the felt above it has about 30px
+   to give — beside them the card costs no height at all, because the column
+   next to it is taller than the card is. */
+.moment__wild-body {
+  flex: 1 1 auto;
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.moment__wild-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.moment__wild-head .moment__title { flex: 1 1 auto; min-width: 0; }
+
+/* The card is shown ONCE, and this is it — the panel is about a specific wild
+   and says which. It never takes a pointer: it is evidence, not a control. */
+.moment__wild-card {
+  --card-w: 54px;
+  flex: 0 0 auto;
+  pointer-events: none;
+  box-shadow: var(--sh-lift);
+}
+
+.moment__toppings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+}
+
+/* Every answer is a 44px target, same as every other decision's buttons. */
+.moment__toppings .topping-btn {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.moment__toppings .topping-btn:focus-visible {
+  outline: 2px solid var(--ui-cyan);
+  outline-offset: 3px;
+}
+
+/* Cancel rides the question's line, never the group: it is not a fifth
+   topping. Nothing has been sent yet — a wild reaches the wire only once a
+   topping names it — so a card tapped by mistake stays retractable. */
+.moment__wild-cancel { flex: 0 0 auto; }
+
+/* ONE DECISION AT A TIME, stated on the strip itself so it holds for the
+   windows this file does not build. */
+.moments.is-held > :not(.moment--wild) { display: none; }
+
+/* THE SWAP. On a phone a timed window takes the hand's place rather than
+   pushing it: a strip that appears above the row at 390px shoves the row — and
+   the counter above it — up and off the fold, so the answer to "what just
+   happened" arrives by moving everything the player was looking at.
+   `display: none` and not a fade or a squeeze: while the window is up the row
+   is out of the layout, out of the tab order and out of the accessibility
+   tree, because a hand you are told to ignore is a hand that should not be
+   reachable. There is room for both on anything wider, so nothing is hidden
+   there. */
+@media (max-width: 519.98px) {
+  .hand-zone.is-swapped .hand,
+  .hand-zone.is-swapped .hand-swipe { display: none; }
+}
+
 .btn--za {
   --btn-bg: var(--cheese);
   --btn-fg: var(--void);
@@ -2361,19 +2615,22 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand__pit:empty { display: none; }
 
-/* The near rail. It reserves its 132px for the whole of your turn so the row
-   never jumps under your thumb; on their turn nothing is live, so it collapses
-   to nothing and gives the room to the pit — unless a peek needs somewhere to
-   land. */
+/* THE ROW. Every card in the hand stands here at one shared width, live or
+   dead. `--hand-card-w` is written by `layoutNear` once per render: 84px while
+   there is room for 84px, down to a 54px floor under pressure, and never below
+   it — under the floor the rail scrolls instead (see `.is-scrolling`).
+   Reserving the row's height off the same number keeps it from jumping under
+   a thumb mid-turn without stranding 56px of empty console at 54px cards. */
 .hand__near {
+  --hand-card-w: 84px;
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  min-height: 132px;
+  min-height: calc(var(--hand-card-w) * var(--card-ratio) + 14px);
   padding-top: 14px;
 }
 
-/* A rail that cannot fit even at MAX_OVERLAP scrolls rather than hanging its
+/* A row that cannot fit even at the 54px floor scrolls rather than hanging its
    far cards off a screen that clips (see `layoutNear`). Two things have to
    change with the overflow, and both are the difference between a scrollbar
    that works and one that lies:
@@ -2401,15 +2658,62 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand__near.is-scrolling::-webkit-scrollbar-track { background: var(--console); }
 .hand__near.is-scrolling::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 0; }
 
-.hand[data-mode="review"] .hand__near {
+/* Only while there IS a pit. The two-rail hand gave the near rail's room to
+   the strip on somebody else's turn; a row that is the whole hand has nowhere
+   to give it to, and collapsing it would drop every card off the screen. */
+.hand[data-mode="review"][data-pit="1"] .hand__near {
   min-height: 0;
   padding-top: 0;
 }
 
-.hand[data-mode="review"].has-peek .hand__near {
+.hand[data-mode="review"][data-pit="1"].has-peek .hand__near {
   min-height: 132px;
   padding-top: 14px;
 }
+
+/* THE SCROLL CUE. The row runs out under a fade rather than stopping at an
+   edge that looks like the end of the hand. It never takes the pointer that is
+   scrolling it, and — the part that matters — each edge is drawn only while
+   there is something under it. A fade at an edge with nothing past it is not a
+   soft ending, it is a claim that there is more. */
+.hand__fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  display: none;
+  pointer-events: none;
+}
+
+/* Fading to the surface the row actually sits on — the hand zone's cabinet,
+   not the console the pit strip is cut into. A gradient that ends on the wrong
+   colour is a dark bar down the edge, not a card running out of screen.
+   Contrast is a property of a pairing. */
+.hand__fade--right {
+  right: 0;
+  background: linear-gradient(90deg, rgba(16, 20, 38, 0), var(--cabinet));
+}
+
+.hand__fade--left {
+  left: 0;
+  background: linear-gradient(270deg, rgba(16, 20, 38, 0), var(--cabinet));
+}
+
+/* `is-overflowing` says the row is longer than the rail; `is-at-start` and
+   `is-at-end` say where the scroll currently is. Both edges need both facts. */
+.hand.is-overflowing:not(.is-at-end) .hand__fade--right { display: block; }
+.hand.is-overflowing:not(.is-at-start) .hand__fade--left { display: block; }
+
+/* Said once per session and retired the moment the hand is scrolled. */
+.hand-swipe {
+  margin: 0;
+  font-size: var(--fs-label);
+  letter-spacing: .06em;
+  text-align: center;
+  color: var(--ui-cyan);
+}
+
+.hand-swipe[hidden] { display: none; }
 
 /* The peek is a sibling of both rails, never a child of the strip: it lands
    over the near rail, which is one more way of saying a peek is not a play. */
@@ -2452,9 +2756,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .hand__near .hand-slot {
-  /* 84px at four cards and at fourteen. Past four they overlap; they never
-     shrink. */
-  --card-w: 84px;
+  /* The row's one width, written by `layoutNear`. Every card in the hand is
+     this wide — there is no second size and nothing overlaps, so the card you
+     are looking at is the card you will hit. */
+  --card-w: var(--hand-card-w, 84px);
   margin-left: var(--overlap, 8px);
 }
 
@@ -2479,6 +2784,185 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand[data-mode="review"] .hand__pit .hand-slot {
   --card-w: 32px;
   margin-left: 4px;
+}
+
+/* THE SHORT-WINDOW BUDGET ------------------------------------------------- */
+/* On a short phone the felt is the row that loses. The game screen is a grid
+   of header / felt / hand zone, and the hand zone states a height while the
+   felt takes `1fr` — so the felt is handed whatever is left, and at 390x667
+   what was left was 29px less than the piles need. The oven's card hung under
+   the hand zone's top edge, which is the one place on the screen a card must
+   never be.
+
+   It cannot be fixed from the felt side: the pile sizes were tried and moved
+   the pile's top by 0.0px. And it does not come back one-for-one, which is the
+   part worth writing down — the centre rides the felt down as the felt grows,
+   so **a pixel given to the felt buys about 0.55 of a pixel of clearance**.
+   Measured by forcing the zone's height in 10px steps at 390x667 and reading
+   the pile's bottom against the zone's top: 356px of zone gives 28.3px of
+   overlap, 310px gives 0.3px, 297px gives -4.6px. So the budget below has to
+   find about 60px, not the 30px the overlap looks like it needs.
+
+   None of it comes out of the two things that may not move: every card stays
+   at its 54px floor, and every button stays at its 44px tap target. It comes
+   out of air — the zone's own padding, the gaps between its rows, the swipe
+   line's leading, and the room the row keeps over a lifted card. */
+@media (max-height: 700px) and (max-width: 519.98px) {
+  .hand-zone {
+    padding: 2px var(--s3) 4px;
+    gap: 2px;
+  }
+
+  /* The swipe line gives up its row. It is the one-time half of a two-part
+     cue and the other half is permanent: both edges of the row now fade, and
+     each fade follows the scroll, so a card running out under a gradient says
+     the same thing the sentence did. Keeping the sentence costs 17px of a
+     budget that has nowhere else to go without shrinking a card or a tap
+     target — and a 54px card under the hand zone's own top edge is a worse
+     answer than a cue with one part instead of two.
+
+     Tried first and rejected: fitting the four screws onto one row, which is
+     the only other 40px in here. They come to 369px of label in a 362px rail,
+     and the shave that just fits at 12px labels puts them back on two rows the
+     moment the sound screw says SND OFF. A budget that depends on a word's
+     length is not a budget. */
+  .hand-swipe { display: none; }
+
+  /* A window is 89px of the budget when it opens, and on your own turn it
+     cannot take the hand's place (that would be a soft-lock — see
+     `replacingMoment`), so it is added on top of everything else. This is the
+     one case that still costs the felt its clearance, so the window gives up
+     what it can without giving up a word: leading, padding, and the padding
+     that pushed its buttons past their 44px floor. */
+  /* While any window is open the rail drops to heads only. Copied deliberately
+     from the 560px tier below, down to the visually-hidden label rather than
+     `display: none` — the label is the accessible name of the button it sits
+     in, and a screw head with no name is not a control. One row of 44px heads
+     instead of two rows of 44px labels: 51px back, every control still there,
+     every name still spoken. */
+  /* The picker is the tallest panel and the briefest state in the game: it
+     lives between tapping a wild and naming its colour, it suppresses every
+     other window, and the player's own next press ends it. So the rail stands
+     down entirely for it — the only state where that is defensible, because
+     nothing on the rail is part of the decision and CANCEL is inside the panel
+     the caret is already in. */
+  .hand-zone.is-picking .screws { display: none; }
+
+  .hand-zone.has-moment .screw {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .hand-zone.has-moment .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .moment { padding: 2px var(--s2); gap: var(--s2); }
+  .moment__title { line-height: 1.4; }
+
+  /* The teaching strip is one row of a 44px button now, so its own padding is
+     the only thing left between it and its floor. It is the panel that cannot
+     take the hand's place — advice about a card you are about to play — so it
+     is the one that has to be smallest. */
+  .moment--za { padding-block: 0; }
+
+  /* The teaching strip's second row is gone at the phone column above — the
+     heading IS the lesson there and the consequence moved to the hint line —
+     so the rule that used to hide the heading here has nothing left to hide.
+     One row, one voice, at every short size. */
+  .moment__sub { font-size: 14px; line-height: 1.15; }
+  .moment__cta,
+  .moment__alt { padding-block: 6px; }
+
+  /* Two rows of screws are unavoidable at this width — measured at 4px of side
+     padding and an 8px column gap, the four labels still come to 369px of
+     content in a 362px rail — so the row they are separated by is what gives
+     instead, and every screw keeps its label and its 44px target.
+
+     `.hand-zone .screws`, not `.screws`: the rail's own rule is 3700 lines
+     further down and sets the `gap` SHORTHAND, which quietly beats a bare
+     `row-gap` written earlier however short the window is. The first version
+     of this line looked right and did nothing. */
+  .hand-zone .screws { row-gap: 0; }
+
+  /* The bar is as tall as the ZA! button, and the ZA! button was 52.5px: 44px
+     of tap target and 8.5px of padding that had pushed it past its own floor.
+     `min-height` still holds the 44, so this takes the excess and not the
+     target — the one place in the budget where the number that matters is
+     defended by the rule that produced it. */
+  .hand-bar .btn { padding-block: 6px; }
+
+  .hand-self { min-height: 0; }
+  .hand-self__label { font-size: 10px; }
+  .hand-self__count { font-size: 14px; }
+  .hand-self__state { font-size: 10px; padding: 2px 5px; }
+
+  .hand-swipe { font-size: 13px; line-height: 1.1; }
+
+  /* The room over the row is for the 12px a playable card lifts and the ring
+     that lands 3px outside it. 18px still clears both; 14px would not. */
+  .hand__near {
+    min-height: calc(var(--hand-card-w) * var(--card-ratio) + 10px);
+    padding-top: 10px;
+  }
+
+  .hand__near.is-scrolling {
+    padding-top: 18px;
+    padding-bottom: 2px;
+  }
+}
+
+/* The second tier, for the genuinely short ones. 360x640 has 27px less felt
+   than 390x667, and the first tier still leaves the oven's card 9px under the
+   hand zone. The last of the air is gone by here, so this tier stops spending
+   air and spends type instead — the same trade the 560px tier below makes, one
+   step earlier and one step gentler: the room code keeps its label, because it
+   is the one thing on the rail a player has to read out to somebody else, and
+   the other three go to heads with their names intact. One row instead of two.
+
+   Measured at 360x640 with a six-card hand: rail 96px -> 44px, hand zone
+   288px -> 232px, and the pile's bottom from 9px under the hand zone to well
+   clear of it. */
+@media (max-height: 660px) and (max-width: 519.98px) {
+  .hand-zone {
+    padding: 0 var(--s3) 2px;
+    gap: 0;
+  }
+
+  .hand-zone .screws { column-gap: var(--s3); }
+
+  /* And the windows give up the last of their padding here. */
+  .moment { padding: 0 var(--s2); }
+  .moment__sub { font-size: 13px; }
+
+  .screw--sound,
+  .screw--rules,
+  .screw--leave {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  /* Visually hidden, never `display: none`: the label is the accessible name
+     of the button it sits in, and a screw head with no name is not a control. */
+  .screw--sound .screw__label,
+  .screw--rules .screw__label,
+  .screw--leave .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* ----------------------------------------------------------------- cards -- */
@@ -2806,14 +3290,36 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   outline-offset: 3px;
 }
 
-/* A dead card in the pit is reference, not a card: it never takes the pointer,
-   because the strip around it is the control. It stays in the tab order all
-   the same — the scrub is pointer-only, and a keyboard has to be able to reach
-   the hand it cannot drag across. Focus shows the peek. */
+/* A card that does not match is recessed, not removed. ON YOUR TURN IT IS
+   STILL A CONTROL: it takes the pointer, it keeps its place in the tab order,
+   and pressing it says why it cannot be played — which is the one rule new
+   players arrive without, asked at the one moment they are asking it.
+   `pointer-events: none` used to sit here, and it made every dead card a
+   button that answered nothing. */
 .hand .card.is-dimmed {
   opacity: .85;
   filter: saturate(.7) brightness(.92);
+}
+
+/* Two cases where a card genuinely is not a control: a rib in the pit, where
+   the strip around it is the control, and any card outside your turn, which
+   `dressCard` has already disabled outright. */
+.hand__pit .card,
+.hand .card:disabled {
   pointer-events: none;
+}
+
+/* The refusal: one hard shake on the card that was pressed and on nothing
+   else. Steps, not a tween — the whole cabinet moves in frames. */
+.hand .card.is-refusing {
+  animation: card-refuse 260ms linear 1;
+}
+
+@keyframes card-refuse {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-5px); }
+  45% { transform: translateX(5px); }
+  70% { transform: translateX(-3px); }
 }
 
 /* Entry, and only entry. A promotion moves the same node from one rail to the
@@ -4753,36 +5259,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transform-origin: 0 50%;
 }
 
-/* Your own window has no seat panel to live in, so it sits on the rail above
-   the hand: the same steady bar, plus the instruction that closes it. */
-.callout-self {
-  position: absolute;
-  left: var(--s3);
-  right: var(--s3);
-  bottom: calc(100% + 4px);
-  z-index: 4;
-  display: grid;
-  gap: 2px;
-  padding: var(--s1) var(--s2);
-  background: var(--console);
-  border: var(--bd-thin) solid var(--sauce);
-  pointer-events: none;
-}
-
-.callout-self__label {
-  font-size: var(--fs-label);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--sauce-hi);
-}
-
-.callout-self.is-safe { border-color: var(--basil); }
-.callout-self.is-safe .callout-self__label { color: var(--basil); }
-.callout-self.is-safe .callout-drain { border-color: var(--basil); }
+/* Your own window has no seat panel to live in, so it is one of the moments
+   over the hand (see "the moments" above): the same steady bar, the sentence
+   that says what happened, and the shout that closes it as a real button. */
+.moment--self.is-safe { border-color: var(--basil); }
+.moment--self.is-safe .moment__title { color: var(--basil); }
+.moment--self.is-safe .callout-drain { border-color: var(--basil); }
 /* Safe now: the same steady bar in basil. The `animation: none` and the
    `scaleX(1)` that used to be here existed only to cancel the drain, and the
    drain is gone. */
-.callout-self.is-safe .callout-drain__fill {
+.moment--self.is-safe .callout-drain__fill {
   background: var(--basil);
 }
 

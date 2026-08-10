@@ -94,6 +94,23 @@ export function describeCard(card) {
 }
 
 /**
+ * The other way onto the pile, in words.
+ *
+ * A card is legal if it matches the topping, OR if it repeats what the top
+ * card IS: the same number, or the same action. This is that second thing,
+ * named for a player who has just been told their card does not match.
+ *
+ * A wild on top names nothing — after it, only the topping somebody chose is
+ * asked for — so it returns the empty string rather than a word, and the
+ * sentence it is printed into never offers a way in that is not there.
+ */
+export function matchValue(card) {
+  if (!card || isWild(card)) return '';
+  if (card.kind === 'number') return String(card.value);
+  return KINDS[card.kind].label;
+}
+
+/**
  * File name for the artwork of a card, following the documented convention.
  *   pepperoni-7.png · basil-burnt-slice.png · wild-chefs-choice.png · card-back.png
  */
