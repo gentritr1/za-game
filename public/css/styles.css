@@ -2205,6 +2205,21 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .moment--cheese .moment__cta { background: var(--cheese); }
+
+/* THE LESSON IS ONE ROW ON A PHONE. The heading becomes the sentence, in the
+   body face so a whole clause fits beside the button, and it never wraps into
+   a second row — the consequence moved to the hint line under the hand rather
+   than growing this strip past the cards it is advice about. */
+@media (max-width: 519.98px) {
+  .moment--za { flex-wrap: nowrap; }
+
+  .moment--za .moment__title {
+    font-family: var(--font);
+    font-size: var(--fs-label);
+    line-height: 1.2;
+    letter-spacing: .04em;
+  }
+}
 .moment--cyan .moment__cta { background: var(--ui-cyan); }
 .moment--cyan { border-color: var(--ui-cyan); }
 .moment--cyan .moment__title { color: var(--ui-cyan); }
@@ -2231,6 +2246,75 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   outline: 2px solid var(--ui-cyan);
   outline-offset: 3px;
 }
+
+/* --- the topping picker, as a panel ---------------------------------------- */
+/* It is the same furniture as the drawn-card decision, laid out downwards
+   instead of across: the wild that was played, the question, then the four
+   answers in a named 2x2. It stacks because the group is the widest thing in
+   it and a 2x2 beside a card face at 390px would put two toppings off the
+   screen. */
+.moment--wild {
+  align-items: center;
+  gap: var(--s2);
+}
+
+.moment--bone { border-color: var(--text); }
+.moment--bone .moment__title { color: var(--text); }
+
+/* The card sits beside the question and its answers. Stacked above them this
+   panel is 250px tall, and on a 667px phone the felt above it has about 30px
+   to give — beside them the card costs no height at all, because the column
+   next to it is taller than the card is. */
+.moment__wild-body {
+  flex: 1 1 auto;
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.moment__wild-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.moment__wild-head .moment__title { flex: 1 1 auto; min-width: 0; }
+
+/* The card is shown ONCE, and this is it — the panel is about a specific wild
+   and says which. It never takes a pointer: it is evidence, not a control. */
+.moment__wild-card {
+  --card-w: 54px;
+  flex: 0 0 auto;
+  pointer-events: none;
+  box-shadow: var(--sh-lift);
+}
+
+.moment__toppings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+}
+
+/* Every answer is a 44px target, same as every other decision's buttons. */
+.moment__toppings .topping-btn {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.moment__toppings .topping-btn:focus-visible {
+  outline: 2px solid var(--ui-cyan);
+  outline-offset: 3px;
+}
+
+/* Cancel rides the question's line, never the group: it is not a fifth
+   topping. Nothing has been sent yet — a wild reaches the wire only once a
+   topping names it — so a card tapped by mistake stays retractable. */
+.moment__wild-cancel { flex: 0 0 auto; }
+
+/* ONE DECISION AT A TIME, stated on the strip itself so it holds for the
+   windows this file does not build. */
+.moments.is-held > :not(.moment--wild) { display: none; }
 
 /* THE SWAP. On a phone a timed window takes the hand's place rather than
    pushing it: a strip that appears above the row at 390px shoves the row — and
@@ -2557,6 +2641,14 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      in, and a screw head with no name is not a control. One row of 44px heads
      instead of two rows of 44px labels: 51px back, every control still there,
      every name still spoken. */
+  /* The picker is the tallest panel and the briefest state in the game: it
+     lives between tapping a wild and naming its colour, it suppresses every
+     other window, and the player's own next press ends it. So the rail stands
+     down entirely for it — the only state where that is defensible, because
+     nothing on the rail is part of the decision and CANCEL is inside the panel
+     the caret is already in. */
+  .hand-zone.is-picking .screws { display: none; }
+
   .hand-zone.has-moment .screw {
     min-width: 44px;
     justify-content: center;
@@ -2576,13 +2668,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .moment { padding: 2px var(--s2); gap: var(--s2); }
   .moment__title { line-height: 1.4; }
 
-  /* The teaching strip says the same thing twice — CALL ZA BEFORE YOU PLAY
-     over "2 cards -> call ZA before playing. Forget = +2." — and on two lines
-     of Press Start that heading costs 28px. The sentence keeps the whole
-     lesson AND the arithmetic, and it is the button's accessible description,
-     so it is the heading that goes. The alarm windows keep theirs: their
-     titles carry the news, not a restatement of it. */
-  .moment--za .moment__title { display: none; }
+  /* The teaching strip is one row of a 44px button now, so its own padding is
+     the only thing left between it and its floor. It is the panel that cannot
+     take the hand's place — advice about a card you are about to play — so it
+     is the one that has to be smallest. */
+  .moment--za { padding-block: 0; }
+
+  /* The teaching strip's second row is gone at the phone column above — the
+     heading IS the lesson there and the consequence moved to the hint line —
+     so the rule that used to hide the heading here has nothing left to hide.
+     One row, one voice, at every short size. */
   .moment__sub { font-size: 14px; line-height: 1.15; }
   .moment__cta,
   .moment__alt { padding-block: 6px; }

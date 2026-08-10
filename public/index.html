@@ -174,7 +174,7 @@
            disabled it can say RESOLVING, TURN MOVING or WAIT YOUR TURN, but
            never YOUR TURN. -->
       <div class="hand-self" id="hand-self">
-        <span class="hand-self__label">YOUR HAND</span>
+        <span class="hand-self__label" id="hand-label">YOUR HAND</span>
         <span class="hand-self__count" id="hand-count"></span>
         <span class="hand-self__state" id="hand-state"></span>
       </div>
@@ -246,12 +246,6 @@
     </footer>
 
     <!-- popovers ------------------------------------------------- -->
-    <div class="popover" id="picker" role="dialog" aria-modal="false" aria-label="Choose a topping">
-      <p class="popover__title" id="picker-title">Chef's choice — pick a topping</p>
-      <div class="popover__grid" id="picker-grid"></div>
-      <button class="btn btn--quiet btn--sm btn--block" id="picker-cancel" type="button">Cancel</button>
-    </div>
-
     <div class="popover popover--list" id="callout-pop" role="dialog" aria-modal="false" aria-label="Call out a player">
       <p class="popover__title">Who forgot to shout?</p>
       <div class="popover__rows" id="callout-rows"></div>

@@ -72,6 +72,7 @@ const el = {
   handFadeLeft: $('hand-fade-left'),
   handSwipe: $('hand-swipe'),
   handSelf: $('hand-self'),
+  handLabel: $('hand-label'),
   handCount: $('hand-count'),
   handState: $('hand-state'),
   moments: $('moments'),
@@ -81,10 +82,6 @@ const el = {
   btnPass: $('btn-pass'),
   handHint: $('hand-hint'),
   // popovers
-  picker: $('picker'),
-  pickerTitle: $('picker-title'),
-  pickerGrid: $('picker-grid'),
-  pickerCancel: $('picker-cancel'),
   calloutPop: $('callout-pop'),
   calloutRows: $('callout-rows'),
   calloutCancel: $('callout-cancel'),
@@ -513,6 +510,14 @@ function relockHand() {
   // `renderPiles` uses. Two restatements of ONE derivation, never two rules.
   const canDraw = canDrawNow(view, yourTurn);
   el.drawPile.disabled = !canDraw;
+  // The same three the action bar owns, restated from the same derivation, so
+  // a picker that opens between snapshots takes them with it.
+  const modal = Boolean(ui.pendingWild);
+  if (modal) {
+    el.btnZa.disabled = true;
+    el.btnPass.disabled = true;
+    el.btnCallout.disabled = true;
+  }
   el.drawPile.setAttribute(
     'aria-label',
     canDraw ? 'Draw a card from the dough pile' : 'Dough pile — not available yet'
@@ -3203,6 +3208,8 @@ const HAND_GAP = 8;
  */
 const HAND_CARD_SHORT = HAND_CARD_MIN;
 const SHORT_TABLE = window.matchMedia('(max-height: 700px) and (max-width: 519.98px)');
+/** The phone column, where a two-line strip is a strip too many. */
+const PHONE = window.matchMedia('(max-width: 519.98px)');
 
 /** The widest every card can be and still share `available` at `HAND_GAP`. */
 function handCardWidth(count, available) {
@@ -4027,12 +4034,20 @@ function renderActionBar(snapshot, view, yourTurn) {
   // So: no control here may depend on being revived by somebody else's early
   // return. `hidden` says whether the move exists; `disabled` says whether it
   // can be made; both are stated outright from the snapshot.
-  el.btnZa.disabled = !view.canDeclareZa;
-  el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2));
+  // THE PICKER IS MODAL, so the bar goes quiet under it. A wild is already out
+  // of the hand and the game is waiting on its colour; ZA, CALL OUT and PASS
+  // all still EXIST — which is why they are not hidden — but none of them may
+  // be made until the card that is half-played finishes being played. The
+  // condition is folded into each control's one owner rather than sitting
+  // beside it, and `relockHand` restates the same derivation between snapshots.
+  const modal = Boolean(ui.pendingWild);
+
+  el.btnZa.disabled = !view.canDeclareZa || modal;
+  el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2 && !modal));
 
   const targets = view.calloutTargets || [];
   el.btnCallout.hidden = !live || targets.length === 0;
-  el.btnCallout.disabled = !live || targets.length === 0;
+  el.btnCallout.disabled = !live || targets.length === 0 || modal;
   if (targets.length === 1) {
     const target = view.players.find((p) => p.id === targets[0]);
     el.btnCalloutText.textContent = `Call out ${target ? target.name : 'them'}`;
@@ -4041,7 +4056,7 @@ function renderActionBar(snapshot, view, yourTurn) {
   }
 
   el.btnPass.hidden = !view.canPass;
-  el.btnPass.disabled = !view.canPass;
+  el.btnPass.disabled = !view.canPass || modal;
 
   // A refusal is written straight onto this line and stays until the board
   // moves — no snapshot follows a tap the server never heard about, so nothing
@@ -4073,6 +4088,11 @@ function handPhase(view, yourTurn) {
   if (!net.synchronized) return 'offline';
   if (!view || view.status !== 'playing') return 'over';
   if (ui.pendingAt) return 'resolving';
+  // The wild is out of the hand and the game is waiting on a colour. It is
+  // your turn and it is not the hand's turn — which is exactly the pair the
+  // phase exists to keep from contradicting each other, so it gets its own
+  // word rather than borrowing YOUR TURN over a row that is not there.
+  if (ui.pendingWild) return 'wild';
   if (yourTurn) return 'await';
   if (ui.turnMovingUntil > Date.now()) return 'moving';
   return 'waiting';
@@ -4103,12 +4123,31 @@ function trackTurnMove(snapshot, view) {
 
 const PHASE_WORD = {
   await: 'YOUR TURN',
+  wild: 'PICKING A TOPPING',
   resolving: 'RESOLVING',
   moving: 'TURN MOVING',
   waiting: 'WAIT YOUR TURN',
   over: 'ROUND OVER',
   offline: 'RECONNECTING',
 };
+
+/**
+ * THE HEADER NAMES WHAT IS ACTUALLY UNDER IT.
+ *
+ * "YOUR HAND" over a panel that has replaced the hand is a label for
+ * something that is not on the screen. While a decision panel is up the header
+ * says which one, so the strip and the thing below it agree — the same rule
+ * the state word on the right already follows, applied to the word on the
+ * left.
+ */
+function handHeading(snapshot, view) {
+  if (!view || view.status !== 'playing') return 'YOUR HAND';
+  if (ui.pendingWild) return 'PICK A TOPPING';
+  if (ui.callouts.has(snapshot.youId)) return 'ZA WINDOW';
+  if ((view.calloutTargets || []).length) return 'CALLOUT WINDOW';
+  if (view.mustPlayDrawnCard) return 'DRAW DECISION';
+  return 'YOUR HAND';
+}
 
 /**
  * The strip over your own cards. You have no chef panel around the counter, so
@@ -4130,8 +4169,19 @@ function paintHandState(snapshot, view, yourTurn) {
   const me = view.players.find((p) => p.id === snapshot.youId);
   const count = me ? me.cardCount : (view.hand || []).length;
 
+  const heading = handHeading(snapshot, view);
+  if (el.handLabel.textContent !== heading) el.handLabel.textContent = heading;
+
   let word = PHASE_WORD[phase] || '';
   if (phase === 'await' && view.mustPlayDrawnCard) word = 'DRAWN CARD ONLY';
+  // The heading and the state chip share one row, and at 390px they only fit
+  // there if they are not saying the same thing twice. PICK A TOPPING over
+  // PICKING A TOPPING, and DRAW DECISION over DRAWN CARD ONLY, each wrapped
+  // the strip onto a second line to tell the player the same fact again — so
+  // where the heading already names the panel, the heading is the one that
+  // stays. ZA WINDOW and CALLOUT WINDOW keep their ACT NOW: that one is not a
+  // restatement, it is the instruction.
+  if (heading === 'PICK A TOPPING' || heading === 'DRAW DECISION') word = '';
   if (phase === 'waiting' && youAreNext(snapshot, view)) word = "YOU'RE NEXT";
   if ((phase === 'waiting' || phase === 'moving') && momentIsOpen(snapshot, view)) word = 'ACT NOW';
 
@@ -4203,7 +4253,14 @@ function momentIsOpen(snapshot, view) {
 }
 
 function renderMoments(snapshot, view) {
-  const live = view.status === 'playing';
+  // AT MOST ONE DECISION PANEL. The topping picker is the only one built from
+  // local state rather than from the snapshot, and it is the most modal of
+  // them: a wild is already leaving the hand and the game is waiting on one
+  // word. Everything the server would otherwise put up stands down until it
+  // is answered — a call-out strip beside PICK THE NEXT TOPPING is two live
+  // questions with one keyboard between them.
+  const held = Boolean(ui.pendingWild);
+  const live = view.status === 'playing' && !held;
   const me = view.players.find((p) => p.id === snapshot.youId);
   const targets = live ? (view.calloutTargets || []) : [];
 
@@ -4251,10 +4308,16 @@ function renderMoments(snapshot, view) {
   // The teaching strip. It is the one window that does NOT take focus: it
   // comes up on every turn you spend at two cards, and a control that jumps
   // under the keyboard twice a round is not a teacher, it is a nuisance.
+  // THE LESSON FITS ONE ROW ON A PHONE. It used to be a heading over a
+  // sentence over nothing, and the two said the same thing — so at 390px the
+  // heading IS the sentence, in the body face, on one line beside the button,
+  // and the consequence goes to the line under the hand where the rest of the
+  // teaching copy already lives. The strip is advice about a card you are
+  // about to play; it must not become taller than the cards.
   syncMoment('za', Boolean(live && view.canDeclareZa && me && me.cardCount === 2), () => ({
     tone: 'cheese',
-    title: 'CALL ZA BEFORE YOU PLAY',
-    sub: '2 cards → call ZA before playing. Forget = +2.',
+    title: PHONE.matches ? '2 CARDS — CALL ZA BEFORE PLAYING' : 'CALL ZA BEFORE YOU PLAY',
+    sub: PHONE.matches ? '' : '2 cards → call ZA before playing. Forget = +2.',
     cta: 'CALL ZA',
     press: declareZa,
     grabs: false,
@@ -4270,12 +4333,20 @@ function renderMoments(snapshot, view) {
     .map((id) => (view.players.find((p) => p.id === id) || {}).name)
     .filter(Boolean);
   alarm(
-    ui.callouts.has(snapshot.youId)
-      ? 'You forgot ZA. Call ZA now before another player catches you.'
-      : names.length
-        ? `${names.join(' and ')} forgot ZA and ${names.length === 1 ? 'has' : 'have'} one card left. Call them out now.`
-        : ''
+    held
+      ? ''
+      : ui.callouts.has(snapshot.youId)
+        ? 'You forgot ZA. Call ZA now before another player catches you.'
+        : names.length
+          ? `${names.join(' and ')} forgot ZA and ${names.length === 1 ? 'has' : 'have'} one card left. Call them out now.`
+          : ''
   );
+
+  // The self-recovery window is built by `syncCalloutWindows`, not here, so
+  // the one-decision rule is stated on the strip itself rather than in each
+  // builder: while the picker is up, nothing else in it is drawn. A class and
+  // not a removal — the window is still the server's and comes straight back.
+  el.moments.classList.toggle('is-held', held);
 }
 
 /**
@@ -4303,11 +4374,17 @@ function syncHandSwap(snapshot, view) {
   // stated reason: the rail is hardware, not gameplay. Every screw keeps its
   // 44px target and its accessible name; only the words beside the heads go.
   el.handZone.classList.toggle('has-moment', anyMomentOpen(snapshot, view));
+  // The picker is the one panel that is both the tallest and the briefest: it
+  // exists between tapping a wild and naming its colour, it suppresses every
+  // other window, and the player's own next press ends it. That is the only
+  // state in the game where the bezel rail can stand down entirely.
+  el.handZone.classList.toggle('is-picking', Boolean(ui.pendingWild));
 }
 
 /** Any contextual window at all, including the teaching strip that never swaps. */
 function anyMomentOpen(snapshot, view) {
   if (!view || view.status !== 'playing') return false;
+  if (ui.pendingWild) return true;
   if (view.mustPlayDrawnCard) return true;
   if ((view.calloutTargets || []).length) return true;
   if (ui.callouts.has(snapshot.youId)) return true;
@@ -4340,6 +4417,11 @@ function anyMomentOpen(snapshot, view) {
  */
 function replacingMoment(snapshot, view) {
   if (!view || view.status !== 'playing') return false;
+  // The topping picker qualifies on the same test as the drawn card, and it is
+  // the clearest case of it: the wild has left the hand and only its colour is
+  // outstanding, so there is no move in the row to take away. That is why this
+  // one replaces the hand on YOUR turn where the call-out window may not.
+  if (ui.pendingWild) return true;
   if (view.mustPlayDrawnCard) return true;
   if (view.turnPlayerId === snapshot.youId) return false;
   if ((view.calloutTargets || []).length) return true;
@@ -4490,6 +4572,12 @@ function handHint(view, yourTurn, me) {
   // The same sentence twice, six lines apart, reads as two instructions.
   if (view.mustPlayDrawnCard) return '';
   if (!yourTurn) return '';
+  // The consequence the one-row strip gave up. It belongs here rather than in
+  // a second row of the strip: this line is where every other thing the hand
+  // has to teach is already said.
+  if (PHONE.matches && view.canDeclareZa && me && me.cardCount === 2) {
+    return 'Forget ZA and you draw +2.';
+  }
   if (view.playableCardIds.length === 0) return 'Nothing fits. Grab one off the dough pile.';
   if (me && me.cardCount === 2) return 'One card away — shout before you play!';
   if (me && me.cardCount === 1) return 'Last slice. Make it count.';
@@ -5525,7 +5613,7 @@ function cardBack() {
  * what is floating over the game" meant the roster too.
  */
 function popoverPanels() {
-  return [el.picker, el.calloutPop];
+  return [el.calloutPop];
 }
 
 /**
@@ -5570,7 +5658,14 @@ function closePopovers(options = {}) {
   if (!keepHire) closeHire({ restoreFocus });
   const panels = popoverPanels();
   const active = document.activeElement;
-  const stranded = active instanceof HTMLElement && panels.some((panel) => panel && panel.contains(active));
+  // The topping picker counts here even though it is no longer a popover: it
+  // is still a thing the caret can be standing inside when this runs, and
+  // "Escape put my focus somewhere that is no longer there" is the bug this
+  // check exists for. Cancelling a wild left the caret on `<body>` until the
+  // panel was added to it.
+  const strandable = panels.concat([el.moments.querySelector('.moment--wild')]);
+  const stranded = active instanceof HTMLElement
+    && strandable.some((panel) => panel && panel.contains(active));
 
   for (const panel of panels) {
     if (!panel) continue;
@@ -5584,7 +5679,18 @@ function closePopovers(options = {}) {
       hide(panel);
     }
   }
+  // The topping picker is a panel in the hand zone now rather than a floating
+  // popover, but it is still the thing every one of these callers meant by
+  // "clear what is over the game", so it comes down with them — and the hand
+  // zone is re-shaped afterwards, because the row it was standing in front of
+  // is coming back.
+  const hadWild = Boolean(ui.pendingWild) || Boolean(el.moments.querySelector('.moment--wild'));
+  closeWildPanel();
   ui.pendingWild = null;
+  if (hadWild) {
+    refreshMoments();
+    refreshHandLayout();
+  }
 
   const target = ui.popoverReturn;
   ui.popoverReturn = null;
@@ -5619,17 +5725,69 @@ function popoverOriginX(popover, triggerRect) {
   return Math.max(8, Math.min(width - 8, centre - left));
 }
 
+/**
+ * PICKING A TOPPING IS A DECISION, SO IT GETS A DECISION'S FURNITURE.
+ *
+ * It used to be a popover that grew out of the card — floating, positioned
+ * against the hand, and on a phone sitting over the very row it had just taken
+ * a card out of. It is the same shape of moment as the drawn card: one thing
+ * has happened, and the game is waiting on exactly one answer. So it is built
+ * where the other decisions are built, it says which card it is about by
+ * showing that card once, and its four answers sit in a named group rather
+ * than loose in a panel.
+ *
+ * On a phone it takes the hand's place under the same rule as the drawn card,
+ * and for the same reason: a wild is already on its way to the oven, so there
+ * is nothing in the row left to do. That is why this one swaps on YOUR turn,
+ * where the call-out window may not — the hand has no move left to be robbed
+ * of, because the move is already made and only its colour is outstanding.
+ */
 function openPicker(card, slot, invoker) {
   ui.pendingWild = { card, slot };
   // The card that opened it is where focus goes back to on Cancel or Escape —
   // unless somebody else opened it, which happens when the drawn-card window
   // plays a wild while the hand itself is off the screen.
   openedPopover(invoker || slot.firstElementChild);
-  el.pickerTitle.textContent = card.kind === 'wild4'
-    ? 'The Whole Pie +4 — pick a topping'
-    : "Chef's Choice — pick a topping";
 
-  const buttons = new DocumentFragment();
+  // One decision at a time. The drawn-card window is still on screen from the
+  // snapshot that opened it, and its PLAY IT is the button that just fired:
+  // leaving it beside PICK THE NEXT TOPPING would be two live decisions about
+  // the same card, one of them already answered.
+  refreshMoments();
+  // Nothing stale narrates over a fresh decision.
+  clearDecisionNoise();
+
+  const panel = document.createElement('div');
+  panel.className = 'moment moment--wild moment--bone';
+
+  const head = document.createElement('div');
+  head.className = 'moment__wild-head';
+  // The card is drawn by `renderCard`, which is the only thing in this client
+  // allowed to make card markup — so the wild in the panel is the same wild
+  // that was in the hand, not a drawing of one. Shown once, and inert: it is
+  // what the question is about, not one of its answers.
+  const face = renderCard(card, { size: 'hand' });
+  face.classList.add('moment__wild-card');
+  // 54px of card cannot finish "Any topping", and a banner cut mid-word is
+  // the one thing `labelNear` exists to prevent in the row — the same rule
+  // applies to a card standing in a panel. The token form says WILD and fits.
+  face.classList.add('is-tokened');
+  face.setAttribute('aria-hidden', 'true');
+  const title = document.createElement('b');
+  title.className = 'moment__title';
+  title.id = 'moment-reason-wild';
+  title.textContent = card.kind === 'wild4'
+    ? 'THE WHOLE PIE +4 — PICK THE NEXT TOPPING'
+    : 'PICK THE NEXT TOPPING';
+  head.append(face, title);
+
+  // A named group, so a reader arriving on the first topping is told what the
+  // four of them are for rather than finding four unexplained buttons.
+  const grid = document.createElement('div');
+  grid.className = 'moment__toppings';
+  grid.setAttribute('role', 'group');
+  grid.setAttribute('aria-labelledby', title.id);
+
   for (const key of TOPPING_ORDER) {
     const meta = TOPPING_META[key];
     const button = document.createElement('button');
@@ -5641,26 +5799,105 @@ function openPicker(card, slot, invoker) {
     button.append(emblem, label);
     button.addEventListener('click', () => {
       const pending = ui.pendingWild;
-      // No restore: the card this would hand focus back to is the one about to
-      // leave for the oven. `commitPlay` books the landing place instead.
-      closePopovers({ restoreFocus: false });
+      // Taken down by hand rather than through `closePopovers`, and the play
+      // committed before anything re-derives: `closePopovers` restores the
+      // windows the panel was suppressing, and on this path the drawn-card
+      // decision is one of them — it would flash back for a frame between the
+      // topping being named and the move reaching the wire. No restore of
+      // focus either: the card it would go back to is on its way to the oven,
+      // and `commitPlay` books the landing place instead.
+      closeWildPanel();
+      ui.pendingWild = null;
+      ui.popoverReturn = null;
       // H · the ding rides the IN PLAY badge recolouring.
       sound.play('confirm-ding');
       if (pending) commitPlay(pending.card, key, pending.slot);
+      refreshHandLayout();
     });
-    buttons.append(button);
+    grid.append(button);
   }
-  el.pickerGrid.replaceChildren(buttons);
 
-  // The popover grows out of the card that opened it. The origin is set
-  // before `.is-open`, so the transform-origin is already right on the first
-  // frame of the entry rather than one frame late.
-  const originX = popoverOriginX(el.picker, slot.getBoundingClientRect());
-  if (originX !== null) el.picker.style.setProperty('--origin-x', `${originX.toFixed(0)}px`);
-  show(el.picker);
+  // The way out. The card has not been sent — nothing is on the wire until a
+  // topping is named — so a wild tapped by mistake has to be retractable, and
+  // it is the same Cancel this panel has always had. It sits under the group
+  // rather than in it: it is not a fifth topping.
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'moment__alt moment__wild-cancel';
+  cancel.textContent = 'CANCEL';
+  cancel.addEventListener('click', () => closePopovers());
+
+  // The card stands beside the question and its answers rather than above
+  // them: stacked, this panel is 250px on a 667px phone, and the felt above it
+  // has about 30px to give. Beside, the card costs no height at all.
+  const body = document.createElement('div');
+  body.className = 'moment__wild-body';
+  head.append(cancel);
+  body.append(head, grid);
+  panel.append(face, body);
+  el.moments.prepend(panel);
+
+  // The panel is part of the hand zone's height, so the row is re-laid and the
+  // felt above re-measured before anything else reads either.
+  refreshHandLayout();
   sound.play('menu-blip'); // H · rides the 2x2 grid entering at 0.97
-  const first = el.pickerGrid.querySelector('button');
+  const first = grid.querySelector('button');
   if (first) first.focus({ preventScroll: true });
+}
+
+/** Takes the wild panel down. `closePopovers` is the one caller. */
+function closeWildPanel() {
+  const panel = el.moments.querySelector('.moment--wild');
+  if (!panel) return;
+  if (ui.momentFocused && panel.contains(ui.momentFocused)) ui.momentFocused = null;
+  panel.remove();
+}
+
+/**
+ * A NEW DECISION SILENCES THE LAST ONE.
+ *
+ * This client has no central YOUR TURN slam to dismiss — the marquee carries
+ * the turn state persistently and nothing else may write there. What it does
+ * have is a line under the hand that holds the last thing said until a
+ * snapshot replaces it, and a decision can open with no snapshot behind it at
+ * all (the topping picker opens on a local tap). So the refusal that was on
+ * screen a moment ago does not get to sit under a fresh question.
+ */
+function clearDecisionNoise() {
+  if (el.handHint.textContent) el.handHint.textContent = '';
+  el.handHint.classList.remove('is-refused');
+  if (ui.shoutNode) {
+    ui.shoutNode.remove();
+    ui.shoutNode = null;
+  }
+}
+
+/** Re-derives the windows from the last snapshot, between snapshots. */
+function refreshMoments() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (view) renderMoments(snapshot, view);
+}
+
+/**
+ * Re-states the hand zone's shape after a panel opened or closed on local
+ * state rather than on a snapshot. Order matters and is the same order
+ * `renderGame` uses: the swap decides whether the row is on the screen at all,
+ * and only then is the row spaced — a rail measured on the frame it disappears
+ * measures zero.
+ */
+function refreshHandLayout() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view) return;
+  syncHandSwap(snapshot, view);
+  resizeHandRow();
+  repaintHandState();
+  // The picker is a phase, so the hand and the dough pile take their lock from
+  // it exactly as they do from the move gate. Without this the pile stayed
+  // pressable behind a panel that had already committed a card — no snapshot
+  // is owed between tapping a wild and naming its topping.
+  relockHand();
 }
 
 function openCalloutPopover() {
@@ -6865,6 +7102,9 @@ el.drawPile.addEventListener('click', () => {
   // A drawn card usually has to be played, which disables this very button on
   // the next snapshot. Follow the card instead of being dropped on <body>.
   bookFocus({ kind: 'draw' });
+  // A draw is a new decision arriving, so whatever was being said about the
+  // last one stops being said now rather than when the snapshot lands.
+  clearDecisionNoise();
   send({ type: 'draw' });
   // G · rides the pile dropping 3px and the card flying into the hand.
   sound.play('card-snap');
@@ -6906,7 +7146,6 @@ el.opponents.addEventListener('keydown', (event) => {
 el.btnRulesHome.addEventListener('click', openRules);
 el.btnRulesLobby.addEventListener('click', openRules);
 el.btnRulesClose.addEventListener('click', () => closeRules());
-el.pickerCancel.addEventListener('click', () => closePopovers());
 el.calloutCancel.addEventListener('click', () => closePopovers());
 // 09 · the host decides. Nothing here is on a clock.
 el.btnNextRound.addEventListener('click', () => send({ type: 'newRound' }));
@@ -7014,6 +7253,12 @@ function resizeHandRow() {
 // The card ceiling is a layout mode, so it changes on the media query itself
 // and not on a resize behind a frame that a hidden pane never runs.
 SHORT_TABLE.addEventListener('change', resizeHandRow);
+// The teaching strip's copy is one line on a phone and two off it, so the
+// column change has to re-derive the windows as well as re-space the row.
+PHONE.addEventListener('change', () => {
+  refreshMoments();
+  refreshHandLayout();
+});
 
 let resizeFrame = 0;
 window.addEventListener('resize', () => {
