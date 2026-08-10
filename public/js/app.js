@@ -69,6 +69,7 @@ const el = {
   handNear: $('hand-near'),
   handPeek: $('hand-peek'),
   handFade: $('hand-fade'),
+  handFadeLeft: $('hand-fade-left'),
   handSwipe: $('hand-swipe'),
   handSelf: $('hand-self'),
   handCount: $('hand-count'),
@@ -234,6 +235,8 @@ const ui = {
   // the picker, the call-out list or the hire roster; `focusIntent` is the
   // action whose landing place is only built when the next snapshot arrives.
   announcer: null, // the shared visually-hidden live region
+  alerter: null,   // the assertive one, for the two timed opportunities only
+  lastAlarm: '',   // what it last said, so a re-derivation cannot repeat it
   popoverReturn: null,
   focusIntent: null, // { kind: 'play' | 'draw', cardId }
   keyboardActive: false, // the last input was a key, not a pointer
@@ -767,6 +770,51 @@ function announce(text) {
   node.textContent = node.textContent === text ? `${text} ` : text;
 }
 
+/**
+ * THE SECOND CHANNEL, AND WHY THERE ARE ONLY TWO.
+ *
+ * Everything in the game is polite: the marquee, the kitchen chatter and the
+ * announcer above all wait their turn, because a reader that is interrupted
+ * for every card played is a reader nobody leaves on.
+ *
+ * The two timed opportunities are the exception, and they are the exception
+ * for the same reason they exist at all: they are the only moments where NOT
+ * knowing costs cards, and they close on somebody else's schedule. A polite
+ * queue would deliver "you forgot ZA" after the window it describes had shut.
+ * So they get an assertive region of their own — and nothing else does.
+ *
+ * `role="alert"` is not doubled up with the toast: the toast is a visible
+ * strip, and this says something the screen has already said in a place a
+ * reader cannot see it.
+ */
+function alertNode() {
+  if (ui.alerter) return ui.alerter;
+  const node = document.createElement('p');
+  node.className = 'sr-only';
+  node.setAttribute('role', 'alert');
+  node.setAttribute('aria-live', 'assertive');
+  node.setAttribute('aria-atomic', 'true');
+  document.body.append(node);
+  ui.alerter = node;
+  return node;
+}
+
+/**
+ * Says one line assertively, once per arising. `ui.lastAlarm` is the guard: a
+ * window is re-derived on every snapshot and this is called from that derivation,
+ * so without it the same sentence would be shouted over itself two or three
+ * times a second for as long as the window stayed open.
+ */
+function alarm(text) {
+  if (ui.lastAlarm === (text || '')) return;
+  ui.lastAlarm = text || '';
+  if (!text) {
+    if (ui.alerter) ui.alerter.textContent = '';
+    return;
+  }
+  alertNode().textContent = text;
+}
+
 function paintScreen(name) {
   // The hire screen belongs to the lobby, and it is the one thing here that a
   // screen change does not take with it. As a popover it hung inside the lobby
@@ -1151,7 +1199,10 @@ function resetGameView() {
   labelPit(0, false);
   // Every window belongs to a round; none of them survives the table.
   el.moments.replaceChildren();
+  el.handZone.classList.remove('is-swapped');
+  el.hand.classList.remove('is-at-start', 'is-at-end');
   ui.momentFocused = null;
+  alarm('');
   ui.callouts.clear();
   ui.turnMovingUntil = 0;
   ui.prevTurnId = null;
@@ -1848,6 +1899,9 @@ function renderGame(snapshot) {
   renderDirection(view);
   renderOpponents(snapshot, view);
   syncCalloutWindows(snapshot, view);
+  // Before the hand is laid out: a rail measured on the frame it disappears
+  // measures zero, and `layoutNear` spaces the row off that measurement.
+  syncHandSwap(snapshot, view);
   renderPiles(view, yourTurn);
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
@@ -2878,12 +2932,16 @@ function openCalloutWindow(playerId, isMine) {
     label.textContent = 'YOU PLAYED TO 1 WITHOUT ZA';
     const sub = document.createElement('span');
     sub.className = 'moment__sub';
+    sub.id = 'moment-reason-self';
     sub.textContent = 'Shout it before anyone notices.';
     words.append(label, sub, drain);
     const cta = document.createElement('button');
     cta.type = 'button';
     cta.className = 'moment__cta';
     cta.textContent = 'CALL ZA NOW';
+    // The visible reason IS the button's description, same as every other
+    // window's — a reader that lands on the button hears why it is there.
+    cta.setAttribute('aria-describedby', sub.id);
     cta.onclick = declareZa;
     box.append(words, cta);
     // First in the strip: it is the only window that is about YOUR cards.
@@ -2891,10 +2949,11 @@ function openCalloutWindow(playerId, isMine) {
     entry.node = box;
     focusMoment(cta);
     // The window is a dashed sauce box and a steady bar, and it is the one
-    // moment where not knowing costs you cards. `syncCalloutWindows` only
-    // opens a window that is not already open, so this is once per arising
-    // rather than once per snapshot.
-    announce("You're on one card — shout ZA!");
+    // moment where not knowing costs you cards — so it is said on the
+    // assertive channel by `renderMoments`, which runs on the same snapshot
+    // this window opens on. It used to be announced politely from here as
+    // well; two channels saying the same thing one after the other is not
+    // twice the warning, it is the second one being ignored.
   } else {
     const seat = ui.seatNodes.get(playerId);
     if (!seat) return;
@@ -3127,11 +3186,21 @@ function handCardWidth(count, available) {
   return Math.max(HAND_CARD_MIN, Math.min(HAND_CARD_MAX, fair));
 }
 
-/** The one number the row is spaced against: the rail inside `.hand`'s 8px. */
+/**
+ * The one number the row is spaced against: the rail inside `.hand`'s 8px.
+ *
+ * A hand that a timed window has taken off the screen measures ZERO, and a
+ * zero cached against the viewport token would outlive the window that caused
+ * it — every card pinned to the 54px floor and a rail claiming to scroll, for
+ * the rest of the session at that size. So a zero is never cached: the last
+ * width the hand actually had stands in until it can be measured again.
+ */
 function handMetrics() {
   const token = layoutToken();
   if (ui.handMetrics && ui.handMetrics.token === token) return ui.handMetrics;
-  ui.handMetrics = { token, railW: el.hand.clientWidth };
+  const railW = el.hand.clientWidth;
+  if (!railW) return { token: '', railW: ui.handMetrics ? ui.handMetrics.railW : 0 };
+  ui.handMetrics = { token, railW };
   return ui.handMetrics;
 }
 
@@ -3774,8 +3843,11 @@ function bindHandRow() {
 
   // Scrolling the row is the one thing the swipe line asks for, so the line
   // goes the moment it happens — by thumb, by trackpad or by the keyboard's
-  // own `scrollIntoView` walking the rail.
-  el.handNear.addEventListener('scroll', retireSwipeCue, { passive: true });
+  // own `scrollIntoView` walking the rail. The fades move with it.
+  el.handNear.addEventListener('scroll', () => {
+    readHandScroll();
+    retireSwipeCue();
+  }, { passive: true });
 }
 
 /** True while the click now being handled came out of a swipe. */
@@ -3828,6 +3900,27 @@ function layoutNear(entries) {
   });
 
   labelNear(entries, cardWidth);
+  // The fades are a function of where the scroll is, and the scroll is only
+  // meaningful once the row has been laid at its new width.
+  readHandScroll();
+}
+
+/**
+ * WHICH EDGE THE ROW RUNS OUT AT.
+ *
+ * A fade at an edge with nothing past it is not a soft ending, it is a claim
+ * that there is more — the exact opposite of what it is for. So each edge is
+ * drawn only while there is something under it: the right one until the row is
+ * scrolled to its end, the left one from the moment the row leaves its start.
+ * 4px of slack on both, because a scroller that has arrived rarely arrives on
+ * a whole pixel.
+ */
+function readHandScroll() {
+  const near = el.handNear;
+  const max = Math.max(0, near.scrollWidth - near.clientWidth);
+  const at = near.scrollLeft;
+  el.hand.classList.toggle('is-at-start', at <= 4);
+  el.hand.classList.toggle('is-at-end', at >= max - 4);
 }
 
 /**
@@ -4022,6 +4115,17 @@ function paintHandState(snapshot, view, yourTurn) {
   if (el.handState.textContent !== word) el.handState.textContent = word;
   const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
   if (el.handCount.textContent !== cards) el.handCount.textContent = cards;
+
+  // NOT SPOKEN, DELIBERATELY. The strip is a visual answer to "can I move
+  // right now", and the client already has two polite regions carrying the
+  // event stream: the marquee announces every turn change, and the kitchen
+  // chatter list is `aria-live="polite"` and gets every line the server
+  // writes. Putting the phase word on a third channel was tried and measured:
+  // it produced RESOLVING, TURN MOVING, WAIT YOUR TURN and YOU'RE NEXT on
+  // every single turn cycle — four interruptions a lap, none of them
+  // actionable, which is precisely the siren the turn countdown's digits are
+  // aria-hidden to avoid. The two beats a listener can act on are on the
+  // assertive channel, and nothing else is.
 }
 
 /** Re-states the strip from the last snapshot, for the beats that end on a clock. */
@@ -4077,6 +4181,28 @@ function renderMoments(snapshot, view) {
   const me = view.players.find((p) => p.id === snapshot.youId);
   const targets = live ? (view.calloutTargets || []) : [];
 
+  // THE DRAWN CARD IS A DECISION, SO IT GETS A DECISION'S FURNITURE. The move
+  // used to be "find the one card that lit up and press it, or find PASS on
+  // the bar" — two places, neither of them saying a card had just arrived.
+  // `mustPlayDrawnCard` and `canPass` are the same flag on the wire; what
+  // splits the two answers is whether the server left anything playable.
+  const drawn = Boolean(live && view.mustPlayDrawnCard);
+  const drawnId = drawn ? (view.playableCardIds || [])[0] : null;
+  const drawnCard = drawnId ? ui.handCards.get(drawnId) : null;
+  syncMoment('drawn', drawn, () => ({
+    tone: 'cyan',
+    title: drawnId ? 'YOU DREW A CARD' : 'NO MATCH — TURN ENDS',
+    sub: drawnCard
+      ? `You drew ${describeCard(drawnCard)}. Play it, or keep it and pass.`
+      : 'Nothing on it fits the pie. Keep it and pass.',
+    // The card that cannot be played offers only the move that can be made.
+    cta: drawnId ? 'PLAY IT' : 'KEEP & PASS',
+    press: drawnId ? playDrawn : passTurn,
+    alt: drawnId ? 'KEEP & PASS' : '',
+    altPress: passTurn,
+    grabs: true,
+  }));
+
   syncMoment('callout', targets.length > 0, () => {
     const names = targets
       .map((id) => (view.players.find((p) => p.id === id) || {}).name)
@@ -4107,6 +4233,75 @@ function renderMoments(snapshot, view) {
     press: declareZa,
     grabs: false,
   }));
+
+  // THE ASSERTIVE CHANNEL, DECIDED IN ONE PLACE. Two windows can be worth
+  // interrupting a reader for and they can both be open at once; the one about
+  // YOUR cards outranks the one about somebody else's, because only one of
+  // them costs you anything. Each sentence carries the name and the move — a
+  // reader told only to act now has been hurried, not informed. It goes silent
+  // the moment the last window closes.
+  const names = targets
+    .map((id) => (view.players.find((p) => p.id === id) || {}).name)
+    .filter(Boolean);
+  alarm(
+    ui.callouts.has(snapshot.youId)
+      ? 'You forgot ZA. Call ZA now before another player catches you.'
+      : names.length
+        ? `${names.join(' and ')} forgot ZA and ${names.length === 1 ? 'has' : 'have'} one card left. Call them out now.`
+        : ''
+  );
+}
+
+/**
+ * A WINDOW ON A PHONE REPLACES THE HAND; IT DOES NOT PUSH IT.
+ *
+ * A strip that appears above the row on a 390px screen shoves the hand — and
+ * the counter above it — up and off the fold, so the answer to "what just
+ * happened" arrives by moving everything the player was looking at. The window
+ * takes the hand's place instead: while it is open the row is genuinely gone,
+ * not squeezed and not scrolled away, and it comes straight back when the
+ * window closes.
+ *
+ * The teaching strip at two cards is deliberately NOT one of these. It is
+ * advice about a card you are about to play, and hiding the cards to give it
+ * would be the interface arguing with itself.
+ *
+ * It runs before the row is laid out, not after: `layoutNear` measures the
+ * rail, and a rail that is measured on the frame it disappears measures zero.
+ */
+function syncHandSwap(snapshot, view) {
+  el.handZone.classList.toggle('is-swapped', replacingMoment(snapshot, view));
+}
+
+/**
+ * Which windows may take the hand's place, and the one condition on it.
+ *
+ * A WINDOW MAY ONLY REPLACE THE HAND WHEN THE HAND HAS NOTHING TO DO.
+ *
+ * The drawn-card decision qualifies always: after a draw the only legal moves
+ * in the game are the two buttons on that window, so the row behind it is
+ * decoration.
+ *
+ * The other two do not. Both arrive on somebody else's schedule and both can
+ * land on a turn that is YOURS — a chef goes to one card and forgets, and the
+ * turn comes round to you while the window is still open; or you play down to
+ * one without shouting and the turn comes back before anybody catches you.
+ * Neither window's button ends a turn: shouting ZA is not playing a card, and
+ * calling somebody out is not playing yours. Taking the hand away then does
+ * not replace a row, it replaces the only way out of the turn, and the turn
+ * can then only end by timing out. Caught at 390px with the call-out window up
+ * on my own turn: ten cards in the hand, none of them on the screen.
+ *
+ * So they replace the hand only while it is not your move. On your turn they
+ * sit above the row like the teaching strip does — which is more crowded, and
+ * crowded beats unplayable.
+ */
+function replacingMoment(snapshot, view) {
+  if (!view || view.status !== 'playing') return false;
+  if (view.mustPlayDrawnCard) return true;
+  if (view.turnPlayerId === snapshot.youId) return false;
+  if ((view.calloutTargets || []).length) return true;
+  return ui.callouts.has(snapshot.youId);
 }
 
 /**
@@ -4131,13 +4326,18 @@ function syncMoment(kind, wanted, build) {
     node.className = `moment moment--${kind} moment--${spec.tone}`;
     const words = document.createElement('div');
     words.className = 'moment__words';
-    words.append(
-      Object.assign(document.createElement('b'), { className: 'moment__title' }),
-      Object.assign(document.createElement('span'), { className: 'moment__sub' })
-    );
+    const sub = document.createElement('span');
+    sub.className = 'moment__sub';
+    // The visible reason is the button's description. A reader that lands on
+    // CALL OUT NOW hears why it is there without having to go looking for the
+    // line above it — the sentence is on screen either way, so this costs a
+    // sighted player nothing and a listening one the whole point.
+    sub.id = `moment-reason-${kind}`;
+    words.append(Object.assign(document.createElement('b'), { className: 'moment__title' }), sub);
     const cta = document.createElement('button');
     cta.type = 'button';
     cta.className = 'moment__cta';
+    cta.setAttribute('aria-describedby', sub.id);
     node.append(words, cta);
     el.moments.append(node);
   }
@@ -4150,6 +4350,25 @@ function syncMoment(kind, wanted, build) {
   if (cta.textContent !== spec.cta) cta.textContent = spec.cta;
   // One handler, replaced rather than stacked: `onclick` cannot accumulate.
   cta.onclick = spec.press;
+
+  // The second answer, when a decision has two. It is built and dropped with
+  // the choice rather than hidden, so it is never a control that is present
+  // and unpressable.
+  let alt = node.querySelector('.moment__alt');
+  if (spec.alt) {
+    if (!alt) {
+      alt = document.createElement('button');
+      alt.type = 'button';
+      alt.className = 'moment__alt';
+      alt.setAttribute('aria-describedby', sub.id);
+      node.append(alt);
+    }
+    if (alt.textContent !== spec.alt) alt.textContent = spec.alt;
+    alt.onclick = spec.altPress;
+  } else if (alt) {
+    alt.remove();
+  }
+
   if (spec.grabs) focusMoment(cta);
 }
 
@@ -4188,6 +4407,33 @@ function declareZa() {
   playShout();
 }
 
+/**
+ * PLAY IT. The drawn card is the only card the server left playable, so
+ * `playableCardIds` names it outright — there is no client-side guess about
+ * which card arrived. A wild still asks for a topping first; the picker is
+ * told to hand focus back to the button that opened it, because on a phone the
+ * card itself is off the screen while this window is up.
+ */
+function playDrawn(event) {
+  const view = ui.snapshot && ui.snapshot.game;
+  const id = view && view.mustPlayDrawnCard && (view.playableCardIds || [])[0];
+  const slot = id ? ui.handSlots.get(id) : null;
+  const card = id ? ui.handCards.get(id) : null;
+  if (!slot || !card) return;
+  if (isWild(card)) {
+    openPicker(card, slot, event && event.currentTarget);
+    return;
+  }
+  commitPlay(card, null, slot);
+}
+
+/** KEEP & PASS, from the bar and from the window. `canPass` is the only word. */
+function passTurn() {
+  const view = ui.snapshot && ui.snapshot.game;
+  if (!view || !view.canPass) return;
+  send({ type: 'pass' });
+}
+
 /** Same arrangement for the call-out: one place that checks, three doors in. */
 function calloutPlayer(id) {
   const view = ui.snapshot && ui.snapshot.game;
@@ -4198,7 +4444,9 @@ function calloutPlayer(id) {
 
 function handHint(view, yourTurn, me) {
   if (view.status !== 'playing') return '';
-  if (view.mustPlayDrawnCard) return 'Fresh out of the oven. Play it, or pocket it and pass.';
+  // The drawn-card window says this, in more words and with both moves on it.
+  // The same sentence twice, six lines apart, reads as two instructions.
+  if (view.mustPlayDrawnCard) return '';
   if (!yourTurn) return '';
   if (view.playableCardIds.length === 0) return 'Nothing fits. Grab one off the dough pile.';
   if (me && me.cardCount === 2) return 'One card away — shout before you play!';
@@ -5329,10 +5577,12 @@ function popoverOriginX(popover, triggerRect) {
   return Math.max(8, Math.min(width - 8, centre - left));
 }
 
-function openPicker(card, slot) {
+function openPicker(card, slot, invoker) {
   ui.pendingWild = { card, slot };
-  // The card that opened it is where focus goes back to on Cancel or Escape.
-  openedPopover(slot.firstElementChild);
+  // The card that opened it is where focus goes back to on Cancel or Escape —
+  // unless somebody else opened it, which happens when the drawn-card window
+  // plays a wild while the hand itself is off the screen.
+  openedPopover(invoker || slot.firstElementChild);
   el.pickerTitle.textContent = card.kind === 'wild4'
     ? 'The Whole Pie +4 — pick a topping'
     : "Chef's Choice — pick a topping";
@@ -6578,7 +6828,7 @@ el.drawPile.addEventListener('click', () => {
   sound.play('card-snap');
 });
 
-el.btnPass.addEventListener('click', () => send({ type: 'pass' }));
+el.btnPass.addEventListener('click', passTurn);
 el.btnZa.addEventListener('click', () => {
   if (el.btnZa.disabled) return;
   declareZa();

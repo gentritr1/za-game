@@ -210,9 +210,12 @@
         <div class="hand__pit" id="hand-pit" role="group" aria-label="No dead cards"></div>
         <div class="hand__near" id="hand-near" role="group" aria-label="Your hand"></div>
         <div class="hand__peek" id="hand-peek" aria-hidden="true" hidden></div>
-        <!-- The scroll cue: the row runs out under this fade rather than
-             stopping at an edge that looks like the end of the hand. -->
-        <span class="hand__fade" id="hand-fade" aria-hidden="true"></span>
+        <!-- The scroll cue, on both edges, each one following the scroll: the
+             row runs out under a fade rather than stopping at an edge that
+             looks like the end of the hand — and a fade drawn at an edge there
+             is nothing past would be saying the opposite. -->
+        <span class="hand__fade hand__fade--left" id="hand-fade-left" aria-hidden="true"></span>
+        <span class="hand__fade hand__fade--right" id="hand-fade" aria-hidden="true"></span>
       </div>
 
       <!-- Said once per session, the first time the hand is wider than the

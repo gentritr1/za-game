@@ -2091,20 +2091,27 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand-self {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: var(--s2);
   min-height: 20px;
 }
 
+/* Nothing in the strip breaks mid-phrase. "YOUR HAND" over three lines beside
+   "14 / cards" is not a label, it is a column — the strip wraps as whole
+   pieces or not at all. DRAWN CARD ONLY is the longest word it ever carries
+   and it is what the sizes are set against at 390px. */
 .hand-self__label {
   font-family: var(--font-display);
   font-size: 11px;
   letter-spacing: .1em;
+  white-space: nowrap;
   color: var(--ui-cyan);
 }
 
 .hand-self__count {
   font-size: var(--fs-label);
   letter-spacing: .06em;
+  white-space: nowrap;
   color: var(--text-dim);
 }
 
@@ -2112,7 +2119,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   margin-left: auto;
   padding: 3px 6px;
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: .06em;
   white-space: nowrap;
   color: var(--text-dim);
@@ -2198,10 +2205,45 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .moment--cheese .moment__cta { background: var(--cheese); }
+.moment--cyan .moment__cta { background: var(--ui-cyan); }
+.moment--cyan { border-color: var(--ui-cyan); }
+.moment--cyan .moment__title { color: var(--ui-cyan); }
 
-.moment__cta:focus-visible {
+/* The other answer. Quiet on purpose: keeping the card and passing is a real
+   move and never the one being recommended, so it is a bordered ghost rather
+   than a second fill competing with the first. Same 44px floor, same one line. */
+.moment__alt {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px var(--s2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: transparent;
+  border: 2px solid var(--bezel);
+  cursor: pointer;
+}
+
+.moment__cta:focus-visible,
+.moment__alt:focus-visible {
   outline: 2px solid var(--ui-cyan);
   outline-offset: 3px;
+}
+
+/* THE SWAP. On a phone a timed window takes the hand's place rather than
+   pushing it: a strip that appears above the row at 390px shoves the row — and
+   the counter above it — up and off the fold, so the answer to "what just
+   happened" arrives by moving everything the player was looking at.
+   `display: none` and not a fade or a squeeze: while the window is up the row
+   is out of the layout, out of the tab order and out of the accessibility
+   tree, because a hand you are told to ignore is a hand that should not be
+   reachable. There is room for both on anything wider, so nothing is hidden
+   there. */
+@media (max-width: 519.98px) {
+  .hand-zone.is-swapped .hand,
+  .hand-zone.is-swapped .hand-swipe { display: none; }
 }
 
 .btn--za {
@@ -2347,24 +2389,37 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* THE SCROLL CUE. The row runs out under a fade rather than stopping at an
-   edge that looks like the end of the hand. It is drawn only while the rail
-   actually overflows, and it never takes the pointer that is scrolling it. */
+   edge that looks like the end of the hand. It never takes the pointer that is
+   scrolling it, and — the part that matters — each edge is drawn only while
+   there is something under it. A fade at an edge with nothing past it is not a
+   soft ending, it is a claim that there is more. */
 .hand__fade {
   position: absolute;
   top: 0;
-  right: 0;
   bottom: 0;
   width: 32px;
   display: none;
   pointer-events: none;
-  /* Fading to the surface the row actually sits on — the hand zone's cabinet,
-     not the console the pit strip is cut into. A gradient that ends on the
-     wrong colour is a dark bar down the edge, not a card running out of
-     screen. Contrast is a property of a pairing. */
+}
+
+/* Fading to the surface the row actually sits on — the hand zone's cabinet,
+   not the console the pit strip is cut into. A gradient that ends on the wrong
+   colour is a dark bar down the edge, not a card running out of screen.
+   Contrast is a property of a pairing. */
+.hand__fade--right {
+  right: 0;
   background: linear-gradient(90deg, rgba(16, 20, 38, 0), var(--cabinet));
 }
 
-.hand.is-overflowing .hand__fade { display: block; }
+.hand__fade--left {
+  left: 0;
+  background: linear-gradient(270deg, rgba(16, 20, 38, 0), var(--cabinet));
+}
+
+/* `is-overflowing` says the row is longer than the rail; `is-at-start` and
+   `is-at-end` say where the scroll currently is. Both edges need both facts. */
+.hand.is-overflowing:not(.is-at-end) .hand__fade--right { display: block; }
+.hand.is-overflowing:not(.is-at-start) .hand__fade--left { display: block; }
 
 /* Said once per session and retired the moment the hand is scrolled. */
 .hand-swipe {
