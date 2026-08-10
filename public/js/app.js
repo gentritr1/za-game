@@ -12,6 +12,7 @@ import {
   describeCard,
   suitToken,
   cardIndex,
+  effectOf,
   TOPPING_META,
   TOPPING_ORDER,
   SPRITE_DIR,
@@ -59,8 +60,20 @@ const el = {
   drawSlot: $('draw-slot'),
   drawCount: $('draw-count'),
   discardSlot: $('discard-slot'),
-  toppingNow: $('topping-now'),
+  // the match plaque · what the next card has to be, in words
+  plaque: $('match-plaque'),
+  plaqueHead: $('plaque-head'),
+  plaqueEmblem: $('plaque-emblem'),
+  plaqueName: $('plaque-name'),
+  plaqueAlt: $('plaque-alt'),
+  plaqueValue: $('plaque-value'),
+  plaqueSpoken: $('plaque-spoken'),
+  // which way the turn is going, in the word for it
+  dirChip: $('dir-chip'),
+  dirChipGlyph: $('dir-chip-glyph'),
+  dirChipWord: $('dir-chip-word'),
   logList: $('log-list'),
+  narration: $('narration'),
   // hand
   handZone: document.querySelector('.hand-zone'),
   hand: $('hand'),
@@ -933,6 +946,10 @@ function applySnapshot(snapshot) {
     // flown card by card off the dough pile.
     ui.dealing = true;
     el.logList.replaceChildren();
+    // Log ids restart at 0 with every round (`createGame` builds a fresh
+    // state), so the narration's "have I already shown this entry" guard has
+    // to be cleared with them or round two opens on round one's last line.
+    el.narration.dataset.entry = '';
     // The chain ladder and the crowd's patience with anchovies both reset with
     // the round. Going quiet at the fourth anchovy is the joke; it would stop
     // being one if it carried over.
@@ -1081,6 +1098,8 @@ function resetGameView() {
   el.opponents.replaceChildren();
   el.logList.replaceChildren();
   el.discardSlot.replaceChildren();
+  el.narration.textContent = '';
+  el.narration.dataset.entry = '';
 }
 
 /** A regular's portrait when the bot is one of the six, by name. */
@@ -1769,6 +1788,7 @@ function renderGame(snapshot) {
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
   renderLog(view);
+  renderNarration(snapshot, view);
   syncCabinet(snapshot);
   syncShout(view);
 
@@ -1904,8 +1924,33 @@ function setTurnText(text, punctuate) {
 function renderDirection(view) {
   const reversed = view.direction === -1;
   el.turnBanner.classList.toggle('is-reversed', reversed);
-  const words = reversed ? 'to the right' : 'to the left';
+  // Said the same way it is printed. This node used to read "to the left",
+  // which is the server's phrasing for a real table seen from above; the chip
+  // below prints the direction as the screen actually draws it, and one fact
+  // told two ways in two vocabularies is a player checking which one is lying.
+  const words = reversed ? 'play runs counter-clockwise' : 'play runs clockwise';
   if (el.dirAnnounce.textContent !== words) el.dirAnnounce.textContent = words;
+
+  // THE WORD FOR IT, at every width.
+  //
+  // The chevron chase is hidden at 520px and up (the token walks the counter
+  // instead); the token is hidden below it (the queue has no counter to walk).
+  // So until now there was no size at which a picture of the direction and the
+  // WORD for it were both on screen, and a player who missed the flip had
+  // nothing to read. The chip is that word, in the table's own centre column,
+  // in no other element's box.
+  //
+  // Clockwise, not "to the left": the server's own phrasing describes a real
+  // table seen from above, and this one is seen from your chair. `direction`
+  // 1 seats the next chef down the LEFT wall (COUNTER_MAP anchors 'l' first),
+  // so play runs bottom → left → top → right, which on a clock face is
+  // 6 → 9 → 12 → 3. Clockwise. The spoken form keeps the server's words.
+  const spin = reversed ? 'Counter-clockwise' : 'Clockwise';
+  el.dirChip.dataset.dir = reversed ? '-1' : '1';
+  if (el.dirChipWord.textContent !== spin) el.dirChipWord.textContent = spin;
+  if (!el.dirChipGlyph.childElementCount) {
+    el.dirChipGlyph.append(icon('cycle'));
+  }
 
   // F · Flip the Pie. The chevron rail flashes cyan/cheese twice on the flip.
   // The seats no longer hear about it — they hold their places for the whole
@@ -1915,6 +1960,10 @@ function renderDirection(view) {
   if (flipped) {
     restartAnimation(el.dirChase, 'is-flipping', 'dir-flash');
     setTimeout(() => el.dirChase.classList.remove('is-flipping'), 520);
+    // The chip is the only carrier that is on screen at every width, so it
+    // takes the same 480ms flash rather than changing a word in silence.
+    restartAnimation(el.dirChip, 'is-flipping', 'dir-flash');
+    setTimeout(() => el.dirChip.classList.remove('is-flipping'), 520);
     sound.play('tape-scrub');
   }
   ui.prevDir = view.direction;
@@ -2923,18 +2972,80 @@ function renderPiles(view, yourTurn) {
     if (landed) onCardLanded(view, top);
   }
 
-  // current topping badge
-  const meta = TOPPING_META[view.currentTopping];
-  if (meta) {
-    el.toppingNow.className = `topping-now t-${view.currentTopping}`;
-    const emblem = el.toppingNow.querySelector('.topping-now__emoji');
-    if (emblem.dataset.suit !== view.currentTopping) {
-      emblem.dataset.suit = view.currentTopping;
-      emblem.classList.add('ico', 'ico--plate');
-      emblem.replaceChildren(...suitIcon(view.currentTopping).childNodes);
-    }
-    el.toppingNow.querySelector('.topping-now__name').textContent = `IN PLAY · ${meta.label.toUpperCase()}`;
+  renderMatchPlaque(view);
+}
+
+/**
+ * THE MATCH PLAQUE — the rule, restated, never decided.
+ *
+ * Playtesters could see the top card perfectly well and still could not say
+ * what they were allowed to play, because the card is an ANSWER and the
+ * question was never printed anywhere. So the plaque prints the question:
+ *
+ *   MATCH · 🌿 BASIL   OR   7
+ *   MATCH · 🌿 BASIL   OR   ↻ REVERSE
+ *   CURRENT TOPPING · 🐟 ANCHOVY
+ *
+ * Every one of those three is read off `currentTopping` and `topCard`, which
+ * are the same two fields `canPlay` in server/game.js consults — suit equal to
+ * the topping, or a number equal to the top number, or a kind equal to the top
+ * kind, and anything at all on a wild. The plaque therefore says what the
+ * server already decided; it does not decide anything, and `playableCardIds`
+ * remains the only thing that lifts a card in the hand.
+ *
+ * A wild on top drops the OR clause outright rather than printing an empty
+ * one: on a wild there is no second condition, and "OR nothing" is a worse lie
+ * than saying less.
+ */
+function renderMatchPlaque(view) {
+  const topping = view.currentTopping;
+  const meta = TOPPING_META[topping];
+  if (!meta) return;
+
+  const top = view.topCard;
+  const wildTop = Boolean(top && (top.kind === 'wild' || top.kind === 'wild4'));
+  const effect = effectOf(top);
+
+  // The colour is the topping's, on the plaque and on nothing else at the
+  // centre of the table — so a topping change is a colour change in the one
+  // place a player is already looking for the answer.
+  if (el.plaque.dataset.topping !== topping) {
+    el.plaque.dataset.topping = topping;
+    el.plaqueEmblem.classList.add('ico', 'ico--plate');
+    el.plaqueEmblem.replaceChildren(...suitIcon(topping).childNodes);
   }
+
+  el.plaque.dataset.mode = wildTop ? 'wild' : 'match';
+  el.plaqueHead.textContent = wildTop ? 'Current topping' : 'Match';
+  el.plaqueName.textContent = meta.label;
+
+  // What the second half of the condition is. A number card matches by value;
+  // an effect card matches by effect; a wild has no second half.
+  let alt = '';
+  if (!wildTop && top) {
+    if (effect) alt = effect.word;
+    else if (top.kind === 'number') alt = String(top.value);
+  }
+  el.plaqueAlt.hidden = !alt;
+  if (alt && el.plaqueValue.textContent !== alt) el.plaqueValue.textContent = alt;
+  // The glyph beside the effect word, and only beside an effect word: a number
+  // is its own picture.
+  const glyph = effect && effect.glyph ? effect.glyph : '';
+  if (el.plaqueValue.dataset.glyph !== glyph) {
+    el.plaqueValue.dataset.glyph = glyph;
+    const mark = el.plaqueValue.previousElementSibling;
+    if (mark && mark.classList.contains('plaque__mark')) mark.remove();
+    if (glyph) el.plaqueValue.before(icon(glyph, 'plaque__mark'));
+  }
+
+  // One sentence for a screen reader, because the printed form is three nodes
+  // and a slash-shaped "or" that only means something laid out.
+  const spoken = wildTop
+    ? `Current topping, ${meta.label}. Anything of that topping plays.`
+    : alt
+      ? `Play ${meta.label}, or ${alt}.`
+      : `Play ${meta.label}.`;
+  if (el.plaqueSpoken.textContent !== spoken) el.plaqueSpoken.textContent = spoken;
 }
 
 const SUIT_SORT = { pepperoni: 0, basil: 1, cheese: 2, anchovy: 3 };
@@ -3724,6 +3835,166 @@ function renderLog(view) {
   el.logList.append(fragment);
   while (el.logList.children.length > 40) el.logList.firstElementChild.remove();
   el.logList.scrollTop = el.logList.scrollHeight;
+}
+
+/* ============================================================ NARRATION ===
+ * ONE LINE, THE LAST THING THAT HAPPENED.
+ *
+ * The kitchen chatter is the parlour talking — three phrasings per event, a
+ * chef's catchphrase on the end, a panel in the corner of the felt. It is
+ * good, and playtesters did not read it, because reading it means looking away
+ * from your own hand at the moment the table is moving.
+ *
+ * So one line stands under the table, in the fewest words that still name who
+ * it happened to. It is a SHORTENING of the server's log and never a second
+ * account of the game: every branch below is keyed off a marker the server
+ * writes unconditionally — the leading emoji, or a phrase that is the same in
+ * all of that event's phrasings — and the names and numbers come from the
+ * snapshot the line arrived with. Nothing here counts, decides or remembers.
+ *
+ * The LAST entry is the one shown, and that is not a shortcut: the server
+ * writes the cause first and the consequence second, so on a +2 the last entry
+ * is the penalty landing, on a Reverse it is the order turning, and on a Skip
+ * it is the seat losing its turn. The consequence is the news.
+ *
+ * When a line matches nothing, it falls back to the server's own words with
+ * the emoji and the catchphrase taken off. A shortening that cannot shorten
+ * says the long thing; it does not guess.
+ */
+
+/** The compact name of the card face up on the pile. "BASIL 7", "+2", "WILD". */
+function pileWords(view) {
+  const top = view.topCard;
+  if (!top) return '';
+  const effect = effectOf(top);
+  if (effect) return effect.word.toUpperCase();
+  if (top.kind === 'wild') return 'WILD';
+  if (top.kind === 'wild4') return '+4';
+  const meta = TOPPING_META[top.suit];
+  return `${meta ? meta.label.toUpperCase() : ''} ${top.value}`.trim();
+}
+
+/** Who a name in a log line belongs to, as the narration would print them. */
+function narrationNames(text, view, youId) {
+  // Longest first: a table with "Vito" and "Vito Jr" must not resolve the
+  // second to the first because the first is a prefix of it.
+  const players = view.players
+    .map((p) => ({ id: p.id, name: p.name, at: text.indexOf(p.name) }))
+    .filter((p) => p.at !== -1)
+    .sort((a, b) => a.at - b.at || b.name.length - a.name.length);
+  const seen = new Set();
+  const out = [];
+  for (const p of players) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push({ id: p.id, word: p.id === youId ? 'YOU' : p.name.toUpperCase() });
+  }
+  return out;
+}
+
+/** The server's own sentence, with the decoration taken off. */
+function narrationFallback(text) {
+  const plain = text
+    .replace(/\s"[^"]*"\s*$/, '')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  return plain.length > 64 ? `${plain.slice(0, 63)}…` : plain;
+}
+
+function narrationLine(entry, view, youId) {
+  const text = entry.text;
+  const who = narrationNames(text, view, youId);
+  const first = who[0] ? who[0].word : '';
+  const second = who[1] ? who[1].word : '';
+  const has = (needle) => text.includes(needle);
+  // The subject of every one of these lines is either a chef's name or the
+  // word YOU, and the two do not take the same verb. "YOU DRAWS 2" is the
+  // shape of a machine writing English, and a line a player reads once a turn
+  // is the last place to put one.
+  const vb = (third, base) => (first === 'YOU' ? base : third);
+
+  // Every marker below is a phrase the server writes on EVERY phrasing of that
+  // event — never the emoji, which carries variation selectors and zero-width
+  // joiners that do not survive being retyped, and never a whole sentence,
+  // which `pick()` swaps out from under you.
+
+  // --- the round's two ends ---
+  if (has('The oven is hot')) return `THE PIE STARTS ON ${pileWords(view)}`;
+  if (has('is up first')) return `${first} ${vb('IS', 'ARE')} UP FIRST`;
+  if (has('emptied the box') || has('wins the parlour')) {
+    return first ? `${first} ${vb('WINS', 'WIN')} THE ROUND` : 'ROUND OVER';
+  }
+  if (has('Dough pile empty')) return 'DOUGH PILE RESHUFFLED';
+  if (has('walked out of the parlour')) {
+    return first ? `${first} LEFT THE TABLE` : 'A CHEF LEFT THE TABLE';
+  }
+
+  // --- consequences, which is what the last entry usually is ---
+  if (has('chokes down')) {
+    const n = /down (\d+) extra/.exec(text);
+    return `${first} ${vb('DRAWS', 'DRAW')} ${n ? n[1] : 2} — SKIPPED`;
+  }
+  if (has('got the burnt bit') || has('No turn for you')) return `${first} ${vb('IS', 'ARE')} SKIPPED`;
+  if (has('keeping quiet')) {
+    const n = /that is (\d+) card/.exec(text);
+    return `${first} CAUGHT ${second} — ${n ? n[1] : 2} CARDS`;
+  }
+  if (has('shouts ZA') || has('yells')) return `${first} CALLED ZA — ONE CARD LEFT`;
+  if (has('Play now runs to the')) return 'PLAY ORDER REVERSED';
+  if (has('goes again')) return `${first} ${vb('PLAYS', 'PLAY')} AGAIN`;
+  if (has('is down to one slice')) return `${first} — ONE CARD LEFT`;
+
+  // --- plays ---
+  if (has('Burnt Slice')) return `${first} PLAYED SKIP`;
+  if (has('flipped the whole pie') || has('gave the pie a spin')) {
+    return `${first} PLAYED REVERSE`;
+  }
+  if (has('Extra Toppings') || has('more toppings')) return `${first} PLAYED +2`;
+  if (has('rank and called for') || has('THE WHOLE PIE')) {
+    const meta = TOPPING_META[view.currentTopping];
+    const named = meta ? meta.label.toUpperCase() : '';
+    const four = has('THE WHOLE PIE');
+    return `${first} PLAYED ${four ? '+4' : 'WILD'}${named ? ` → ${named}` : ''}`;
+  }
+  if (has(' slid ') || has(' served up ') || has(' played ')) {
+    return `${first} PLAYED ${pileWords(view)}`;
+  }
+
+  // --- turns that end without a card ---
+  if (has('pockets the card and passes')) return `${first} KEPT IT — TURN ENDS`;
+  if (has('Not a scrap of dough')) return `${first} ${vb('PASSES', 'PASS')} — NO DOUGH LEFT`;
+  if (has('Skipped.')) return `${first} AWAY — SKIPPED`;
+  if (has('fresh out of the oven') || has('off the dough pile') || has('so they took a card')) {
+    // Whether the drawn card matched is not in the log — but it is in the same
+    // snapshot, and it is not a guess: `drawCard` keeps the turn open only
+    // when the card can be played, so the turn still sitting with the chef who
+    // just drew IS the server saying the card matched.
+    const stayed = who[0] && who[0].id === view.turnPlayerId && view.status === 'playing';
+    return stayed ? `${first} DREW — CAN PLAY IT` : `${first} DREW — NO MATCH, TURN ENDS`;
+  }
+
+  return narrationFallback(text);
+}
+
+function renderNarration(snapshot, view) {
+  const last = view.log && view.log.length ? view.log[view.log.length - 1] : null;
+  if (!last) {
+    el.narration.textContent = '';
+    el.narration.dataset.entry = '';
+    return;
+  }
+  if (el.narration.dataset.entry === String(last.id)) return;
+  el.narration.dataset.entry = String(last.id);
+  const line = narrationLine(last, view, snapshot.youId);
+  el.narration.textContent = line;
+  // The line arriving is the event; a swap with no punctuation reads as the
+  // same line having been there all along. Opacity only, and only where the
+  // player asked for motion.
+  if (!wantsMotion() || typeof el.narration.animate !== 'function') return;
+  for (const running of el.narration.getAnimations()) running.cancel();
+  el.narration.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: EASE_OUT });
 }
 
 // =============================================================== THE TAB ===

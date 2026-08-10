@@ -194,7 +194,9 @@ h1, h2, h3,
 .divider,
 .log__title,
 .seat__name,
-.topping-now,
+.plaque,
+.dir-chip,
+.narration,
 .code-chip,
 .hand-bar__hint {
   font-family: var(--font);
@@ -1109,11 +1111,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     grid-area: 1 / 1;
   }
 
-  /* The piles sit at 56% of the felt, which is what leaves the top of the
-     table to the people sitting at it. */
+  /* The piles sat at 56% of the felt — `padding-top: 12%` — which is what
+     leaves the top of the table to the people sitting at it. The intent is
+     right and the mechanism was not, so the mechanism changed and the intent
+     did not: the stack is now pinned to the BOTTOM of the felt, which at
+     1280x800 puts the piles within a few pixels of where 12% put them.
+
+     Why it had to change. Percentage padding resolves against the containing
+     block's WIDTH, never its height, so `12%` is 154px of downward push on a
+     1280px felt whatever the felt's height is — and the centre column is no
+     longer just the two piles, it carries the match plaque and the direction
+     chip under them. A fixed push plus a taller stack in a shorter felt spills
+     out of the bottom, and the hand zone is opaque and sits above it: measured
+     at 1280x800, `#dir-chip` ran to 432 against a `.hand-zone` starting at
+     422.5, and the direction of play was simply gone. Capping the percentage
+     bought 1280x800 back and still lost 1280x720.
+
+     Bottom-pinned, the failure mode inverts. A felt too short for the stack
+     now crowds the seats above it instead of feeding the bottom of the stack
+     to the hand zone — and the bottom of the stack is where the plaque and the
+     chip are. The thing that gets squeezed is never the thing that answers the
+     question. */
   .table-center {
     position: relative;
-    padding-top: 12%;
     z-index: 1;
   }
 }
@@ -1196,6 +1216,27 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .opponents[data-mode="queue"] .seat .seat__rank { display: block; }
+
+/* --- the tag the counter used to leave unsaid -----------------------------
+   The counter's argument for hiding the ordinal was that position IS the
+   ordinal there — true of 03 and 04, and not true of the two that matter.
+   "Whose turn is it" and "who is next" were the two questions playtesters
+   asked while looking straight at the answer, so on the counter the chip
+   comes back for exactly those two ranks and stays off for the rest. Two
+   tags on a table, never eight.
+
+   It goes last in the seat rather than over the head: `.seat__badge` (ZA! and
+   FORGOT!) already owns the space above the portrait, and a chef who is NEXT
+   and down to one card would have had both in the same nine pixels. */
+.opponents[data-mode="counter"] .seat.is-turn .seat__rank,
+.opponents[data-mode="counter"] .seat.is-next .seat__rank {
+  display: block;
+  order: 3;
+  align-self: center;
+  margin-top: calc(2px * var(--k, 1));
+  padding: calc(3px * var(--k, 1)) calc(6px * var(--k, 1));
+  white-space: nowrap;
+}
 
 .opponents[data-mode="queue"] .seat.is-turn {
   background: rgba(255, 225, 77, .1);
@@ -1725,15 +1766,44 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* centre of the table: the two piles ------------------------------------- */
+/* The centre column: the two piles side by side, the match plaque under them,
+   the direction of play under that. One stack, so the three things a player
+   has to read to take a turn are read in one place and in one order — what is
+   on the pile, what it has to be matched with, and which way the turn goes.
+
+   PINNED TO THE BOTTOM, and the pin is load-bearing. The felt is the grid's
+   `1fr` row — whatever the marquee and the hand zone leave — and the hand zone
+   grows with the hand. On a phone holding ten cards the felt is smaller than
+   the piles alone, which was true before this stack existed, and a CENTRED
+   column feeds both of its ends to its neighbours. The bottom end is the
+   plaque and the chip: the two things that answer "what can I play" and "which
+   way is this going", under an opaque hand zone. They went first and they went
+   invisibly. Bottom-pinned, a squeeze rides the piles up into the seats
+   instead — still wrong, still visible, and never the answer that vanishes. */
 .table-center {
+  /* And it paints over the seats, at every width, not only from 520px up
+     where the felt-sharing grid already gave it a layer. A squeezed felt is
+     going to overlap SOMETHING; the only question is which of the two is
+     readable afterwards. The seats are portraits and a card count, and both
+     survive being half-covered. The plaque is a sentence. */
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s1);
+  padding-bottom: var(--s2);
+  /* The pile slot and the card that fills it have to agree, or the window
+     insets are computed for one width and drawn at another. Both are 96px. */
+  --card-w: 96px;
+}
+
+.table-center__piles {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: clamp(var(--s4), 5vw, var(--s8));
-  padding-bottom: var(--s4);
-  /* The pile slot and the card that fills it have to agree, or the window
-     insets are computed for one width and drawn at another. Both are 96px. */
-  --card-w: 96px;
 }
 
 .table-center::before {
@@ -1943,35 +2013,144 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   30% { opacity: 1; }
 }
 
-/* current topping badge -------------------------------------------------- */
-.topping-now {
-  position: absolute;
-  left: 50%;
-  bottom: -14px;
+/* ---------------------------------------------------------- match plaque --
+   The badge that used to sit under the oven said IN PLAY · CHEESE. True, and
+   half the rule: a player still had to know that the top card's NUMBER plays
+   too, and there was nowhere on the table that said so. The plaque says the
+   whole condition, in the order a player asks it — this topping, or this.
+
+   It is drawn as a cabinet plate rather than a pill: 3px keyline in the
+   topping's own colour on the console dark, hard shadow, the arcade kit's
+   plate. The keyline IS the recolour, so a topping change is a change of the
+   frame around the answer, not a wash the answer has to be read through.
+
+   Nothing here transitions. Two saturated suit colours tweened pass through
+   colours that are not toppings at all, which is the same reason the badge
+   before it snapped. */
+.plaque {
+  --plaque-ink: var(--cheese);
+
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--s1);
-  padding: var(--s1) var(--s3);
-  border-radius: var(--r-pill);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .01em;
-  white-space: nowrap;
-  transform: translateX(-50%);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, .5);
-  /* The topping plate snaps to the new colour. A tween between two saturated
-     fills passes through colours that are not toppings at all. `none` rather
-     than a deleted line, for the reduced-motion reason spelled out on the
-     marquee above. */
+  gap: 3px;
+  padding: 6px 14px;
+  max-width: 100%;
+  background: var(--console);
+  border: 3px solid var(--plaque-ink);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .6);
   transition: none;
 }
 
-.topping-now__emoji { font-style: normal; font-size: 13px; }
+.plaque[data-topping="pepperoni"] { --plaque-ink: var(--sauce); }
+.plaque[data-topping="basil"] { --plaque-ink: var(--basil); }
+.plaque[data-topping="cheese"] { --plaque-ink: var(--cheese); }
+.plaque[data-topping="anchovy"] { --plaque-ink: var(--anchovy); }
 
-.topping-now.t-pepperoni { background: var(--sauce); color: var(--void); }
-.topping-now.t-basil { background: var(--basil); color: var(--void); }
-.topping-now.t-cheese { background: var(--cheese); color: var(--void); }
-.topping-now.t-anchovy { background: var(--anchovy); color: var(--void); }
+.plaque__head {
+  font-family: var(--font-display);
+  font-size: 8px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+
+.plaque__body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* One line at every width the table has room for; the phone stacks it in
+     the media query below rather than wrapping mid-condition. */
+  flex-wrap: nowrap;
+}
+
+.plaque__topping,
+.plaque__alt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plaque__alt[hidden] { display: none; }
+
+.plaque__emblem {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.plaque__emblem svg { width: 100%; height: 100%; display: block; }
+
+.plaque__name,
+.plaque__value {
+  font-family: var(--font);
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+/* The topping is said in its own colour; the alternative is said in plain ink,
+   because it is not a topping and must never be mistaken for one. */
+.plaque__name { color: var(--plaque-ink); }
+.plaque__value { color: var(--text); }
+
+.plaque__or {
+  font-family: var(--font);
+  font-size: 19px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+
+/* The effect glyph beside REVERSE or SKIP. `+2` needs none: it is already the
+   picture of itself. */
+.plaque__mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--text);
+}
+
+.plaque__mark svg { width: 100%; height: 100%; display: block; }
+
+/* ------------------------------------------------------- direction chip -- */
+/* Small, quiet, and always there. The chase in the marquee is hidden at 520px
+   and up; the token walking the counter does not exist below it. This is the
+   one carrier at every width, so it is deliberately the plainest: a word. */
+.dir-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 9px;
+  border: 2px solid var(--bezel);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+  white-space: nowrap;
+}
+
+.dir-chip__word { font-weight: 400; }
+
+.dir-chip__glyph {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  display: block;
+}
+
+.dir-chip__glyph svg { width: 100%; height: 100%; display: block; }
+
+/* Reversed is the same two arrows read the other way round — mirrored, not a
+   second drawing, so the two states cannot drift apart. */
+.dir-chip[data-dir="-1"] .dir-chip__glyph { transform: scaleX(-1); }
 
 /* ------------------------------------------------------------------- log -- */
 .log {
@@ -2057,6 +2236,26 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .hand-zone.is-your-turn::before { opacity: 1; }
+
+/* ----------------------------------------------------------- narration --
+   One line, the last thing that happened, over the player's own hand. It is a
+   fixed 1em box whether or not there is anything in it: a line that appears
+   and disappears would push the hand up and down the screen every turn, and
+   the hand holding still is worth more than the 17px. */
+.narration {
+  margin: 0;
+  min-height: 1.15em;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ui-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* The bar is the anchor for the shout starburst and the timing score, so both
    fire from the ZA! button rather than the middle of the screen. */
@@ -2374,6 +2573,30 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   text-shadow: 3px 3px 0 var(--void), -2px -2px 0 var(--void), 2px -2px 0 var(--void), -2px 2px 0 var(--void);
 }
 
+/* The drawn effect glyph, in the box the printed value used to have. It is
+   sized off `--card-w` like the value it replaces, so a Reverse in the hand
+   and the same Reverse on the pile are the same card at two scales. The hard
+   void outline is the value's, kept: the window has a sprite behind it and a
+   stroke drawn straight onto pixel art disappears into it. */
+.card__value--glyph {
+  display: grid;
+  place-items: center;
+  width: calc(var(--card-w) * 0.42);
+  height: calc(var(--card-w) * 0.42);
+  color: var(--text);
+  filter:
+    drop-shadow(2px 2px 0 var(--void)) drop-shadow(-2px -2px 0 var(--void))
+    drop-shadow(2px -2px 0 var(--void)) drop-shadow(-2px 2px 0 var(--void));
+  text-shadow: none;
+}
+
+.card__value--glyph .ico,
+.card__value--glyph svg { width: 100%; height: 100%; display: block; }
+
+/* +2 is already two legible characters; drawing it would be a worse version of
+   typing it. It only needs the room the glyphs get. */
+.card--effect .card__value { font-size: calc(var(--card-w) * 0.30); }
+
 .card__banner {
   position: absolute;
   left: 0;
@@ -2435,6 +2658,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    at 9px. It inherits `--suit` from the corner it sits in, so it is exactly the
    colour of the keyline it is standing in for — one more glyph, no new colour. */
 .card__index-suit { display: none; }
+
+/* THE EFFECT CARDS ARE THE EXCEPTION, and for the reason the rule gives: on a
+   Reverse the window now says REVERSE and the banner says REVERSE, so the
+   topping is no longer the third telling of anything — it is the only thing
+   the middle of the card has stopped saying. The letter comes back beside the
+   index, so a topping is a keyline colour AND a mark, never colour alone. */
+.card--effect .card__index-suit {
+  display: block;
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0;
+}
 
 .card--rib .card__index-suit {
   display: block;
@@ -4585,6 +4822,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    chevrons draw in currentColor the flash reads on all five at once. */
 .marquee__dir.is-flipping { animation: dir-flash 480ms steps(1, end) both; }
 
+/* The chip takes the same flash. It is the carrier that is on screen at every
+   width, so a flip it did not announce is a flip nobody saw. */
+.dir-chip.is-flipping { animation: dir-flash 480ms steps(1, end) both; }
+
 @keyframes dir-flash {
   0%, 24% { color: var(--ui-cyan); }
   25%, 49% { color: var(--cheese); }
@@ -4664,6 +4905,24 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .marquee__dir { font-size: 12px; gap: 1px; }
   .screws { gap: var(--s1) var(--s3); }
 
+  /* The centre stack on a phone. The plaque keeps its whole sentence — it is
+     the sentence that earns its room — and gives up the padding and four
+     points of type around it. The body may wrap here and nowhere else: below
+     520px the chefs are a queue in their own grid row, so a stacked plaque
+     cannot reach them, and the only thing wrapping costs is height it takes
+     back from the gaps. */
+  .table-center { gap: var(--s1); padding-bottom: var(--s2); }
+  .plaque { padding: 4px 10px; gap: 2px; }
+  .plaque__body { flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
+  .plaque__name,
+  .plaque__value { font-size: 22px; }
+  .plaque__or { font-size: 16px; }
+  .plaque__emblem { width: 18px; height: 18px; }
+  .plaque__mark { width: 17px; height: 17px; }
+  .dir-chip { font-size: 15px; padding: 1px 7px; }
+  .dir-chip__glyph { width: 15px; height: 15px; }
+  .narration { font-size: 15px; }
+
   /* The attract logotype steps down to the mobile plate. */
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
   .logo__flourish { font-size: 22px; }
@@ -4687,6 +4946,25 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      1fr and pushed the piles a hundred pixels down the phone. */
   @media (max-width: 519.98px) {
     .table { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  }
+
+  /* --- the band that got the wrong row -----------------------------------
+     From 520px up the chefs and the centre column share ONE cell: they are
+     both `grid-area: 1 / 1`, laid over each other on the felt. That rule was
+     written against a single-row grid, and the three-row grid above — added
+     later, for the phone's chatter strip — also fires from 520px to 720px.
+     `grid-area: 1 / 1` in a three-row grid is not the felt, it is the FIRST
+     row of it: 219px of a 365px felt, with the rest of the felt empty
+     underneath and the centre column stacked into the seats' half of it.
+
+     Measured at 600x800 before this rule: the plaque's box overlapped Carmela
+     and Nonna Pina outright. After it: no seat overlap, and the plaque and the
+     chip clear the chatter strip and the hand zone by 43px and 71px.
+
+     Both tenants span every row, which is what "they share the felt" meant. */
+  @media (min-width: 520px) {
+    .table > .opponents,
+    .table > .table-center { grid-row: 1 / -1; }
   }
 
   /* The ticker does not animate its one line: it IS the status readout, and
@@ -4740,6 +5018,21 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     max-height: 92vh;
     overflow-y: auto;
   }
+}
+
+/* Height is the scarce axis long before width is, and the centre stack is the
+   thing this pass made taller. Where the felt is short the plaque and the chip
+   give up type and padding — never the words, which are the whole reason they
+   are there. */
+@media (max-height: 720px) {
+  .plaque { padding: 3px 9px; gap: 1px; }
+  .plaque__name,
+  .plaque__value { font-size: 20px; }
+  .plaque__or { font-size: 15px; }
+  .plaque__emblem { width: 16px; height: 16px; }
+  .plaque__mark { width: 15px; height: 15px; }
+  .dir-chip { font-size: 14px; padding: 0 6px; }
+  .dir-chip__glyph { width: 14px; height: 14px; }
 }
 
 @media (max-height: 620px) {
@@ -4970,6 +5263,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .discard-holder.is-chain .card,
   .seat.is-callout .seat__name,
   .marquee__dir.is-flipping,
+  .dir-chip.is-flipping,
   .overlay.is-celebrating::before {
     animation: none !important;
     transform: none !important;
