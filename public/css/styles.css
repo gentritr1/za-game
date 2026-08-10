@@ -2503,6 +2503,174 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   margin-left: 4px;
 }
 
+/* THE SHORT-WINDOW BUDGET ------------------------------------------------- */
+/* On a short phone the felt is the row that loses. The game screen is a grid
+   of header / felt / hand zone, and the hand zone states a height while the
+   felt takes `1fr` — so the felt is handed whatever is left, and at 390x667
+   what was left was 29px less than the piles need. The oven's card hung under
+   the hand zone's top edge, which is the one place on the screen a card must
+   never be.
+
+   It cannot be fixed from the felt side: the pile sizes were tried and moved
+   the pile's top by 0.0px. And it does not come back one-for-one, which is the
+   part worth writing down — the centre rides the felt down as the felt grows,
+   so **a pixel given to the felt buys about 0.55 of a pixel of clearance**.
+   Measured by forcing the zone's height in 10px steps at 390x667 and reading
+   the pile's bottom against the zone's top: 356px of zone gives 28.3px of
+   overlap, 310px gives 0.3px, 297px gives -4.6px. So the budget below has to
+   find about 60px, not the 30px the overlap looks like it needs.
+
+   None of it comes out of the two things that may not move: every card stays
+   at its 54px floor, and every button stays at its 44px tap target. It comes
+   out of air — the zone's own padding, the gaps between its rows, the swipe
+   line's leading, and the room the row keeps over a lifted card. */
+@media (max-height: 700px) and (max-width: 519.98px) {
+  .hand-zone {
+    padding: 2px var(--s3) 4px;
+    gap: 2px;
+  }
+
+  /* The swipe line gives up its row. It is the one-time half of a two-part
+     cue and the other half is permanent: both edges of the row now fade, and
+     each fade follows the scroll, so a card running out under a gradient says
+     the same thing the sentence did. Keeping the sentence costs 17px of a
+     budget that has nowhere else to go without shrinking a card or a tap
+     target — and a 54px card under the hand zone's own top edge is a worse
+     answer than a cue with one part instead of two.
+
+     Tried first and rejected: fitting the four screws onto one row, which is
+     the only other 40px in here. They come to 369px of label in a 362px rail,
+     and the shave that just fits at 12px labels puts them back on two rows the
+     moment the sound screw says SND OFF. A budget that depends on a word's
+     length is not a budget. */
+  .hand-swipe { display: none; }
+
+  /* A window is 89px of the budget when it opens, and on your own turn it
+     cannot take the hand's place (that would be a soft-lock — see
+     `replacingMoment`), so it is added on top of everything else. This is the
+     one case that still costs the felt its clearance, so the window gives up
+     what it can without giving up a word: leading, padding, and the padding
+     that pushed its buttons past their 44px floor. */
+  /* While any window is open the rail drops to heads only. Copied deliberately
+     from the 560px tier below, down to the visually-hidden label rather than
+     `display: none` — the label is the accessible name of the button it sits
+     in, and a screw head with no name is not a control. One row of 44px heads
+     instead of two rows of 44px labels: 51px back, every control still there,
+     every name still spoken. */
+  .hand-zone.has-moment .screw {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .hand-zone.has-moment .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .moment { padding: 2px var(--s2); gap: var(--s2); }
+  .moment__title { line-height: 1.4; }
+
+  /* The teaching strip says the same thing twice — CALL ZA BEFORE YOU PLAY
+     over "2 cards -> call ZA before playing. Forget = +2." — and on two lines
+     of Press Start that heading costs 28px. The sentence keeps the whole
+     lesson AND the arithmetic, and it is the button's accessible description,
+     so it is the heading that goes. The alarm windows keep theirs: their
+     titles carry the news, not a restatement of it. */
+  .moment--za .moment__title { display: none; }
+  .moment__sub { font-size: 14px; line-height: 1.15; }
+  .moment__cta,
+  .moment__alt { padding-block: 6px; }
+
+  /* Two rows of screws are unavoidable at this width — measured at 4px of side
+     padding and an 8px column gap, the four labels still come to 369px of
+     content in a 362px rail — so the row they are separated by is what gives
+     instead, and every screw keeps its label and its 44px target.
+
+     `.hand-zone .screws`, not `.screws`: the rail's own rule is 3700 lines
+     further down and sets the `gap` SHORTHAND, which quietly beats a bare
+     `row-gap` written earlier however short the window is. The first version
+     of this line looked right and did nothing. */
+  .hand-zone .screws { row-gap: 0; }
+
+  /* The bar is as tall as the ZA! button, and the ZA! button was 52.5px: 44px
+     of tap target and 8.5px of padding that had pushed it past its own floor.
+     `min-height` still holds the 44, so this takes the excess and not the
+     target — the one place in the budget where the number that matters is
+     defended by the rule that produced it. */
+  .hand-bar .btn { padding-block: 6px; }
+
+  .hand-self { min-height: 0; }
+  .hand-self__label { font-size: 10px; }
+  .hand-self__count { font-size: 14px; }
+  .hand-self__state { font-size: 10px; padding: 2px 5px; }
+
+  .hand-swipe { font-size: 13px; line-height: 1.1; }
+
+  /* The room over the row is for the 12px a playable card lifts and the ring
+     that lands 3px outside it. 18px still clears both; 14px would not. */
+  .hand__near {
+    min-height: calc(var(--hand-card-w) * var(--card-ratio) + 10px);
+    padding-top: 10px;
+  }
+
+  .hand__near.is-scrolling {
+    padding-top: 18px;
+    padding-bottom: 2px;
+  }
+}
+
+/* The second tier, for the genuinely short ones. 360x640 has 27px less felt
+   than 390x667, and the first tier still leaves the oven's card 9px under the
+   hand zone. The last of the air is gone by here, so this tier stops spending
+   air and spends type instead — the same trade the 560px tier below makes, one
+   step earlier and one step gentler: the room code keeps its label, because it
+   is the one thing on the rail a player has to read out to somebody else, and
+   the other three go to heads with their names intact. One row instead of two.
+
+   Measured at 360x640 with a six-card hand: rail 96px -> 44px, hand zone
+   288px -> 232px, and the pile's bottom from 9px under the hand zone to well
+   clear of it. */
+@media (max-height: 660px) and (max-width: 519.98px) {
+  .hand-zone {
+    padding: 0 var(--s3) 2px;
+    gap: 0;
+  }
+
+  .hand-zone .screws { column-gap: var(--s3); }
+
+  /* And the windows give up the last of their padding here. */
+  .moment { padding: 0 var(--s2); }
+  .moment__sub { font-size: 13px; }
+
+  .screw--sound,
+  .screw--rules,
+  .screw--leave {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  /* Visually hidden, never `display: none`: the label is the accessible name
+     of the button it sits in, and a screw head with no name is not a control. */
+  .screw--sound .screw__label,
+  .screw--rules .screw__label,
+  .screw--leave .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* ----------------------------------------------------------------- cards -- */
 .card {
   position: relative;

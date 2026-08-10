@@ -3179,11 +3179,37 @@ const HAND_CARD_MAX = 84;
 const HAND_CARD_MIN = 54;
 const HAND_GAP = 8;
 
+/**
+ * THE CEILING COMES DOWN ON A SHORT PHONE, AND IT IS THE FELT THAT ASKED.
+ *
+ * The row is as tall as its cards, so the hand zone's height is a function of
+ * how many cards are in the hand: a crowded hand sits at the 54px floor and
+ * the row is 96px, but a three-card hand takes the full 84px and the row is
+ * 138px. The felt gets what is left, and at 390x667 that 42px swing is the
+ * whole of the clearance the budget in the stylesheet just bought — measured
+ * with a three-card hand: zone 320px, and the oven's card 29px under the hand
+ * zone's top edge, which is exactly the defect the budget was written to fix.
+ *
+ * So on a short phone the cards stop growing at the floor. Nothing shrinks —
+ * 54px is the width the whole redesign is specified at and every card is still
+ * whole, still readable and still a tap target — but the row's height stops
+ * being a function of how well you are doing, which is the property that
+ * matters: the hand zone is then the same height with two cards as with
+ * twelve, and the felt's clearance can be stated as one number instead of a
+ * range that dips under zero at the far end.
+ *
+ * `matchMedia`, not a resize handler: a layout-mode flip behind a
+ * `requestAnimationFrame` never fires in a backgrounded pane.
+ */
+const HAND_CARD_SHORT = HAND_CARD_MIN;
+const SHORT_TABLE = window.matchMedia('(max-height: 700px) and (max-width: 519.98px)');
+
 /** The widest every card can be and still share `available` at `HAND_GAP`. */
 function handCardWidth(count, available) {
-  if (count <= 1) return HAND_CARD_MAX;
+  const ceiling = SHORT_TABLE.matches ? HAND_CARD_SHORT : HAND_CARD_MAX;
+  if (count <= 1) return ceiling;
   const fair = Math.floor((available - (count - 1) * HAND_GAP) / count);
-  return Math.max(HAND_CARD_MIN, Math.min(HAND_CARD_MAX, fair));
+  return Math.max(HAND_CARD_MIN, Math.min(ceiling, fair));
 }
 
 /**
@@ -4271,6 +4297,22 @@ function renderMoments(snapshot, view) {
  */
 function syncHandSwap(snapshot, view) {
   el.handZone.classList.toggle('is-swapped', replacingMoment(snapshot, view));
+  // A window is 60-90px, and on a short phone the felt has about 30px of
+  // slack — so while one is open the bezel rail gives up its type, which is
+  // the same trade this stylesheet already makes at 560px and for the same
+  // stated reason: the rail is hardware, not gameplay. Every screw keeps its
+  // 44px target and its accessible name; only the words beside the heads go.
+  el.handZone.classList.toggle('has-moment', anyMomentOpen(snapshot, view));
+}
+
+/** Any contextual window at all, including the teaching strip that never swaps. */
+function anyMomentOpen(snapshot, view) {
+  if (!view || view.status !== 'playing') return false;
+  if (view.mustPlayDrawnCard) return true;
+  if ((view.calloutTargets || []).length) return true;
+  if (ui.callouts.has(snapshot.youId)) return true;
+  const me = view.players.find((p) => p.id === snapshot.youId);
+  return Boolean(view.canDeclareZa && me && me.cardCount === 2);
 }
 
 /**
@@ -6968,6 +7010,10 @@ function resizeHandRow() {
   }
   layoutNear(ui.nearRow);
 }
+
+// The card ceiling is a layout mode, so it changes on the media query itself
+// and not on a resize behind a frame that a hidden pane never runs.
+SHORT_TABLE.addEventListener('change', resizeHandRow);
 
 let resizeFrame = 0;
 window.addEventListener('resize', () => {
