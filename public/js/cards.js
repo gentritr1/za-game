@@ -7,7 +7,7 @@
  * does not change. See the README for the full file naming convention.
  */
 
-import { icon } from './icons.js';
+import { icon, suitIcon } from './icons.js';
 
 /**
  * Arcade direction: the frame, indexes and banner are DOM + Press Start 2P,
@@ -17,6 +17,8 @@ import { icon } from './icons.js';
 export const USE_IMAGES = false;
 
 export const ASSET_DIR = 'assets/cards';
+// Still used by the rules deck and optional cabinet art. Live card faces do
+// not load these sprites in the Pass-9 table.
 export const SPRITE_DIR = 'assets/sprites';
 
 /**
@@ -252,7 +254,7 @@ export function renderCard(card, options = {}) {
     return root;
   }
 
-  // --- arcade face: DOM frame + sprite window ---
+  // --- Pass-9 face: DOM frame + one unmistakable centre mark ---
   const index = cornerIndex(card);
   // Press Start 2P is fixed pitch at 11px a glyph, so a two-glyph index (+2,
   // <>, +4) needs 22px of face where a one-glyph index needs 11. Only the rib
@@ -276,30 +278,24 @@ export function renderCard(card, options = {}) {
 
   const windowEl = el('span', 'card__window');
   windowEl.setAttribute('aria-hidden', 'true');
-  const sprite = el('img', 'card__sprite');
-  sprite.src = `${SPRITE_DIR}/${spriteSlug(card)}.png`;
-  sprite.alt = '';
-  sprite.decoding = 'async';
-  sprite.loading = 'lazy';
-  sprite.draggable = false;
 
-  // THE EFFECT LEADS. On a number the window prints its value, exactly as it
-  // always did. On the three effect cards the two-character index ("<>", "X")
-  // was the one thing in the middle of the card, and it is a code — the player
-  // has to have been told what it stands for. It becomes a drawn glyph at the
-  // size the value used to be, with the word underneath on the banner. The
-  // generated sprite stays behind it: the art is the parlour's, only the
-  // reading order changed.
+  // THE EFFECT LEADS. Number cards use the topping emblem in the middle and
+  // keep their number in both corners; effect cards use the consequence glyph
+  // and word. This is the selected Pass-9 face, with no decorative sprite
+  // competing behind the thing a player must recognise quickly.
   const effect = effectOf(card);
   if (effect) root.classList.add('card--effect');
   const value = el('span', 'card__value');
   if (effect && effect.glyph) {
     value.classList.add('card__value--glyph');
     value.append(icon(effect.glyph));
+  } else if (card.kind === 'number') {
+    value.classList.add('card__value--suit');
+    value.append(suitIcon(card.suit, 'card__suit-glyph'));
   } else {
     value.textContent = effect && effect.text ? effect.text : index;
   }
-  windowEl.append(sprite, value);
+  windowEl.append(value);
 
   // The banner carries both forms of its own name and the stylesheet picks
   // one: a card the next card covers can only finish the three-letter token in
@@ -315,14 +311,6 @@ export function renderCard(card, options = {}) {
 
   root.append(makeCorner('tl'), windowEl, banner, makeCorner('br'));
   return root;
-}
-
-/** Which window sprite a card face uses. One per suit, action kind, or wild. */
-function spriteSlug(card) {
-  if (card.kind === 'wild') return 'chefs-choice';
-  if (card.kind === 'wild4') return 'whole-pie';
-  if (card.kind === 'number') return TOPPINGS[card.suit].slug;
-  return KINDS[card.kind].slug;
 }
 
 /** Small swatch used by the topping picker and the current-topping badge. */

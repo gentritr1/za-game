@@ -1,0 +1,1240 @@
+/* ========================================================================
+   ZA! table — Pass 9 production skin
+
+   This is the selected table system, mapped onto the authoritative
+   multiplayer client. It deliberately comes after styles.css and is scoped
+   to the game screen so the port can be accepted before retired cabinet CSS
+   is removed. No rule in this file decides legality, turn order, or timing.
+   ======================================================================== */
+
+.shell[data-ui="pass9"] {
+  --panel-w: 0px;
+  --play-w: 100vw;
+}
+
+.screen--game[data-ui="pass9"] {
+  --sauce: #ff2e6b;
+  --cheese: #ffc93d;
+  --warning: #ffe14d;
+  --basil: #3ddc7f;
+  --anchovy: #4d9dff;
+  --void: #0d0f1a;
+  --console: #080a12;
+  --cabinet: #101426;
+  --cabinet-hi: #151b33;
+  --surface-raised: #1b2340;
+  --bezel: #39466f;
+  --bezel-live: #5265a7;
+  --text: #e8ecff;
+  --text-strong: #f4f7ff;
+  --text-dim: #c3cbe6;
+  --text-mute: #8f9bc4;
+  --ui-cyan: #7de2ff;
+  --danger-text: #ff6f9a;
+  --card-w: 84px;
+
+  left: 0;
+  right: 0;
+  border: 4px solid var(--bezel);
+  background: var(--void);
+}
+
+/* A light CRT grain keeps the arcade flavour without putting a 30% black
+   stripe through every small label. Static on purpose: required information
+   never flickers. */
+body[data-ui="pass9"] .crt-overlay {
+  opacity: .1;
+}
+
+/* ---------------------------------------------------------------- header -- */
+.screen--game[data-ui="pass9"] .hud {
+  min-height: 34px;
+  background: var(--console);
+  box-shadow: none;
+}
+
+.screen--game[data-ui="pass9"] .hud__turn {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 4px solid var(--bezel);
+  background: var(--console);
+  color: var(--ui-cyan);
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: .05em;
+}
+
+.screen--game[data-ui="pass9"] .hud__turn::before {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .marquee__brand {
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 9px;
+}
+
+.screen--game[data-ui="pass9"] .marquee__mark,
+.screen--game[data-ui="pass9"] .hud__turn.is-you .marquee__mark,
+.screen--game[data-ui="pass9"] .hud__turn.is-callout .marquee__mark {
+  color: var(--warning);
+  font-size: 11px;
+  line-height: 1;
+  text-shadow: none;
+}
+
+.screen--game[data-ui="pass9"] .marquee__bulbs {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.screen--game[data-ui="pass9"] .marquee__bulbs i {
+  width: 6px;
+  height: 6px;
+  background: var(--sauce);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .55);
+}
+
+.screen--game[data-ui="pass9"] .marquee__bulbs i:nth-child(2) {
+  background: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .marquee__bulbs i:nth-child(3) {
+  background: var(--basil);
+}
+
+.screen--game[data-ui="pass9"] .marquee__line {
+  grid-column: 2;
+  font-size: 16px;
+  letter-spacing: .05em;
+}
+
+.screen--game[data-ui="pass9"] .marquee__meta {
+  grid-column: 3;
+  min-width: 0;
+  justify-self: end;
+  overflow: hidden;
+  color: var(--ui-cyan);
+  font-size: 15px;
+  letter-spacing: .1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen--game[data-ui="pass9"] .marquee__dir {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .hud__turn.is-you {
+  border-bottom-color: var(--warning);
+  background: var(--console);
+  color: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .hud__turn.is-callout {
+  border-bottom-color: var(--sauce);
+  background: #2a0a16;
+  color: var(--danger-text);
+}
+
+.screen--game[data-ui="pass9"] .hud__turn.is-you .marquee__meta,
+.screen--game[data-ui="pass9"] .hud__turn.is-callout .marquee__meta {
+  color: currentcolor;
+}
+
+/* ---------------------------------------------------------------- stage --- */
+.screen--game[data-ui="pass9"] .table {
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+  padding: 8px 12px 4px;
+  background:
+    radial-gradient(46% 40% at 50% 45%, rgba(255, 140, 40, .16), transparent 72%),
+    var(--void);
+}
+
+.screen--game[data-ui="pass9"] .table > .opponents,
+.screen--game[data-ui="pass9"] .table > .table-center {
+  grid-area: 1 / 1;
+}
+
+.screen--game[data-ui="pass9"] .opponents {
+  --port: 50px;
+  --k: 1;
+
+  padding: 0;
+}
+
+.screen--game[data-ui="pass9"] .opponents[data-mode="counter"]::before,
+.screen--game[data-ui="pass9"] .counter-belt {
+  display: none;
+}
+
+/* Flat plates replace the pizza-box/fan furniture. The existing sliver nodes
+   become count pips, which keeps one source of truth for count changes. */
+.screen--game[data-ui="pass9"] .seat__body {
+  position: relative;
+  display: block;
+  width: clamp(118px, 14vw, 178px);
+  min-height: clamp(78px, 8vw, 100px);
+  padding: 8px;
+  background: var(--cabinet);
+  border: 3px solid var(--bezel-live);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .6);
+}
+
+.screen--game[data-ui="pass9"] .seat[data-anchor="l"] .seat__body,
+.screen--game[data-ui="pass9"] .seat[data-anchor="r"] .seat__body {
+  display: block;
+}
+
+.screen--game[data-ui="pass9"] .seat__id {
+  display: grid;
+  grid-template-columns: var(--port) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.screen--game[data-ui="pass9"] .seat__avatar {
+  width: var(--port);
+  height: var(--port);
+  border: 2px solid var(--bezel-live);
+  box-shadow: none;
+}
+
+.screen--game[data-ui="pass9"] .seat .avatar__image {
+  opacity: .72;
+  filter: saturate(.72);
+}
+
+.screen--game[data-ui="pass9"] .seat.is-live .avatar__image {
+  opacity: 1;
+  filter: none;
+}
+
+.screen--game[data-ui="pass9"] .seat__name,
+.screen--game[data-ui="pass9"] .seat.is-live .seat__name,
+.screen--game[data-ui="pass9"] .seat.is-target .seat__name {
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  line-height: 1;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.screen--game[data-ui="pass9"] .pizza-box,
+.screen--game[data-ui="pass9"] .seat__deck {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .seat__cards,
+.screen--game[data-ui="pass9"] .seat[data-box="0"] .seat__cards {
+  position: absolute;
+  left: calc(var(--port) + 16px);
+  right: 8px;
+  bottom: 9px;
+  width: auto;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.screen--game[data-ui="pass9"] .seat__fan,
+.screen--game[data-ui="pass9"] .seat[data-box="0"] .seat__fan {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.screen--game[data-ui="pass9"] .seat__sliver,
+.screen--game[data-ui="pass9"] .seat[data-hand="one"] .seat__sliver {
+  position: static;
+  width: 5px;
+  height: 11px;
+  flex: none;
+  background: var(--text-mute);
+  border: 0;
+  box-shadow: none;
+  transform: none;
+  animation: none;
+}
+
+.screen--game[data-ui="pass9"] .seat.is-live .seat__sliver {
+  background: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .seat[data-hand="one"] .seat__sliver {
+  width: 9px;
+  height: 15px;
+  background: var(--sauce);
+  border: 2px solid var(--void);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .6);
+}
+
+.screen--game[data-ui="pass9"] .seat__count,
+.screen--game[data-ui="pass9"] .seat[data-box="0"] .seat__count,
+.screen--game[data-ui="pass9"] .seat[data-box="0"][data-hand="one"] .seat__count {
+  position: static;
+  display: inline-block;
+  margin-left: 3px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text-mute);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1;
+  transform: none;
+}
+
+.screen--game[data-ui="pass9"] .seat[data-hand="one"] .seat__count {
+  color: var(--danger-text);
+}
+
+.screen--game[data-ui="pass9"] .seat__ring,
+.screen--game[data-ui="pass9"] .seat__edge {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .seat.is-turn .seat__body {
+  background: var(--cabinet-hi);
+  border-width: 4px;
+  border-color: var(--warning);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, .62);
+}
+
+.screen--game[data-ui="pass9"] .seat.is-next .seat__body {
+  border-left-width: 7px;
+  border-left-color: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .seat.is-target .seat__body {
+  border-style: dashed;
+  border-color: var(--sauce);
+}
+
+.screen--game[data-ui="pass9"] .seat__rank,
+.screen--game[data-ui="pass9"] .opponents[data-mode="counter"] .seat.is-turn .seat__rank,
+.screen--game[data-ui="pass9"] .opponents[data-mode="counter"] .seat.is-next .seat__rank {
+  align-self: stretch;
+  margin-top: 4px;
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-mute);
+  font-family: var(--font-display);
+  font-size: 9px;
+}
+
+.screen--game[data-ui="pass9"] .seat.is-turn .seat__rank {
+  background: var(--text-strong);
+  color: var(--void);
+}
+
+.screen--game[data-ui="pass9"] .seat.is-next .seat__rank {
+  color: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .seat__status {
+  min-height: 14px;
+  margin-top: 4px;
+  color: var(--ui-cyan);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+/* Seven and eight seats need the same plate grammar in a smaller piece of
+   furniture. The current placement map already clears 80px plates; the old
+   100px pizza-box footprint is what caused neighbouring rows to touch. */
+.screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat__body {
+  width: 150px;
+  min-height: 80px;
+  padding: 6px;
+}
+
+.screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat__name,
+.screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat.is-live .seat__name,
+.screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat.is-target .seat__name {
+  font-size: 18px;
+}
+
+.screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat__cards {
+  left: calc(var(--port) + 14px);
+  right: 6px;
+  bottom: 7px;
+}
+
+.screen--game[data-ui="pass9"] .opponents[data-mode="queue"] {
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 3px 8px;
+  border-top: 0;
+}
+
+.screen--game[data-ui="pass9"] .opponents[data-mode="queue"] .seat {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.screen--game[data-ui="pass9"] .opponents[data-mode="queue"] .seat__body {
+  width: 138px;
+  min-height: 78px;
+}
+
+/* The receipt ticket follows the same authoritative rank as NOW/NEXT. */
+.screen--game[data-ui="pass9"] .counter-token {
+  width: 32px;
+  height: 22px;
+  padding: 0 4px;
+  background: var(--warning);
+  border: 3px solid var(--void);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .6);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 88% 78%, 76% 100%, 64% 78%, 52% 100%, 40% 78%, 28% 100%, 16% 78%, 4% 100%, 0 78%);
+}
+
+/* --------------------------------------------------------------- center --- */
+.screen--game[data-ui="pass9"] .table-center {
+  --card-w: 78px;
+
+  z-index: 4;
+  justify-content: center;
+  gap: 5px;
+  padding: 78px 0 58px;
+}
+
+.screen--game[data-ui="pass9"] .table-center::before {
+  width: min(460px, 74vw);
+  background: radial-gradient(circle, rgba(255, 140, 40, .1), transparent 66%);
+}
+
+.screen--game[data-ui="pass9"] .plaque {
+  order: 1;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--console);
+  border-width: 3px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .6);
+}
+
+.screen--game[data-ui="pass9"] .plaque__head {
+  font-size: 9px;
+  color: var(--text-mute);
+}
+
+.screen--game[data-ui="pass9"] .plaque__name,
+.screen--game[data-ui="pass9"] .plaque__value {
+  font-size: 26px;
+}
+
+.screen--game[data-ui="pass9"] .plaque__body {
+  gap: 10px;
+}
+
+.screen--game[data-ui="pass9"] .plaque__alt {
+  gap: 6px;
+}
+
+.screen--game[data-ui="pass9"] .table-center__piles {
+  order: 2;
+  gap: 10px;
+}
+
+.screen--game[data-ui="pass9"] .dir-chip {
+  order: 3;
+  color: var(--text-mute);
+}
+
+.screen--game[data-ui="pass9"] .pile {
+  gap: 4px;
+}
+
+.screen--game[data-ui="pass9"] .pile__label {
+  color: var(--text-mute);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .06em;
+}
+
+.screen--game[data-ui="pass9"] .pile--deck .pile__slot {
+  width: calc(var(--card-w) * .78);
+  height: calc(var(--card-w) * .78 * var(--card-ratio));
+  margin-top: calc(var(--card-w) * .22 * var(--card-ratio));
+}
+
+.screen--game[data-ui="pass9"] .pile__count {
+  right: -5px;
+  bottom: 4px;
+  border-color: var(--bezel-live);
+  background: var(--console);
+  color: var(--ui-cyan);
+  font-family: var(--font);
+  font-size: 15px;
+}
+
+.screen--game[data-ui="pass9"] .pile--discard .pile__slot::before,
+.screen--game[data-ui="pass9"] .pile--discard .pile__slot::after {
+  display: none;
+}
+
+/* The visual local seat completes the table on roomy screens. */
+.screen--game[data-ui="pass9"] .self-seat-visual {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(270px, 46vw);
+  min-height: 58px;
+  padding: 7px 9px;
+  background: var(--cabinet);
+  border: 3px solid var(--text-strong);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .6);
+  transform: translateX(-50%);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-live {
+  background: var(--cabinet-hi);
+  border-width: 4px;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, .62);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-next {
+  border-left-width: 7px;
+  border-left-color: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-urgent {
+  border-color: var(--sauce);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__ticket {
+  width: 24px;
+  height: 17px;
+  flex: none;
+  background: transparent;
+  border: 2px dashed var(--bezel-live);
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 88% 78%, 76% 100%, 64% 78%, 52% 100%, 40% 78%, 28% 100%, 16% 78%, 4% 100%, 0 78%);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-live .self-seat-visual__ticket {
+  background: var(--text-strong);
+  border: 3px solid var(--void);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .6);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__avatar {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  overflow: hidden;
+  border: 2px solid var(--text-strong);
+  background: var(--void);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__avatar .avatar__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__name {
+  color: var(--text-strong);
+  font-size: 19px;
+  letter-spacing: .1em;
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__pips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__pips i {
+  width: 4px;
+  height: 10px;
+  background: var(--text-mute);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-live .self-seat-visual__pips i {
+  background: var(--text-strong);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__count {
+  color: var(--text-mute);
+  font-size: 16px;
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual__state {
+  margin-left: auto;
+  padding: 4px 5px;
+  color: var(--text-mute);
+  font-family: var(--font-display);
+  font-size: 8px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-live .self-seat-visual__state {
+  background: var(--text-strong);
+  color: var(--void);
+}
+
+.screen--game[data-ui="pass9"] .self-seat-visual.is-urgent .self-seat-visual__state {
+  background: var(--sauce);
+  color: var(--void);
+}
+
+/* One visual event sentence, at the stage edge. The complete polite history
+   remains in the offscreen Kitchen Chatter live list. */
+.screen--game[data-ui="pass9"] .narration {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  z-index: 8;
+  width: min(720px, calc(100% - 24px));
+  min-height: 0;
+  padding: 3px 9px;
+  overflow: hidden;
+  background: var(--console);
+  border: 2px solid var(--bezel);
+  color: var(--ui-cyan);
+  font-size: 18px;
+  letter-spacing: .06em;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+}
+
+.screen--game[data-ui="pass9"] .log {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.screen--game[data-ui="pass9"] .chef-stats {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- cards --- */
+.screen--game[data-ui="pass9"] .card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 5px;
+  background: var(--cabinet-hi);
+  border: 0;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .55);
+}
+
+.screen--game[data-ui="pass9"] .card::before {
+  box-shadow: inset 0 0 0 5px var(--suit, var(--bezel-live));
+}
+
+.screen--game[data-ui="pass9"] .card__window {
+  inset: 24% 10% 25%;
+  background: transparent;
+  border: 0;
+}
+
+.screen--game[data-ui="pass9"] .card__sprite {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .card__value {
+  color: var(--suit, var(--text-strong));
+  text-shadow: none;
+}
+
+.screen--game[data-ui="pass9"] .card__value--suit,
+.screen--game[data-ui="pass9"] .card__value--glyph {
+  width: calc(var(--card-w) * .4);
+  height: calc(var(--card-w) * .4);
+  filter: none;
+}
+
+.screen--game[data-ui="pass9"] .card__value--suit .ico,
+.screen--game[data-ui="pass9"] .card__value--glyph .ico {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.screen--game[data-ui="pass9"] .card__banner {
+  bottom: calc(var(--card-w) * .06);
+  padding: 0 4px;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+}
+
+.screen--game[data-ui="pass9"] .card__index {
+  color: var(--suit, var(--text));
+}
+
+.screen--game[data-ui="pass9"] .card__index--br {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .card--is-wild {
+  --suit: var(--text-strong);
+
+  background: var(--cabinet-hi);
+}
+
+.screen--game[data-ui="pass9"] .card--back {
+  --suit: var(--bezel-live);
+
+  background: var(--cabinet);
+}
+
+.screen--game[data-ui="pass9"] .card__back-word {
+  color: var(--warning);
+  text-shadow: 3px 3px 0 var(--sauce);
+}
+
+.screen--game[data-ui="pass9"] .hand .card.is-playable {
+  --lift: -13px;
+}
+
+.screen--game[data-ui="pass9"] .hand .card.is-playable::after {
+  top: 5px;
+  right: 5px;
+  width: auto;
+  height: auto;
+  background: transparent;
+  color: var(--basil);
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+
+.screen--game[data-ui="pass9"] .hand .card.is-previewing {
+  transform: translateY(-20px);
+}
+
+/* ----------------------------------------------------------------- tray --- */
+.screen--game[data-ui="pass9"] .hand-zone {
+  gap: 7px;
+  padding: 9px 16px max(10px, var(--safe-bottom));
+  background: var(--console);
+  border-top: 4px solid var(--bezel);
+}
+
+.screen--game[data-ui="pass9"] .hand-zone::before {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .hand-self {
+  order: 1;
+  justify-content: center;
+  min-height: 19px;
+}
+
+.screen--game[data-ui="pass9"] .hand-self__label {
+  color: var(--ui-cyan);
+  font-family: var(--font);
+  font-size: 17px;
+  letter-spacing: .12em;
+}
+
+.screen--game[data-ui="pass9"] .hand-self__count {
+  color: var(--text-mute);
+  font-size: 17px;
+}
+
+.screen--game[data-ui="pass9"] .hand-self__state {
+  padding: 4px 6px;
+  font-size: 9px;
+}
+
+.screen--game[data-ui="pass9"] .moments {
+  order: 2;
+}
+
+.screen--game[data-ui="pass9"] .moment {
+  background: var(--cabinet);
+  border-width: 3px;
+}
+
+.screen--game[data-ui="pass9"] .hand {
+  order: 3;
+}
+
+.screen--game[data-ui="pass9"] .hand__pit {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .hand__near {
+  justify-content: safe center;
+  gap: 0;
+  min-height: calc(var(--hand-card-w) * var(--card-ratio) + 18px);
+  padding-top: 18px;
+}
+
+.screen--game[data-ui="pass9"] .hand-swipe {
+  order: 4;
+  color: var(--text-mute);
+}
+
+.screen--game[data-ui="pass9"] .hand-bar {
+  order: 5;
+  min-height: 48px;
+}
+
+.screen--game[data-ui="pass9"] .btn--draw {
+  --btn-bg: var(--ui-cyan);
+  --btn-fg: var(--void);
+
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .55);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.screen--game[data-ui="pass9"] .btn--draw:disabled {
+  --btn-bg: var(--cabinet);
+  --btn-fg: var(--text-mute);
+
+  border: 2px solid var(--bezel);
+  box-shadow: none;
+}
+
+.screen--game[data-ui="pass9"] .btn--draw.is-ready {
+  outline: 3px solid rgba(125, 226, 255, .28);
+  outline-offset: 2px;
+}
+
+.screen--game[data-ui="pass9"] .btn--za {
+  --btn-bg: var(--warning);
+}
+
+.screen--game[data-ui="pass9"] .hand-bar__hint {
+  flex: 0 1 560px;
+  color: var(--text-mute);
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: .04em;
+}
+
+.screen--game[data-ui="pass9"] .hand-bar__hint:empty {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .screws {
+  order: 6;
+  padding-top: 6px;
+  border-top: 3px solid var(--bezel);
+  gap: 4px 18px;
+}
+
+.screen--game[data-ui="pass9"] .screw {
+  min-height: 44px;
+  padding: 6px 8px;
+  color: var(--text-mute);
+  border: 2px solid transparent;
+  font-size: 16px;
+  letter-spacing: .1em;
+}
+
+.screen--game[data-ui="pass9"] .screw__head {
+  display: none;
+}
+
+.screen--game[data-ui="pass9"] .screw__label {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: nowrap;
+}
+
+.screen--game[data-ui="pass9"] .screw:focus-visible,
+.screen--game[data-ui="pass9"] .screw:hover {
+  border-color: var(--bezel-live);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------- compact --- */
+@media (max-width: 720px) {
+  .screen--game[data-ui="pass9"] {
+    border-width: 3px;
+  }
+
+  .screen--game[data-ui="pass9"] .hud__turn {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 5px 8px;
+  }
+
+  .screen--game[data-ui="pass9"] .marquee__line {
+    grid-column: 2;
+    justify-content: flex-end;
+    font-size: 15px;
+  }
+
+  .screen--game[data-ui="pass9"] .marquee__meta {
+    display: none;
+  }
+
+  .screen--game[data-ui="pass9"] .table {
+    padding: 6px 8px 3px;
+  }
+
+  .screen--game[data-ui="pass9"] .opponents {
+    --port: 34px;
+    --k: .78;
+  }
+
+  .screen--game[data-ui="pass9"] .seat__body {
+    width: min(118px, 38vw);
+    min-height: 78px;
+    padding: 6px;
+  }
+
+  .screen--game[data-ui="pass9"] .seat__name,
+  .screen--game[data-ui="pass9"] .seat.is-live .seat__name,
+  .screen--game[data-ui="pass9"] .seat.is-target .seat__name {
+    font-size: 16px;
+  }
+
+  .screen--game[data-ui="pass9"] .seat__cards,
+  .screen--game[data-ui="pass9"] .seat[data-box="0"] .seat__cards {
+    left: calc(var(--port) + 13px);
+    right: 6px;
+    bottom: 7px;
+  }
+
+  .screen--game[data-ui="pass9"] .seat__sliver,
+  .screen--game[data-ui="pass9"] .seat[data-hand="one"] .seat__sliver {
+    width: 4px;
+    height: 9px;
+  }
+
+  .screen--game[data-ui="pass9"] .seat__count,
+  .screen--game[data-ui="pass9"] .seat[data-box="0"] .seat__count,
+  .screen--game[data-ui="pass9"] .seat[data-box="0"][data-hand="one"] .seat__count {
+    font-size: 15px;
+  }
+
+  .screen--game[data-ui="pass9"] .opponents[data-mode="queue"] .seat__body {
+    width: 118px;
+  }
+
+  .screen--game[data-ui="pass9"] .counter-token {
+    width: 26px;
+    height: 18px;
+  }
+
+  .screen--game[data-ui="pass9"] .table-center {
+    --card-w: 62px;
+
+    padding: 10px 0 34px;
+  }
+
+  .screen--game[data-ui="pass9"] .plaque {
+    padding: 4px 8px;
+  }
+
+  .screen--game[data-ui="pass9"] .plaque__name,
+  .screen--game[data-ui="pass9"] .plaque__value {
+    font-size: 18px;
+  }
+
+  .screen--game[data-ui="pass9"] .pile__label {
+    display: none;
+  }
+
+  .screen--game[data-ui="pass9"] .pile--deck {
+    margin-right: -46px;
+    transform: translateY(-7px);
+  }
+
+  .screen--game[data-ui="pass9"] .pile--deck .pile__count {
+    display: none;
+  }
+
+  .screen--game[data-ui="pass9"] .self-seat-visual {
+    display: none;
+  }
+
+  .screen--game[data-ui="pass9"] .narration {
+    width: calc(100% - 16px);
+    font-size: 16px;
+  }
+
+  .screen--game[data-ui="pass9"] .card::before {
+    box-shadow: inset 0 0 0 4px var(--suit, var(--bezel-live));
+  }
+
+  .screen--game[data-ui="pass9"] .card__banner {
+    font-size: 13px;
+  }
+
+  .screen--game[data-ui="pass9"] .hand-zone {
+    gap: 6px;
+    padding: 7px 9px max(8px, var(--safe-bottom));
+  }
+
+  .screen--game[data-ui="pass9"] .hand-self {
+    justify-content: space-between;
+  }
+
+  .screen--game[data-ui="pass9"] .hand-self__label,
+  .screen--game[data-ui="pass9"] .hand-self__count {
+    font-size: 16px;
+  }
+
+  .screen--game[data-ui="pass9"] .hand__near {
+    justify-content: flex-start;
+    gap: 0;
+    padding-top: 14px;
+  }
+
+  .screen--game[data-ui="pass9"] .hand-bar {
+    justify-content: flex-start;
+  }
+
+  .screen--game[data-ui="pass9"] .hand-bar__hint {
+    flex: 1 1 170px;
+    font-size: 16px;
+  }
+
+  .screen--game[data-ui="pass9"] .screws {
+    justify-content: center;
+    gap: 2px 8px;
+  }
+}
+
+@media (max-width: 519.98px) {
+  .screen--game[data-ui="pass9"] .table {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents {
+    grid-area: 1 / 1;
+  }
+
+  .screen--game[data-ui="pass9"] .table > .table-center {
+    grid-area: 2 / 1;
+  }
+
+  .screen--game[data-ui="pass9"] .plaque {
+    flex-direction: row;
+  }
+
+  .screen--game[data-ui="pass9"] .plaque__body {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Seven opponents need more horizontal room than the selected plates can
+   honestly keep at 44px+ targets. On compact tablets a full table therefore
+   uses the same ordered NOW/NEXT queue as a phone, while smaller rooms keep
+   their geographic counter. */
+@media (min-width: 520px) and (max-width: 839.98px) {
+  .screen--game[data-ui="pass9"] .table[data-seating="queue"] {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents[data-mode="queue"] {
+    grid-area: 1 / 1;
+    min-height: 104px;
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents[data-mode="queue"] ~ .table-center {
+    --card-w: 62px;
+
+    grid-area: 2 / 1;
+    min-height: 0;
+    padding: 10px 0 34px;
+  }
+}
+
+/* When the measured felt is short, the compact hand strip is the local seat.
+   Removing the visual duplicate gives the top card and narration their own
+   rows; crowded opponent plates spend height before they spend legibility. */
+@media (min-width: 721px) and (max-height: 650px) {
+  .screen--game[data-ui="pass9"] .self-seat-visual {
+    display: none;
+  }
+
+  .screen--game[data-ui="pass9"] .table-center {
+    padding: 76px 0 40px;
+  }
+
+  .screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat__body {
+    width: 138px;
+    min-height: 70px;
+  }
+
+  .screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat__name,
+  .screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat.is-live .seat__name,
+  .screen--game[data-ui="pass9"] .opponents[data-crowd="1"] .seat.is-target .seat__name {
+    font-size: 16px;
+  }
+
+  .screen--game[data-ui="pass9"] .seat__status:not(.is-shown) {
+    display: none;
+  }
+
+  .screen--game[data-ui="pass9"] .opponents[data-mode="counter"] .seat.is-turn .seat__rank,
+  .screen--game[data-ui="pass9"] .opponents[data-mode="counter"] .seat.is-next .seat__rank {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 3;
+    width: auto;
+    margin: 0;
+    background: var(--console);
+    border: 2px solid var(--warning);
+  }
+
+  .screen--game[data-ui="pass9"] .opponents[data-mode="counter"] .seat.is-turn .seat__rank {
+    background: var(--warning);
+  }
+}
+
+/* Short landscape follows the selected 46/54 split. The real production
+   queue fallback remains intact for a full eight-player table. */
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
+  .screen--game[data-ui="pass9"] {
+    grid-template-columns: minmax(0, 46fr) minmax(0, 54fr);
+  }
+
+  .screen--game[data-ui="pass9"] .table {
+    padding: 5px 7px 3px;
+  }
+
+  .screen--game[data-ui="pass9"] .table[data-seating="queue"] {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents[data-mode="queue"] {
+    grid-area: 1 / 1;
+    min-height: 104px;
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents[data-mode="queue"] ~ .table-center {
+    grid-area: 2 / 1;
+    min-height: 0;
+  }
+
+  .screen--game[data-ui="pass9"] .table-center {
+    --card-w: 58px;
+
+    padding: 26px 0 10px;
+  }
+
+  .screen--game[data-ui="pass9"] .opponents[data-mode="counter"] .seat__body {
+    width: min(104px, 34vw);
+    min-height: 78px;
+  }
+
+  .screen--game[data-ui="pass9"] .hand-zone {
+    padding: 6px 8px max(7px, var(--safe-bottom));
+    border-top: 0;
+    border-left: 4px solid var(--bezel);
+  }
+
+  .screen--game[data-ui="pass9"] .hand-self__label,
+  .screen--game[data-ui="pass9"] .hand-self__count,
+  .screen--game[data-ui="pass9"] .hand-bar__hint {
+    font-size: 15px;
+  }
+
+  .screen--game[data-ui="pass9"] .screws {
+    padding-top: 3px;
+  }
+}
+
+/* A 568px-class phone (and the narrower zoom/reflow cases below it) keeps the
+   safe single-column page, but the ordered queue still needs a row of its own.
+   Without this hand-off the counter grid places seven plates and the Match
+   stack in the same cell. The page remains vertically scrollable; only the
+   two stage rows are separated. */
+@media (orientation: landscape) and (max-width: 639.98px) and (max-height: 560px) {
+  .screen--game[data-ui="pass9"] .table[data-seating="queue"] {
+    grid-template-rows: auto minmax(220px, auto);
+    min-height: 340px;
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents[data-mode="queue"] {
+    grid-area: 1 / 1;
+    min-height: 104px;
+  }
+
+  .screen--game[data-ui="pass9"] .table > .opponents[data-mode="queue"] ~ .table-center {
+    grid-area: 2 / 1;
+    min-height: 220px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1024px) and (max-height: 650px) {
+  .screen--game[data-ui="pass9"] .table[data-seating="queue"] .table-center {
+    --card-w: 62px;
+
+    padding: 10px 0 34px;
+  }
+}
+
+@media (max-height: 560px) and (max-width: 639.98px) {
+  .screen--game[data-ui="pass9"] .table {
+    min-height: 340px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-ui="pass9"] .crt-overlay {
+    opacity: .08;
+  }
+}
+
+@media (prefers-contrast: more) {
+  body[data-ui="pass9"] .crt-overlay {
+    opacity: 0;
+  }
+
+  .screen--game[data-ui="pass9"] {
+    --bezel: #5265a7;
+  }
+}

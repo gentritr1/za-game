@@ -37,10 +37,10 @@
 
     <figure class="story-hero">
       <picture>
-        <source media="(max-width: 719px)" srcset="../assets/zine/table-stories/now-mobile-turn-v1.webp" width="390" height="844">
-        <img class="story-hero__image" src="../assets/zine/table-stories/now-desktop-table-v1.webp" width="1280" height="720" fetchpriority="high" decoding="async" alt="The current ZA table, with an ordered opponent queue, NEXT marker, oven and player hand arranged for the available screen.">
+        <source media="(max-width: 719px)" srcset="../assets/zine/table-stories/now-mobile-turn-v2.webp" width="390" height="844">
+        <img class="story-hero__image" src="../assets/zine/table-stories/now-desktop-table-v2.webp" width="1280" height="720" fetchpriority="high" decoding="async" alt="The live Pass-9 ZA table, with ranked player plates, an exact Match plaque above the deck and top card, and checked playable cards arranged for the available screen.">
       </picture>
-      <figcaption>The same reading pattern, from a full counter to a pocket-sized one.</figcaption>
+      <figcaption>The same reading pattern, from a full counter to an ordered pocket queue.</figcaption>
     </figure>
 
     <nav class="story-jumps" aria-label="Table story chapters">
@@ -57,6 +57,20 @@
       <span class="house-rule__tag">THE BIG RULE</span>
       <p class="house-rule__text">Keep the fun on the table. Every label, button and animation has to earn the attention it takes.</p>
     </div>
+
+    <section class="story-eras" aria-labelledby="story-eras-title">
+      <h2 id="story-eras-title">HOW TO READ THE PICTURES</h2>
+      <ol>
+        <li><b>THEN</b><span>The saved game before this redesign.</span></li>
+        <li><b>BLUEPRINT</b><span>The playtest system we chose.</span></li>
+        <li><b>NOW</b><span>That system built into ZA&rsquo;s vintage arcade table.</span></li>
+      </ol>
+    </section>
+
+    <figure class="story-blueprint">
+      <img src="../assets/zine/table-stories/blueprint-desktop-table-v1.webp" width="1280" height="720" loading="lazy" decoding="async" alt="The chosen ZA playtest blueprint, with an exact match plaque, a visible NEXT marker and checked playable cards.">
+      <figcaption><b>THE BLUEPRINT WE CHOSE:</b> this was never the old game. It sits between THEN and NOW: the clear playtest system translated into ZA&rsquo;s existing arcade personality.</figcaption>
+    </figure>
   </header>
 
   <section class="story-stack" aria-label="Seven stories from the ZA playtest">
@@ -71,19 +85,19 @@
       <div class="table-story__body">
         <p class="table-story__hook">The fastest card games do not feel fast because they hurry you. They feel fast because the table is readable in one glance.</p>
 
-        <div class="story-compare" data-compare data-photo-slider data-default-view="now" data-label="Turn guidance comparison">
-          <div class="story-toggle" role="group" aria-label="Choose the turn-guidance picture">
-            <button type="button" data-story-view="before" aria-pressed="false">THEN</button>
-            <button type="button" data-story-view="now" aria-pressed="true">NOW</button>
+        <div class="story-compare" data-compare data-photo-slider data-default-view="before" data-label="Turn guidance comparison">
+          <div class="story-toggle" role="group" aria-label="Compare the old game with the redesigned game">
+            <button type="button" data-story-view="before" aria-pressed="true">THEN</button>
+            <button type="button" data-story-view="now" aria-pressed="false">NOW</button>
           </div>
           <p class="sr-only" data-view-status aria-live="polite"></p>
           <div class="story-panels">
             <figure class="story-shot" data-story-panel="before">
-              <img src="../assets/zine/table-stories/before-desktop-table-v1.webp" width="1280" height="720" loading="lazy" decoding="async" alt="The supplied pre-audit prototype on desktop, with four seats and the match rule gathered around the centre card.">
-              <figcaption><b>THEN:</b> the useful clues existed, but an effect could still point NEXT at the chef who was being skipped.</figcaption>
+              <img src="../assets/zine/table-stories/before-desktop-table-v1.webp" width="1280" height="720" loading="lazy" decoding="async" alt="The saved pre-redesign production table with eight players, a generic Your turn message, a separate kitchen log and legal cards indicated mainly by glow.">
+              <figcaption><b>THEN:</b> the table said whose turn it was, but the match, direction and legal move still had to be gathered from separate clues.</figcaption>
             </figure>
             <figure class="story-shot" data-story-panel="now">
-              <img src="../assets/zine/table-stories/now-desktop-table-v1.webp" width="1280" height="720" loading="lazy" decoding="async" alt="The current production table with a turn sentence across the top, a visible NEXT marker, an exact match plaque and checked playable cards.">
+              <img src="../assets/zine/table-stories/now-desktop-table-v2.webp" width="1280" height="720" loading="lazy" decoding="async" alt="The live Pass-9 table with an exact turn sentence, a visible NEXT plate, the Match rule above the deck and top card, and checked playable cards beside a labeled Draw action.">
               <figcaption><b>NOW:</b> one truth drives the marquee, NEXT marker, direction and playable-card checks.</figcaption>
             </figure>
           </div>
@@ -114,18 +128,18 @@
         <p class="table-story__hook">If the kitchen is on fire, ringing three bells does not make the warning clearer.</p>
 
         <div class="story-compare" data-compare data-photo-slider data-default-view="before" data-label="ZA control comparison">
-          <div class="story-toggle" role="group" aria-label="Choose the ZA picture">
+          <div class="story-toggle" role="group" aria-label="Compare the old and redesigned mobile ZA controls">
             <button type="button" data-story-view="before" aria-pressed="true">THEN</button>
             <button type="button" data-story-view="now" aria-pressed="false">NOW</button>
           </div>
           <p class="sr-only" data-view-status aria-live="polite"></p>
           <div class="story-panels">
             <figure class="story-shot story-shot--phone" data-story-panel="before">
-              <img src="../assets/zine/table-stories/before-za-v1.webp" width="390" height="844" loading="lazy" decoding="async" alt="The supplied prototype at two cards, showing a large CALL ZA action inside a teaching strip above the hand.">
-              <figcaption><b>THEN:</b> the supplied playtest already proved a ZA prompt could be obvious. Production still had a separate problem: ZA could appear in several places and celebration could lie.</figcaption>
+              <img src="../assets/zine/table-stories/before-mobile-turn-v1.webp" width="390" height="844" loading="lazy" decoding="async" alt="The saved pre-redesign mobile game during an ordinary seven-card turn, with an unavailable ZA button permanently taking space above the hand.">
+              <figcaption><b>THEN:</b> every mobile turn reserved a large slot for ZA, even when the action was unavailable.</figcaption>
             </figure>
             <figure class="story-shot story-shot--phone" data-story-panel="now">
-              <img src="../assets/zine/table-stories/now-mobile-turn-v1.webp" width="390" height="844" loading="lazy" decoding="async" alt="The current mobile table during ordinary play, with no unavailable ZA action taking space from the hand.">
+              <img src="../assets/zine/table-stories/now-mobile-turn-v2.webp" width="390" height="844" loading="lazy" decoding="async" alt="The live Pass-9 mobile table during the player's turn, with an ordered NEXT queue, exact Match rule, checked playable cards and one labeled Draw action.">
               <figcaption><b>NOW:</b> ordinary play has no dead ZA control taking space. The story demo below shows the one button that appears at two cards.</figcaption>
             </figure>
           </div>
@@ -215,19 +229,19 @@
       <div class="table-story__body">
         <p class="table-story__hook">The table did not need fewer friends. It needed a shape that could change without changing the game.</p>
 
-        <div class="story-compare" data-compare data-photo-slider data-default-view="now" data-label="Short landscape comparison">
-          <div class="story-toggle" role="group" aria-label="Choose the short-landscape picture">
-            <button type="button" data-story-view="before" aria-pressed="false">THEN</button>
-            <button type="button" data-story-view="now" aria-pressed="true">NOW</button>
+        <div class="story-compare" data-compare data-photo-slider data-default-view="before" data-label="Short landscape comparison">
+          <div class="story-toggle" role="group" aria-label="Compare the old and redesigned short-landscape tables">
+            <button type="button" data-story-view="before" aria-pressed="true">THEN</button>
+            <button type="button" data-story-view="now" aria-pressed="false">NOW</button>
           </div>
           <p class="sr-only" data-view-status aria-live="polite"></p>
           <div class="story-panels">
             <figure class="story-shot" data-story-panel="before">
-              <img src="../assets/zine/table-stories/before-landscape-v1.webp" width="667" height="390" loading="lazy" decoding="async" alt="The supplied pre-audit prototype at 667 by 390 pixels: the top of the hand is visible but the draw action falls below the clipped screen.">
-              <figcaption><b>THEN:</b> a sideways phone could clip the draw action below the screen.</figcaption>
+              <img src="../assets/zine/table-stories/before-landscape-v1.webp" width="667" height="390" loading="lazy" decoding="async" alt="The saved pre-redesign production game at 667 by 390 pixels, where eight opponent seats crowd the piles and most of the hand falls below the short screen.">
+              <figcaption><b>THEN:</b> eight chefs crowded the oven while the playable hand fell below a sideways phone.</figcaption>
             </figure>
             <figure class="story-shot" data-story-panel="now">
-              <img src="../assets/zine/table-stories/now-landscape-eight-v1.webp" width="667" height="390" loading="lazy" decoding="async" alt="The current production game at 667 by 390 pixels: an eight-player queue, oven, match rule and hand share two contained columns.">
+              <img src="../assets/zine/table-stories/now-landscape-eight-v2.webp" width="667" height="390" loading="lazy" decoding="async" alt="The live Pass-9 game at 667 by 390 pixels, with an eight-player queue and the Match, deck and top-card stack in the left column, and the checked hand and Draw action in the right.">
               <figcaption><b>NOW:</b> eight chefs become an ordered queue beside the table; the hand stays in reach.</figcaption>
             </figure>
           </div>
@@ -240,7 +254,7 @@
 
         <details class="story-receipt">
           <summary>THE RECEIPT</summary>
-          <p>Eight-player acceptance passed 390&times;844, 640&times;360, 667&times;390, 720&times;400, 721&times;400, 844&times;390 and 1024&times;560 with no tested seat/pile collisions and no page overflow.</p>
+          <p>The converted table was visually checked from 320&times;640 and 390&times;844 through 568&times;320, 640&times;360, 667&times;390, 720&times;640, 721&times;640, 844&times;390 and 1024&times;560. Full compact tables kept the same ordered queue; smaller rooms kept their counter.</p>
         </details>
       </div>
     </details>
@@ -305,7 +319,7 @@
         <p class="table-story__hook">Keyboard focus is a player&rsquo;s chair. A popup is not finished if it takes the chair away when it leaves.</p>
 
         <figure class="story-shot story-shot--phone story-shot--single">
-          <img src="../assets/zine/table-stories/now-live-rules-v1.webp" width="390" height="844" loading="lazy" decoding="async" alt="House Rules open during the player's turn, with a prominent warning that the turn clock keeps running and a large Close button fixed at the bottom of the dialog.">
+          <img src="../assets/zine/table-stories/now-live-rules-v2.webp" width="390" height="844" loading="lazy" decoding="async" alt="House Rules open over the live Pass-9 mobile table during the player's turn, with a prominent warning that the turn clock keeps running and a large Close button fixed at the bottom of the dialog.">
           <figcaption>Rules can teach during a live game without hiding that the clock is running, losing the Close action or abandoning the player afterward.</figcaption>
         </figure>
 
@@ -322,7 +336,7 @@
 
         <div class="story-beats story-beats--two">
           <section><h3>THE OLD SHIFT</h3><p>Closing a ZA warning, a call-out list or a reconnect state could leave a keyboard player focused on the empty page.</p></section>
-          <section><h3>TONIGHT&rsquo;S TABLE</h3><p>Urgent choices receive focus once. Cancel and Escape return to the exact invoker. If that control disappears, the hand, draw pile or table becomes the safe chair.</p></section>
+          <section><h3>TONIGHT&rsquo;S TABLE</h3><p>Urgent choices receive focus once. Cancel and Escape return to the exact invoker. If that control disappears, the hand, Draw button or game table becomes the safe chair.</p></section>
         </div>
 
         <details class="story-receipt">
@@ -357,11 +371,11 @@
           </div>
         </section>
 
-        <p class="audit-honesty"><strong>Important:</strong> 18/20 is the dated score for the playtest prototype, not a WCAG certificate and not a made-up production score. The current game has separate proof: 66/66 automated checks, tested browser journeys that completed cleanly, and a final review that found no release-blocking or major problems.</p>
+        <p class="audit-honesty"><strong>Important:</strong> 18/20 is the dated score for the playtest prototype, not a WCAG certificate and not a made-up production score. The current game has separate proof: 66 automated checks, responsive browser journeys, and a fresh review whose two major findings were corrected before these pictures were captured.</p>
 
         <div class="story-beats story-beats--two">
           <section><h3>WHAT CHANGED</h3><p>The work moved from &ldquo;add more explanation&rdquo; to &ldquo;make every state tell one consistent truth.&rdquo; That reduced clutter and improved accessibility at the same time.</p></section>
-          <section><h3>WHAT REMAINS</h3><p>One slice is real iOS VoiceOver, Android TalkBack, physical thumbs and first-time players. The other is completing production integration and theme-token evidence. A prototype cannot award itself either one.</p></section>
+          <section><h3>WHAT REMAINS</h3><p>One slice is real iOS VoiceOver, Android TalkBack, physical thumbs and first-time players. The other is final cross-device verification of the live Pass-9 table and production-wide token maturity. A prototype cannot award itself either one.</p></section>
         </div>
 
         <details class="story-receipt">

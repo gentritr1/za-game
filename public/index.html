@@ -11,8 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Kaushan+Script&display=swap">
 <link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/table-pass9.css">
 </head>
-<body>
+<body data-ui="pass9">
 
 <div class="crt-overlay" aria-hidden="true"></div>
 
@@ -103,8 +104,8 @@
   <!-- THE SHELL owns the width policy for everything under it (see "the shell"
        in styles.css). Nothing inside it measures the viewport for itself any
        more; it asks the shell for the play column instead. -->
-  <div class="shell">
-  <section class="screen screen--game" data-screen="game" aria-label="Game table" hidden>
+  <div class="shell" data-ui="pass9">
+  <section class="screen screen--game" data-screen="game" data-ui="pass9" aria-label="Game table" hidden>
 
     <header class="hud">
       <!-- THE MARQUEE. One strip carries all three things the header used to
@@ -114,7 +115,12 @@
            needed; the word still exists for screen readers in .marquee__sr,
            and a static arrow takes over under prefers-reduced-motion. -->
       <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
-        <span class="marquee__mark" aria-hidden="true">ZA!</span>
+        <span class="marquee__brand" aria-hidden="true">
+          <span class="marquee__mark">ZA!</span>
+          <span class="marquee__bulbs">
+            <i></i><i></i><i></i>
+          </span>
+        </span>
         <!-- The label and the countdown are ONE grid item, not two. The strip
              is a three-track grid, and below 520px the chevron chase is the
              third of those tracks — so a countdown standing on its own became
@@ -139,6 +145,7 @@
           <span class="za-chev">▸</span>
           <span class="marquee__arrow" data-icon="cycle">↻</span>
         </span>
+        <span class="marquee__meta" id="table-meta" aria-hidden="true">TABLE · 2 PLAYERS</span>
         <span class="marquee__sr" id="dir-announce">to the left</span>
       </p>
     </header>
@@ -147,38 +154,7 @@
       <div class="opponents" id="opponents"></div>
 
       <div class="table-center">
-        <div class="table-center__piles">
-          <button class="pile pile--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
-            <span class="pile__label">Dough pile</span>
-            <span class="pile__slot" id="draw-slot"></span>
-            <span class="pile__count" id="draw-count">0</span>
-          </button>
-
-          <div class="pile pile--discard">
-            <span class="pile__label">The oven</span>
-            <span class="pile__slot" id="discard-slot"></span>
-          </div>
-        </div>
-
-        <!-- THE MATCH PLAQUE states the condition in words: this topping, OR
-             this number — or, when a special is face up, OR this effect. It is
-             derived entirely from `currentTopping` and `topCard`, the same two
-             fields the server computes legality from, so it can restate the
-             rule without ever deciding it.
-
-             Under the piles, not over them: from 520px up the seats and the
-             centre column share one grid cell, and the top of that cell is
-             where people are sitting. The prototype puts the plaque above
-             because its chefs are below it; ours are around it. -->
         <div class="plaque" id="match-plaque" data-mode="match">
-          <!-- Printed and spoken are two forms of one sentence, not two
-               sentences. Laid out, "MATCH · BASIL · OR · 7" is four nodes and
-               a word doing the work of a conjunction; read out in sequence it
-               is a list. So the printed form stays out of the accessibility
-               tree entirely and #plaque-spoken says the whole thing once. -->
-          <!-- The head is a row, not a word, because the direction of play
-               moves into it whenever the centre column would otherwise reach
-               down into the player's own strip. See `syncDirectionHome`. -->
           <span class="plaque__head" id="plaque-head-row" aria-hidden="true">
             <b class="plaque__head-word" id="plaque-head">Match</b>
           </span>
@@ -195,6 +171,23 @@
           <span class="sr-only" id="plaque-spoken"></span>
         </div>
 
+        <div class="table-center__piles">
+          <!-- The deck is table furniture. The one draw action lives beside
+               the hand below, where a thumb and a keyboard reach it without
+               hunting across the table. The existing slot/count ids stay the
+               render source, so the deck and the action cannot disagree. -->
+          <div class="pile pile--deck" aria-hidden="true">
+            <span class="pile__label">Deck</span>
+            <span class="pile__slot" id="draw-slot"></span>
+            <span class="pile__count" id="draw-count">0</span>
+          </div>
+
+          <div class="pile pile--discard">
+            <span class="pile__label">Top card</span>
+            <span class="pile__slot" id="discard-slot"></span>
+          </div>
+        </div>
+
         <!-- The direction of play, in the word for it, at every width. The
              marquee's chevron chase and the token walking the counter are both
              pictures of this; below 520px the chase is hidden and above it the
@@ -206,6 +199,20 @@
         </span>
       </div>
 
+      <!-- A visual-only place for the local player completes the table
+           geography on roomy screens. The real, accessible phase strip stays
+           above the hand and remains the single spoken copy. -->
+      <div class="self-seat-visual" id="self-seat-visual" aria-hidden="true">
+        <span class="self-seat-visual__ticket"></span>
+        <span class="self-seat-visual__avatar" id="self-seat-avatar"></span>
+        <span class="self-seat-visual__name">YOU</span>
+        <span class="self-seat-visual__pips" id="self-seat-pips"></span>
+        <span class="self-seat-visual__count" id="self-seat-count">0</span>
+        <span class="self-seat-visual__state" id="self-seat-state">WAIT</span>
+      </div>
+
+      <p class="narration" id="narration" aria-hidden="true"></p>
+
       <aside class="log" id="log">
         <h2 class="log__title">Kitchen chatter</h2>
         <ol class="log__list" id="log-list" aria-live="polite"></ol>
@@ -213,15 +220,6 @@
     </div>
 
     <footer class="hand-zone">
-      <!-- THE NARRATION LINE. One event, in the fewest words that still name
-           who it happened to: "CARMELA DRAWS 2 — SKIPPED". It is the tail of
-           the server's own chatter, shortened here and never invented here —
-           the log stays in the kitchen-chatter panel in full, and this is the
-           one line of it a player reads without looking away from their hand.
-           It is not a live region: the marquee above already is one, and two
-           of them talking over each other is nobody being heard. -->
-      <p class="narration" id="narration" aria-hidden="true"></p>
-
       <!-- YOUR STRIP. You have no chef panel of your own around the counter,
            so the one place that says what phase YOU are in is here, over your
            own cards. The word is derived from the snapshot and the local
@@ -244,6 +242,9 @@
       <div class="moments" id="moments"></div>
 
       <div class="hand-bar">
+        <button class="btn btn--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
+          Draw a card
+        </button>
         <button class="btn btn--za" id="btn-za" type="button">
           <span data-icon="slice" aria-hidden="true">🍕</span> ZA!
         </button>

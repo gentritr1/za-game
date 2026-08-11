@@ -31,12 +31,15 @@
     const range = compare.querySelector('[data-arcade-range]');
     const status = compare.querySelector('[data-view-status]');
     const caption = compare.querySelector('[data-arcade-caption]');
+    const beforePanel = compare.querySelector('[data-story-panel="before"]');
     const nowPanel = compare.querySelector('[data-story-panel="now"]');
     const beam = compare.querySelector('.arcade-wipe__beam');
     const buttons = Array.from(compare.querySelectorAll('[data-story-view]'));
 
     nowPanel?.style.setProperty('--reveal', `${reveal}%`);
     beam?.style.setProperty('--reveal', `${reveal}%`);
+    if (beforePanel) beforePanel.hidden = reveal === 100;
+    if (nowPanel) nowPanel.hidden = reveal === 0;
     if (range) {
       const nextValue = String(reveal);
       const nextValueText = reveal === 0
@@ -121,7 +124,6 @@
     range.step = '1';
     range.dataset.arcadeRange = '';
     range.setAttribute('aria-label', `Reveal then and now for ${compare.dataset.label || 'this picture'}`);
-    range.setAttribute('aria-describedby', captionId);
     rail.append(range);
     toggle.insertBefore(rail, buttons[1]);
     toggle.classList.add('arcade-slider');
@@ -135,6 +137,7 @@
     caption.id = captionId;
     caption.className = 'arcade-slider__caption';
     caption.dataset.arcadeCaption = '';
+    caption.setAttribute('aria-hidden', 'true');
     stage.insertAdjacentElement('afterend', caption);
 
     let frame = 0;

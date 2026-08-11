@@ -52,6 +52,7 @@ const el = {
   turnText: $('turn-text'),
   turnCount: $('turn-count'),
   turnWarn: $('turn-warn'),
+  tableMeta: $('table-meta'),
   dirChase: $('dir-chase'),
   dirAnnounce: $('dir-announce'),
   btnLeaveGame: $('btn-leave-game'),
@@ -79,6 +80,11 @@ const el = {
   centrePiles: document.querySelector('.table-center__piles'),
   logList: $('log-list'),
   narration: $('narration'),
+  selfSeatVisual: $('self-seat-visual'),
+  selfSeatAvatar: $('self-seat-avatar'),
+  selfSeatPips: $('self-seat-pips'),
+  selfSeatCount: $('self-seat-count'),
+  selfSeatState: $('self-seat-state'),
   // hand
   handZone: document.querySelector('.hand-zone'),
   hand: $('hand'),
@@ -2044,6 +2050,12 @@ function renderGame(snapshot) {
   if (!view) return;
 
   const yourTurn = view.turnPlayerId === snapshot.youId && view.status === 'playing';
+  const seated = Array.isArray(view.players)
+    ? view.players.filter((player) => !player.left).length
+    : 0;
+  if (el.tableMeta) {
+    el.tableMeta.textContent = `${seated} ${seated === 1 ? 'PLAYER' : 'PLAYERS'}`;
+  }
 
   // House Rules may be opened while another chef is thinking, but it may not
   // silently cover the start of a live game or the arrival of your own timed
@@ -2781,7 +2793,7 @@ function orderedOpponents(snapshot, view) {
 
    [leftPct, topPct, anchor] */
 const COUNTER_MAP = {
-  1: [[50, 3, 't']],
+  1: [[50, 1, 't']],
   2: [[26, 4, 't'], [74, 4, 't']],
   3: [[19, 9, 't'], [50, 1, 't'], [81, 9, 't']],
   4: [[6, 30, 'l'], [31, 3, 't'], [69, 3, 't'], [94, 30, 'r']],
@@ -2796,18 +2808,21 @@ const COUNTER_MAP = {
   7: [[5, 54, 'l'], [11, 26, 'l'], [32, 2, 't'], [50, 0, 't'], [68, 2, 't'], [89, 26, 'r'], [95, 54, 'r']],
 };
 
-/* The ordinary phone breakpoint, plus one capacity guard: a full eight-seat
-   counter cannot fit inside the table half of a short landscape screen while
-   keeping readable names and 44px targets. In that one state it uses the same
-   ordered queue the portrait phone already teaches. */
+/* The ordinary phone breakpoint, plus two capacity guards. Seven opponent
+   plates need a wider counter than a compact tablet can supply. In short
+   landscape even three opponent plates cannot fit around the centre stack in
+   the table half. Both use the ordered queue the phone already teaches;
+   smaller rooms and taller counters retain geographic seating. */
 const QUEUE_BELOW = window.matchMedia('(max-width: 519.98px)');
-const FULL_TABLE_SHORT_LANDSCAPE = window.matchMedia(
-  '(orientation: landscape) and (min-width: 640px) and (max-width: 1024px) and (max-height: 560px)'
+const FULL_TABLE_NARROW = window.matchMedia('(max-width: 839.98px)');
+const CROWDED_SHORT_LANDSCAPE = window.matchMedia(
+  '(orientation: landscape) and (max-width: 1024px) and (max-height: 560px)'
 );
 
 function seatingMode(playerCount) {
-  const fullShortTable = playerCount === 8 && FULL_TABLE_SHORT_LANDSCAPE.matches;
-  return QUEUE_BELOW.matches || fullShortTable ? 'queue' : 'counter';
+  const fullTableNeedsQueue = playerCount === 8 && FULL_TABLE_NARROW.matches;
+  const crowdedShortTable = playerCount >= 4 && CROWDED_SHORT_LANDSCAPE.matches;
+  return QUEUE_BELOW.matches || fullTableNeedsQueue || crowdedShortTable ? 'queue' : 'counter';
 }
 
 /**
@@ -2818,7 +2833,8 @@ function seatingMode(playerCount) {
  * would be the arrangement lying about which mode it is in.
  */
 QUEUE_BELOW.addEventListener('change', () => relayoutSeating());
-FULL_TABLE_SHORT_LANDSCAPE.addEventListener('change', () => relayoutSeating());
+FULL_TABLE_NARROW.addEventListener('change', () => relayoutSeating());
+CROWDED_SHORT_LANDSCAPE.addEventListener('change', () => relayoutSeating());
 
 /**
  * 2A/6 · place the seats.
@@ -2929,28 +2945,24 @@ function seatBox() {
 
 function placeToken(token, order, ranks, view) {
   const seats = order.length;
-  // A token needs two different places to stand between. At a table of two
-  // there is one opponent and one of you, so the walk has nowhere to go.
-  if (seats < 2 || seatingMode(seats + 1) !== 'counter') {
+  // The Pass-9 ticket belongs to the active opponent, so a two-player table
+  // still has one valid place to show it. Queue layouts spell out NOW in the
+  // row itself and do not need a second floating marker.
+  if (seats < 1 || seatingMode(seats + 1) !== 'counter') {
     token.hidden = true;
     return;
   }
 
-  // The chef playing and the chef next, read off the same ranks the weights
-  // are read off. `null` is you — you are at the counter too.
-  let from = null;
-  let to = null;
-  let known = false;
+  // Pass-9 makes the token a receipt ticket attached to NOW, not an arrow
+  // floating halfway toward NEXT. The active opponent is read from the same
+  // rank map as every other NOW treatment. When NOW is the local player, the
+  // visual self plate owns its own ticket and this one stays absent.
+  let active = null;
   for (const node of order) {
-    // The ranks map is the authority; the dataset copy is display plumbing
-    // and could lag it on a relayout path.
     const rank = ranks.get(node.dataset.id);
-    if (rank === 0) { from = node; known = true; }
-    if (rank === 1) { to = node; known = true; }
+    if (rank === 0) active = node;
   }
-  // Ranks 0 and 1 are always somebody at the table; whichever of the two is
-  // missing from the opponents is you.
-  if (!known) {
+  if (!active) {
     token.hidden = true;
     return;
   }
@@ -2960,7 +2972,7 @@ function placeToken(token, order, ranks, view) {
     return;
   }
 
-  /* PASS 8 · MEASURED AGAINST THE PLATE, NOT AGAINST THE FELT.
+  /* PASS 9 · MEASURED AGAINST THE ACTIVE PLATE, NOT THE FELT.
    *
    * This used to read the two chefs' entries out of COUNTER_MAP and average
    * their percentages. Percentages describe where a seat is ANCHORED, not
@@ -2970,8 +2982,8 @@ function placeToken(token, order, ranks, view) {
    * The ticket therefore drifted with the hand sizes of the two chefs it was
    * standing between, and drifted differently at four seats and at eight.
    *
-   * So both ends are measured — up the OFFSET CHAIN, with the seat's own
-   * `translateX(-50%)` put back by hand from `data-anchor`.
+   * The active plate is measured up the offset chain, with the seat's own
+   * `translateX(-50%)` put back by `seatBoxIn` from `data-anchor`.
    *
    * This was written with `getBoundingClientRect` first, on the argument that
    * a rect is the only reading that includes that transform. The argument was
@@ -2984,24 +2996,12 @@ function placeToken(token, order, ranks, view) {
    * wrong for as long as the screen was arriving, which is exactly the window
    * a player is looking at the table hardest.
    *
-   * The y is taken from the plates' TOP EDGES rather than their middles, so
-   * the ticket rests on the edge of the seat it has arrived at — the one
-   * intersection pass 8 says to keep.
+   * The y is taken from the plate's top edge so the jagged receipt sits just
+   * above the chef instead of covering their name or count.
    */
-  // You are the one end with no plate to measure: there is no chef panel for
-  // yourself on the felt, only the strip below it. The near edge, dead centre,
-  // stays a proportion of the felt because there is nothing there to read.
-  const YOURS = [0.5, 0.78];
-  const spotOf = (node) => {
-    if (!node) return [YOURS[0] * box.width, YOURS[1] * box.height];
-    const seat = seatBoxIn(node, el.opponents);
-    return [seat.left + seat.width / 2, seat.top];
-  };
-  const a = spotOf(from);
-  const b = spotOf(to);
-
-  const x = (a[0] + b[0]) / 2;
-  const y = (a[1] + b[1]) / 2;
+  const seat = seatBoxIn(active, el.opponents);
+  const x = seat.left + seat.width / 2;
+  const y = seat.top - 8;
 
   token.hidden = false;
   // The glyph is drawn with borders, not set as a character: neither VT323 nor
@@ -3022,6 +3022,7 @@ function placeSeats(order, ranks, view) {
   const count = order.length;
   const mode = seatingMode(count + 1);
   el.opponents.dataset.mode = mode;
+  el.table.dataset.seating = mode;
   const { belt, token } = seatingFurniture();
   belt.dataset.dir = view.direction === -1 ? '-1' : '1';
   // The queue has no counter to walk, so the token is simply not there. The
@@ -5168,6 +5169,32 @@ function paintHandState(snapshot, view, yourTurn) {
   const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
   if (el.handCount.textContent !== cards) el.handCount.textContent = cards;
 
+  // The roomy Pass-9 table includes a visual local-player plate so seating is
+  // legible as geography. It is aria-hidden; this strip remains the only
+  // accessible copy of the same count and phase.
+  if (el.selfSeatVisual) {
+    const avatarKey = me ? `${me.id}:${me.connected}` : 'none';
+    if (me && el.selfSeatAvatar.dataset.key !== avatarKey) {
+      el.selfSeatAvatar.dataset.key = avatarKey;
+      renderAvatar(el.selfSeatAvatar, me);
+    }
+    const shownPips = Math.min(count, 7);
+    while (el.selfSeatPips.childElementCount > shownPips) {
+      el.selfSeatPips.lastElementChild.remove();
+    }
+    while (el.selfSeatPips.childElementCount < shownPips) {
+      el.selfSeatPips.append(document.createElement('i'));
+    }
+    let plateWord = word;
+    if (!plateWord && heading === 'PICK A TOPPING') plateWord = 'PICK TOPPING';
+    if (!plateWord && heading === 'DRAW DECISION') plateWord = 'PLAY OR PASS';
+    el.selfSeatCount.textContent = String(count);
+    el.selfSeatState.textContent = plateWord || 'WAIT';
+    el.selfSeatVisual.classList.toggle('is-live', phase === 'await');
+    el.selfSeatVisual.classList.toggle('is-next', phase === 'waiting' && youAreNext(snapshot, view));
+    el.selfSeatVisual.classList.toggle('is-urgent', word === 'ACT NOW');
+  }
+
   // NOT SPOKEN, DELIBERATELY. The strip is a visual answer to "can I move
   // right now", and the client already has two polite regions carrying the
   // event stream: the marquee announces every turn change, and the kitchen
@@ -6251,14 +6278,13 @@ function spendFocusIntent(fresh, near) {
     if (focusSlot(near[at].slot)) return;
   }
 
-  // Nothing playable left. The dough pile is the only move there is; if even
-  // that is closed, the action rail is where the turn is decided.
-  const fallbacks = [el.drawPile, el.btnZa, el.btnPass, el.btnCallout, el.btnLeaveGame];
-  for (const node of fallbacks) {
-    if (!node || node.disabled || node.hidden || node.offsetParent === null) continue;
-    node.focus({ preventScroll: true });
-    return;
-  }
+  // Nothing in the rebuilt hand can receive focus. The action bar and moment
+  // panel render immediately after the hand, so choosing a fallback here can
+  // still pick a control that is about to be hidden or miss an urgent control
+  // that is about to appear. Let the shared repair run one frame later against
+  // the completed authoritative render; it keeps focus by the hand when the
+  // turn moved away and prioritises a real decision when one opened.
+  focusGameFallbackSoon(true);
 }
 
 // =============================================================== ACTIONS ===
@@ -7348,6 +7374,15 @@ const PANEL_MIN = 200;
 function syncCabinet(snapshot) {
   if (!el.shell) return;
   if (snapshot) ui.cabSnapshot = snapshot;
+
+  // Pass-9 is the table, not a monitor mounted inside the retired cabinet.
+  // Keep the old builder available to the historical CSS while ensuring the
+  // live selected UI never creates or measures side furniture.
+  if (el.shell.dataset.ui === 'pass9') {
+    el.shell.classList.remove('is-capped', 'has-panels');
+    dropPanels();
+    return;
+  }
 
   const width = panelWidth();
   el.shell.classList.toggle('is-capped', width > 0);
