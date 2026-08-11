@@ -5978,10 +5978,18 @@ function renderRoundOver(snapshot, staged) {
  * tied on two anchovies each says nothing about any of them, which is exactly
  * how the ANCHOVY LOVER badge on the receipts already reasons.
  */
+/**
+ * Cheese is not in this palette, and cannot be put back into it. Yellow is the
+ * table's turn colour — the ring, the avatar border, the rank badge and the
+ * NEXT edge are all cheese — so a yellow chip hanging under a chef's name is
+ * the same signal in the same place saying something else, and BUTTERFINGERS
+ * on Dominic read as Dominic being up. A title is flavour; whose turn it is
+ * is the rule. The rule keeps the colour.
+ */
 const NICK_CATEGORIES = [
   { key: 'anchovy', title: 'THE ANCHOVY GUY', tone: 'anchovy' },
   { key: 'caught', title: 'FORGOT SOMETHING', tone: 'sauce' },
-  { key: 'penalty', title: 'BUTTERFINGERS', tone: 'cheese' },
+  { key: 'penalty', title: 'BUTTERFINGERS', tone: 'sauce' },
   { key: 'dead', title: 'SLOW HANDS', tone: 'cyan' },
 ];
 

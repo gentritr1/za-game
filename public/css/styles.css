@@ -3217,7 +3217,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .card__index--tl { top: calc(var(--card-w) * 0.045); left: calc(var(--card-w) * 0.06); }
 .card__index--br { bottom: calc(var(--card-w) * 0.045); right: calc(var(--card-w) * 0.06); transform: rotate(180deg); }
 
-.card__index-val { font-size: 11px; }
+/* The number is half the match rule — "BASIL OR 7" — so it has to survive the
+   card it is printed on. Two things were against it: a fixed 11px that stayed
+   11px while the card grew to 84, and the suit colour laid straight onto the
+   sprite behind it with no outline, which is the one place a saturated hue on
+   pixel art disappears. It now scales with the card and carries the same void
+   outline the centre value has, so it reads at 54px and at 84px, over art or
+   over felt. The colour stays: it is the topping saying its own name. */
+.card__index-val {
+  font-size: max(11px, calc(var(--card-w) * 0.17));
+  text-shadow:
+    2px 2px 0 var(--void), -1px -1px 0 var(--void),
+    1px -1px 0 var(--void), -1px 1px 0 var(--void);
+}
 
 /* Suit without colour — but only where colour is all there is. A full face has
    a sprite in its window and its name along the banner, so the letter would be
@@ -6661,6 +6673,10 @@ button.quiet-link {
 .nickname--basil { color: var(--basil); }
 .nickname--anchovy { color: var(--anchovy); }
 .nickname--sauce { color: var(--sauce-hi); }
+/* Deliberately unused by the seat titles: see NICK_CATEGORIES. Cheese is the
+   turn colour on the felt, and a title wearing it competes with the one signal
+   that has to be unambiguous. Kept for the receipts, where nothing is taking
+   a turn and nothing can be confused with one. */
 .nickname--cheese { color: var(--cheese); }
 .nickname--cyan { color: var(--ui-cyan); }
 
