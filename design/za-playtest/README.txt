@@ -1,4 +1,4 @@
-ZA! — TABLE PROTOTYPE (playtest build, pass 7)
+ZA! — TABLE PROTOTYPE (playtest build, pass 8)
 
 Open ZA-Table-Prototype.html in any browser. No install, no server, works offline.
 
@@ -73,6 +73,8 @@ NOTES FOR THE TESTER
 The table sizes itself to the window. Checked at 390×667, 390×720, 390×844 and
 1280×780: nothing scrolls, and the active seat, the match target, the hand and
 DRAW A CARD are always above the fold. Cards never fall below 54 px wide.
+The supported minimum width is 360 px; below that the two-card lesson starts to
+crowd the ring and would need its own composition.
 
 CHANGED SINCE PASS 6
 Picking a Wild is now a decision panel like a drawn card: the played Wild is
@@ -89,6 +91,21 @@ ZA WINDOW, CALLOUT WINDOW, PICK A TOPPING, DRAW DECISION, TABLE PAUSED.
 
 Verified at 390×667 and 390×720 with every panel open: no element overlaps
 another, nothing is clipped, and no state overflows the frame.
+
+CHANGED SINCE PASS 7
+Decisions replace the hand on desktop too, not only on phone: opening a Wild
+pick, a drawn-card decision, a ZA window or a callout at 1280×780 or 1366×768
+now returns the ring its height instead of squeezing Dominic onto the Match
+plaque, and the played Wild is shown once rather than twice · compact geometry is
+chosen by measured stage height rather than by viewport width, so a short laptop
+compacts exactly as a phone does · the direction row folds into the Match plaque
+whenever the centre column would otherwise reach your own seat · the turn ticket
+is placed in pixels against its plate rather than in percentages.
+
+Verified at 1280×780, 1024×768 and 390×667 across the ordinary table, Wild, the
+two-card lesson, drawn-card decisions and the callout window: the only remaining
+intersection is the turn ticket resting on the top edge of its own seat, which
+is deliberate.
 
 CHANGED IN PASS 5
 On phone a ZA window, callout, drawn-card decision or freeze now REPLACES the
@@ -123,125 +140,3 @@ Port the visual grammar, not this engine. Legality, ZA availability,
 vulnerability, callout windows, penalties and turn progression must keep coming
 from the server; this build decides them locally only so it can be played
 offline.
-
-================================================================================
-AS SHIPPED — TABLE GRAMMAR (match plaque · turn geography · effect faces ·
-narration), ported into the styled client on 2026-08-10.
-
-The spec above is left verbatim. Where the port had to decide something the
-prototype could not know about, the decision and its reason are here.
-
-MATCH PLAQUE
-- Under the piles, not above them. From 520px up the chefs and the centre
-  column share one grid cell and the top of that cell is where people are
-  sitting; the prototype's chefs sit below its plaque, ours sit around it.
-- The plaque replaces the old IN PLAY · <TOPPING> badge outright rather than
-  standing beside it. Two statements of the same fact, one of them half the
-  rule, is the thing this pass exists to remove.
-- Wording follows the prototype: MATCH / <topping> OR <number>, MATCH /
-  <topping> OR <effect>, CURRENT TOPPING / <topping> on a wild. The topping is
-  drawn in its own colour and the alternative in plain ink, because the
-  alternative is not a topping and must not read as one.
-- Printed form is aria-hidden; one spoken sentence carries it instead. Four
-  nodes and a conjunction read out in sequence is a list, not a condition.
-- PASS 6, the phone chip. Below 520px the plaque lays flat: MATCH, topping
-  icon, topping, OR, and the alternative, all on one line. It is one line at
-  every width and for every content this deck can produce — measured at 320px,
-  where the widest sentence the game has (MATCH · PEPPERONI OR DRAW TWO) is
-  260px in a 320px window, and the other three worst cases are 205-251px. The
-  type steps down once more below 380px so that stays true.
-- The chip KEEPS the word MATCH, at 7px, which the pass-6 note does not
-  require. It is the only word that says what the two things under it are for,
-  and it costs width, which below 520px is the axis we have — the chefs are a
-  queue in their own grid row there, so nothing the chip does sideways can
-  reach a seat. Drop it if the spec meant it dropped.
-- Our reason for the chip is not the prototype's. Its phone plaque grows
-  towards side seats; ours cannot, because our phone has no side seats. What
-  the chip buys here is HEIGHT: 31.7px against the stacked block's 41.8px,
-  measured side by side in the same frame, and the felt is short by tens of
-  pixels on a phone (see KNOWN, NOT FIXED).
-- The pass-6 prototype at design/za-playtest/ does NOT render this chip. Loaded
-  fresh at 390x667, 390x844 and 430x932 its plaque is still the stacked block,
-  80.4 x 62px, `flex-direction: column` on both the plaque and its body. The
-  README says chip and the running reference says stack; this port followed the
-  README and the written brief.
-
-DIRECTION
-- The prototype's word is CLOCKWISE / COUNTER-CLOCKWISE and the server's is
-  "play runs to the left / right". Both are true of different things: the
-  server describes a real table from above, the chip describes this screen.
-  `direction: 1` seats the next chef down the left wall, so play runs
-  bottom -> left -> top -> right, which on a clock face is 6 -> 9 -> 12 -> 3.
-  Clockwise. The visually-hidden announcement was changed to match the chip so
-  a screen reader and the screen do not use two vocabularies for one fact.
-- The chip is a third carrier, not a replacement: the marquee's chevron chase
-  (below 520px) and the token walking the counter (520px and up) both stay.
-  Neither is on screen at every width, which is why the word exists.
-
-TURN GEOGRAPHY
-- The seat ordinal chip already existed and was drawn only in the phone queue.
-  On the counter it now appears for exactly two ranks — NOW and NEXT — and
-  stays hidden for 03 and up. Position is the ordinal on a counter; "whose
-  turn" and "who is next" were the two it could not answer.
-- It is placed last in the seat, not over the portrait: the ZA! / FORGOT!
-  badge already owns the space above the head.
-
-EFFECT-FIRST CARD FACES
-- Skip, Reverse and Draw Two lead with a drawn glyph in the sprite window and
-  the effect word on the banner. The generated sprite stays behind the glyph —
-  the art is unchanged, the reading order is not.
-- Press Start 2P has no glyph for the symbols the prototype types, so the two
-  that need drawing are drawn as inline SVG in the game's icon set. `+2` is
-  typed, because it is already the picture of itself.
-- The parlour names (Burnt Slice, Flip the Pie, Extra Toppings) leave the
-  banner and stay in the spoken label, the chatter and the rule book. The
-  spoken label gains the effect word after the name: "Basil Flip the Pie,
-  reverse".
-- The topping steps back to the keyline colour PLUS the corner suit letter,
-  which effect cards now show at every size. A topping is never colour alone.
-- A COVERED card in the near rail still prints its three-letter SUIT token,
-  not an effect token. The rail measures whether a token fits using the same
-  function that produces it; changing one without the other is two copies of
-  one number, and the rail is another agent's floor. The big glyph carries the
-  effect on a covered card.
-
-NARRATION
-- Shortened from the server's log, never composed from scratch. Each event is
-  recognised by a phrase the server writes in every one of its phrasings —
-  never by the emoji, which carries joiners and variation selectors, and never
-  by a whole sentence, which `pick()` swaps. Names and numbers come from the
-  snapshot the line arrived with. An unrecognised line prints the server's own
-  words with the decoration stripped.
-- The LAST log entry is the one shown. The server writes cause then
-  consequence, so the last entry is the penalty landing, the order turning, the
-  seat losing its turn — which is the news, and which is what the prototype
-  shows.
-- "YOU PLAYED TO 1 WITHOUT ZA" is not ported. Nothing in the log marks it; it
-  is a property of the snapshot (`vulnerable`), and the call-out window already
-  draws it. Inventing a log line for it would be the client keeping score.
-
-KNOWN, NOT FIXED
-- The felt is the grid's `1fr` row and the hand zone grows with the hand. On a
-  short window the felt is smaller than the piles alone — measured on the
-  PRE-CHANGE build at 390x667: the discard pile ran to y=293.6 against a hand
-  zone starting at y=265, and the topping badge under it was entirely covered.
-  This pass does not fix that budget; it makes the squeeze land somewhere
-  survivable. The centre column is pinned to the BOTTOM of the felt and paints
-  over the seats, so a squeeze rides the piles up into the portraits instead of
-  feeding the plaque and the direction chip to an opaque hand zone. Fixing the
-  budget properly means touching the hand zone, which belongs to the hand pass.
-- Which is also why "no seat can overlap the chip" is only PARTLY true at
-  390x667. The chip is bottom-pinned and already sits as low as the felt goes;
-  the queue seats reach 29.8px below its top in the squeezed state, so the
-  overlap left is exactly the felt's shortfall and nothing to do with the
-  chip's size. Paired sampling at 390x667, four chefs, twelve ticks, both forms
-  measured in the same frame: chip overlaps in 10 of 12, stacked in 12 of 12,
-  and where the stacked block was 5px into the seats the chip is clear. The
-  chip removes precisely the 10.1px it saves in height. At 390x844 — eight
-  chefs, the crowded table — the chip overlaps nothing at all.
-- Two levers inside the centre column were measured and NOT pulled, because
-  they move the wrong thing: hiding the pile labels below 520px, and dropping
-  the pile card width to 68px. Both were tried live and moved the chip's top by
-  0.0px — the stack is pinned from the bottom, so shrinking the piles lowers
-  the piles, not the plaque. Only felt height clears the rest, and roughly 30px
-  of it does.
