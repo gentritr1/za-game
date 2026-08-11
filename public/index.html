@@ -173,7 +173,12 @@
                a word doing the work of a conjunction; read out in sequence it
                is a list. So the printed form stays out of the accessibility
                tree entirely and #plaque-spoken says the whole thing once. -->
-          <span class="plaque__head" id="plaque-head" aria-hidden="true">Match</span>
+          <!-- The head is a row, not a word, because the direction of play
+               moves into it whenever the centre column would otherwise reach
+               down into the player's own strip. See `syncDirectionHome`. -->
+          <span class="plaque__head" id="plaque-head-row" aria-hidden="true">
+            <b class="plaque__head-word" id="plaque-head">Match</b>
+          </span>
           <span class="plaque__body" aria-hidden="true">
             <span class="plaque__topping">
               <i class="plaque__emblem" id="plaque-emblem" aria-hidden="true"></i>
