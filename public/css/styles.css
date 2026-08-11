@@ -2566,6 +2566,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    and says which. It never takes a pointer: it is evidence, not a control. */
 .moment__wild-card {
   --card-w: 54px;
+
   flex: 0 0 auto;
   pointer-events: none;
   box-shadow: var(--sh-lift);
@@ -2711,6 +2712,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    a thumb mid-turn without stranding 56px of empty console at 54px cards. */
 .hand__near {
   --hand-card-w: 84px;
+
   display: flex;
   justify-content: center;
   align-items: flex-end;
@@ -5115,6 +5117,7 @@ button.quiet-link {
   left: 50%;
   top: max(var(--s3), var(--safe-top));
   z-index: 40;
+  width: max-content;
   max-width: calc(100vw - var(--safe-left) - var(--safe-right) - var(--s4));
   display: flex;
   align-items: center;
@@ -5135,12 +5138,19 @@ button.quiet-link {
     visibility var(--d-exit) linear;
 }
 
+.conn-banner__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
 .conn-banner__leave {
   min-height: 44px;
   padding: 6px var(--s3);
   background: var(--void);
   color: var(--text);
-  border: var(--bd-thin) solid currentColor;
+  border: var(--bd-thin) solid currentcolor;
   font-family: var(--font-display);
   font-size: 10px;
   line-height: 1.2;

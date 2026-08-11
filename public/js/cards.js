@@ -107,6 +107,8 @@ export function describeCard(card) {
 export function matchValue(card) {
   if (!card || isWild(card)) return '';
   if (card.kind === 'number') return String(card.value);
+  const effect = EFFECTS[card.kind];
+  if (effect) return effect.word;
   return KINDS[card.kind].label;
 }
 

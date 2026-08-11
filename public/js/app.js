@@ -8266,6 +8266,11 @@ function ownTurnRunning() {
 function syncRulesClockNote() {
   const running = ownTurnRunning();
   el.rulesClockNote.hidden = !running;
+  const warning = 'YOUR TURN IS LIVE — THE CLOCK KEEPS RUNNING.';
+  const nextText = running ? warning : '';
+  if (el.rulesClockNote.textContent !== nextText) {
+    el.rulesClockNote.textContent = nextText;
+  }
   return running;
 }
 
@@ -8279,12 +8284,14 @@ function openRules() {
   // too many.
   goRulePage(0, true);
   el.rulesBody.scrollTop = 0;
-  syncRulesClockNote();
   ui.rulesFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // A popover left standing under the overlay would keep its own click-outside
   // and Escape behaviour behind an inert app.
   closePopovers();
   show(el.rulesOverlay);
+  // Populate the live warning only after the dialog is visible. A status node
+  // that arrives already filled is not announced consistently by screen readers.
+  syncRulesClockNote();
   syncAppInert();
   sound.play('menu-blip');
   // The dialog itself, not the first control: it carries the accessible name,
@@ -8295,6 +8302,10 @@ function openRules() {
 function closeRules(restoreFocus = true) {
   const wasOpen = el.rulesOverlay.classList.contains('is-open');
   hide(el.rulesOverlay);
+  // Reset the status while the dialog is hidden so reopening during the same
+  // turn still produces a real empty-to-warning live-region update.
+  el.rulesClockNote.hidden = true;
+  el.rulesClockNote.textContent = '';
   syncAppInert();
   if (!wasOpen) return;
   const target = ui.rulesFocusReturn;

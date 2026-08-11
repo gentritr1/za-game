@@ -683,6 +683,89 @@ class RoomManager {
     }
   }
 
+  /** Resolve bot turns and the table's single delayed ZA observer in due-time order. */
+  resolveBotSchedule(room, now) {
+    let changed = false;
+    room.scheduleTimers();
+
+    // Missed ZA has one room-level observer, chosen once and held until this
+    // human reaction window is due. The state is checked again before acting
+    // so a last-moment ZA shout always wins the race cleanly.
+    let callout = room.reconcileBotCalloutWindow(now);
+    const calloutIsDue = () => Boolean(
+      callout && callout.observerId && callout.dueAt && now >= callout.dueAt
+    );
+    const botTurnIsDue = () => Boolean(room.botDueAt && now >= room.botDueAt);
+
+    // A throttled/backgrounded process can observe more than one overdue
+    // event in the same tick. Run them by their scheduled time, not by the
+    // order of the blocks in this function: an earlier bot turn may close a
+    // ZA window before its later observer is entitled to act.
+    let botTurnRan = false;
+    const runBotTurn = () => {
+      room.botDueAt = 0;
+      const serialBefore = room.game.turnSerial;
+      const current = game.currentPlayer(room.game);
+      const move = bot.decide(
+        room.game,
+        current.id,
+        room.regularOf(current.id),
+        { allowCallout: false }
+      );
+      if (move) {
+        this.applyAction(room, current.id, { type: move.action, ...move }, now);
+      } else {
+        game.forceSkip(room.game, current.id, `${current.name} passes.`);
+      }
+      room.finishRoundIfOver();
+      // A shout does not end the turn, so the timer must be wound up again
+      // or the bot would sit there for ever.
+      room.scheduleTimers(true);
+      if (room.botDueAt && room.game.turnSerial === serialBefore) {
+        room.botDueAt = now + BOT_QUICK_MS;
+      }
+      botTurnRan = true;
+      changed = true;
+    };
+
+    if (
+      botTurnIsDue()
+      && (!calloutIsDue() || room.botDueAt <= callout.dueAt)
+    ) {
+      runBotTurn();
+      // The move may have closed the vulnerable target or opened a different
+      // window. Never act on the observer object from the state before it.
+      callout = room.reconcileBotCalloutWindow(now);
+    }
+
+    if (calloutIsDue()) {
+      const observer = room.findSeat(callout.observerId);
+      const target = game.findPlayer(room.game, callout.targetId);
+      if (observer && observer.isBot && target && target.vulnerable && target.hand.length === 1) {
+        const result = this.applyAction(room, observer.id, {
+          type: 'callout',
+          targetId: target.id,
+        }, now);
+        if (result.ok) {
+          // Do not collapse a call-out and a due bot turn into one visual
+          // instant. The short follow-up beat keeps cause and effect legible.
+          if (room.botDueAt && room.botDueAt <= now) room.botDueAt = now + BOT_QUICK_MS;
+          changed = true;
+        }
+      } else {
+        // The selected observer disappeared. This window has still had its
+        // one decision; marking it as a miss prevents a new lottery per tick.
+        callout.observerId = null;
+        callout.dueAt = 0;
+      }
+    }
+
+    // A bot takes its turn.
+    if (!botTurnRan && botTurnIsDue()) runBotTurn();
+
+    return changed;
+  }
+
   /** One timer pass over a single room. */
   tickRoom(room, now) {
     let changed = false;
@@ -711,82 +794,7 @@ class RoomManager {
     }
 
     if (room.phase === 'playing' && room.game && room.game.status === 'playing') {
-      room.scheduleTimers();
-
-      // Missed ZA has one room-level observer, chosen once and held until this
-      // human reaction window is due. The state is checked again before acting
-      // so a last-moment ZA shout always wins the race cleanly.
-      let callout = room.reconcileBotCalloutWindow(now);
-      const calloutIsDue = () => Boolean(
-        callout && callout.observerId && callout.dueAt && now >= callout.dueAt
-      );
-      const botTurnIsDue = () => Boolean(room.botDueAt && now >= room.botDueAt);
-
-      // A throttled/backgrounded process can observe more than one overdue
-      // event in the same tick. Run them by their scheduled time, not by the
-      // order of the blocks in this function: an earlier bot turn may close a
-      // ZA window before its later observer is entitled to act.
-      let botTurnRan = false;
-      const runBotTurn = () => {
-        room.botDueAt = 0;
-        const serialBefore = room.game.turnSerial;
-        const current = game.currentPlayer(room.game);
-        const move = bot.decide(
-          room.game,
-          current.id,
-          room.regularOf(current.id),
-          { allowCallout: false }
-        );
-        if (move) {
-          this.applyAction(room, current.id, { type: move.action, ...move }, now);
-        } else {
-          game.forceSkip(room.game, current.id, `${current.name} passes.`);
-        }
-        room.finishRoundIfOver();
-        // A shout does not end the turn, so the timer must be wound up again
-        // or the bot would sit there for ever.
-        room.scheduleTimers(true);
-        if (room.botDueAt && room.game.turnSerial === serialBefore) {
-          room.botDueAt = now + BOT_QUICK_MS;
-        }
-        botTurnRan = true;
-        changed = true;
-      };
-
-      if (
-        botTurnIsDue()
-        && (!calloutIsDue() || room.botDueAt <= callout.dueAt)
-      ) {
-        runBotTurn();
-        // The move may have closed the vulnerable target or opened a different
-        // window. Never act on the observer object from the state before it.
-        callout = room.reconcileBotCalloutWindow(now);
-      }
-
-      if (calloutIsDue()) {
-        const observer = room.findSeat(callout.observerId);
-        const target = game.findPlayer(room.game, callout.targetId);
-        if (observer && observer.isBot && target && target.vulnerable && target.hand.length === 1) {
-          const result = this.applyAction(room, observer.id, {
-            type: 'callout',
-            targetId: target.id,
-          }, now);
-          if (result.ok) {
-            // Do not collapse a call-out and a due bot turn into one visual
-            // instant. The short follow-up beat keeps cause and effect legible.
-            if (room.botDueAt && room.botDueAt <= now) room.botDueAt = now + BOT_QUICK_MS;
-            changed = true;
-          }
-        } else {
-          // The selected observer disappeared. This window has still had its
-          // one decision; marking it as a miss prevents a new lottery per tick.
-          callout.observerId = null;
-          callout.dueAt = 0;
-        }
-      }
-
-      // A bot takes its turn.
-      if (!botTurnRan && botTurnIsDue()) runBotTurn();
+      if (this.resolveBotSchedule(room, now)) changed = true;
 
       // The current player is away, so the table moves on.
       if (

@@ -16,9 +16,11 @@
 
 <div class="crt-overlay" aria-hidden="true"></div>
 
-<div class="conn-banner" id="conn-banner" role="status" aria-live="polite">
-  <span class="conn-banner__dot"></span>
-  <span id="conn-banner-text">Connecting to the kitchen…</span>
+<div class="conn-banner" id="conn-banner">
+  <span class="conn-banner__status" role="status" aria-live="polite">
+    <span class="conn-banner__dot" aria-hidden="true"></span>
+    <span id="conn-banner-text">Connecting to the kitchen…</span>
+  </span>
   <button class="conn-banner__leave" id="btn-conn-leave" type="button" hidden>Leave table</button>
 </div>
 
@@ -198,10 +200,10 @@
              pictures of this; below 520px the chase is hidden and above it the
              token is the only carrier, so neither is on screen at all sizes.
              This is, and it is never inside anybody else's box. -->
-        <p class="dir-chip" id="dir-chip" data-dir="1">
+        <span class="dir-chip" id="dir-chip" data-dir="1">
           <span class="dir-chip__glyph" id="dir-chip-glyph" aria-hidden="true"></span>
           <b class="dir-chip__word" id="dir-chip-word">Clockwise</b>
-        </p>
+        </span>
       </div>
 
       <aside class="log" id="log">
@@ -340,9 +342,7 @@
   <div class="dialog dialog--rules" id="rules-dialog" tabindex="-1">
     <div class="rules-head">
       <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
-      <p class="rules-clock-note" id="rules-clock-note" role="status" hidden>
-        YOUR TURN IS LIVE — THE CLOCK KEEPS RUNNING.
-      </p>
+      <p class="rules-clock-note" id="rules-clock-note" role="status" hidden></p>
     </div>
     <!-- The scroll lives here, not on the dialog: the dialog stays clipped in
          both axes, so nothing can ever scroll sideways. `tabindex` is what

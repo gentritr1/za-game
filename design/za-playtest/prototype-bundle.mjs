@@ -63,10 +63,12 @@ function verify() {
   if (!component) throw new Error('Component script was not found in readable source.');
   new Function(component[1]);
 
-  const manifestText = JSON.stringify(islands.manifest);
-  const referencedAssets = new Set(source.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []);
+  const manifestAssets = new Set(Object.keys(islands.manifest));
+  const referencedAssets = new Set(source.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) || []);
   for (const assetId of referencedAssets) {
-    if (!manifestText.includes(assetId)) throw new Error(`Referenced asset ${assetId} is missing from the manifest.`);
+    if (!manifestAssets.has(assetId)) {
+      throw new Error(`Referenced asset ${assetId} is missing from the manifest.`);
+    }
   }
 
   console.log(`Bundle verified: source match, 4 JSON islands, valid component syntax, ${referencedAssets.size} mapped assets.`);

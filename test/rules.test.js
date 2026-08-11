@@ -675,6 +675,8 @@ test('one weighted lottery selects one observer for a table of bots', () => {
   const pina = room.addSeat({ name: 'Nonna Pina', isBot: true, regularId: 'pina' });
   manager.rooms.set(room.code, room);
   assert.ok(room.startRound().ok);
+  room.game.turnIndex = room.game.players.findIndex((player) => player.id === ana.id);
+  room.scheduleTimers(true);
   const target = game.findPlayer(room.game, ana.id);
   target.hand = [num('basil', 4)];
   target.vulnerable = true;

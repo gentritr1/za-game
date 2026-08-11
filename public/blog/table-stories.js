@@ -3,6 +3,7 @@
 
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let comparisonId = 0;
+  document.documentElement.classList.add('stories-enhanced');
 
   function setCompareView(compare, view, announce = true) {
     const buttons = Array.from(compare.querySelectorAll('[data-story-view]'));
@@ -36,9 +37,6 @@
 
     nowPanel?.style.setProperty('--reveal', `${reveal}%`);
     beam?.style.setProperty('--reveal', `${reveal}%`);
-    compare.classList.toggle('is-then', reveal < 50);
-    compare.classList.toggle('is-now', reveal >= 50);
-
     if (range) {
       const nextValue = String(reveal);
       const nextValueText = reveal === 0
@@ -85,8 +83,9 @@
     const beforeImage = before?.querySelector('img');
     const buttons = Array.from(compare.querySelectorAll('[data-story-view]'));
     const toggle = compare.querySelector('.story-toggle');
+    const stage = compare.querySelector('.story-panels');
 
-    if (!before || !now || !beforeImage || buttons.length !== 2 || !toggle) {
+    if (!before || !now || !beforeImage || buttons.length !== 2 || !toggle || !stage) {
       setCompareView(compare, initial, false);
       return;
     }
@@ -105,7 +104,7 @@
     const width = Number(beforeImage.getAttribute('width')) || 16;
     const height = Number(beforeImage.getAttribute('height')) || 9;
     compare.classList.toggle('is-photo-slider--portrait', height > width);
-    compare.querySelector('.story-panels').style.aspectRatio = `${width} / ${height}`;
+    stage.style.aspectRatio = `${width} / ${height}`;
 
     comparisonId += 1;
     const rangeId = `arcade-picture-slider-${comparisonId}`;
@@ -130,13 +129,13 @@
     const beam = document.createElement('span');
     beam.className = 'arcade-wipe__beam';
     beam.setAttribute('aria-hidden', 'true');
-    compare.querySelector('.story-panels').append(beam);
+    stage.append(beam);
 
     const caption = document.createElement('p');
     caption.id = captionId;
     caption.className = 'arcade-slider__caption';
     caption.dataset.arcadeCaption = '';
-    compare.querySelector('.story-panels').insertAdjacentElement('afterend', caption);
+    stage.insertAdjacentElement('afterend', caption);
 
     let frame = 0;
     let crtMagicPlayed = false;
@@ -148,7 +147,6 @@
     const playCrtSettle = () => {
       if (crtMagicPlayed || prefersReducedMotion.matches) return;
       crtMagicPlayed = true;
-      const stage = compare.querySelector('.story-panels');
       stage.classList.add('is-crt-settling');
       window.setTimeout(() => {
         stage.classList.remove('is-crt-settling');
@@ -191,11 +189,6 @@
       setArcadeReveal(compare, range.value, true);
       playCrtSettle();
     });
-    range.addEventListener('pointerdown', () => compare.classList.add('is-scrubbing'));
-    range.addEventListener('pointerup', () => compare.classList.remove('is-scrubbing'));
-    range.addEventListener('pointercancel', () => compare.classList.remove('is-scrubbing'));
-    range.addEventListener('blur', () => compare.classList.remove('is-scrubbing'));
-
     buttons.forEach((button) => {
       const target = button.dataset.storyView === 'before' ? 0 : 100;
       button.addEventListener('click', () => glideTo(target));
@@ -222,6 +215,11 @@
     const reset = demo.querySelector('[data-za-reset]');
     const status = demo.querySelector('[data-za-status]');
 
+    if (!call || !reset || !status) {
+      demo.hidden = true;
+      return;
+    }
+
     call.addEventListener('click', () => {
       demo.classList.add('is-called');
       call.hidden = true;
@@ -245,6 +243,11 @@
     const wait = demo.querySelector('[data-bot-wait]');
     const reset = demo.querySelector('[data-bot-reset]');
     let timer = 0;
+
+    if (!message || !shout || !wait || !reset) {
+      demo.hidden = true;
+      return;
+    }
 
     const finish = (text, className, moveFocus = true) => {
       window.clearTimeout(timer);
@@ -291,6 +294,11 @@
     const move = tour.querySelector('[data-focus-move]');
     const status = tour.querySelector('[data-focus-status]');
     let index = -1;
+
+    if (!stops.length || !move || !status) {
+      tour.hidden = true;
+      return;
+    }
 
     const placeChair = (nextIndex) => {
       index = nextIndex % stops.length;
@@ -339,5 +347,4 @@
   window.addEventListener('hashchange', () => openHashStory());
   openHashStory();
 
-  document.documentElement.classList.add('stories-enhanced');
 })();

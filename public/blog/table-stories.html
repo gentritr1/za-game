@@ -131,7 +131,7 @@
           </div>
         </div>
 
-        <div class="za-story-demo" data-za-demo aria-labelledby="za-demo-title">
+        <div class="za-story-demo" data-za-demo role="group" aria-labelledby="za-demo-title">
           <div>
             <p class="za-story-demo__title" id="za-demo-title">STORY DEMO &middot; TWO CARDS</p>
             <p class="za-story-demo__status" data-za-status aria-live="polite">ZA is ready. Call it before playing again.</p>
@@ -172,14 +172,14 @@
           <div class="story-panels">
             <div class="observer-board" data-story-panel="before">
               <p class="observer-board__label">EVERY REGULAR CHECKS AT ONCE</p>
-              <div class="observer-board__row" aria-label="Seven bots all watching">
+              <div class="observer-board__row" role="group" aria-label="Seven bots all watching">
                 <span class="is-watching">VITO</span><span class="is-watching">CARMELA</span><span class="is-watching">PAULIE</span><span class="is-watching">PINA</span><span class="is-watching">DOMINIC</span><span class="is-watching">RAY</span><span class="is-watching">MARIO</span>
               </div>
               <p>At a full bot table, the combined catch chance was 99.9757%. That is a rule on paper and a trap in a player&rsquo;s hand.</p>
             </div>
             <div class="observer-board" data-story-panel="now">
               <p class="observer-board__label">THE TABLE APPOINTS ONE POSSIBLE OBSERVER</p>
-              <div class="observer-board__row" aria-label="Carmela watching while six bots wait">
+              <div class="observer-board__row" role="group" aria-label="Carmela watching while six bots wait">
                 <span>VITO</span><span class="is-watching">CARMELA</span><span>PAULIE</span><span>PINA</span><span>DOMINIC</span><span>RAY</span><span>MARIO</span>
               </div>
               <p>If chosen, one regular waits 900&ndash;1400ms. A real ZA shout cancels the catch before it lands.</p>
@@ -343,7 +343,7 @@
       <div class="table-story__body">
         <p class="table-story__hook">A score is useful when it names what remains, not when it crowns the work finished.</p>
 
-        <div class="audit-ticket" aria-labelledby="audit-ticket-title">
+        <section class="audit-ticket" aria-labelledby="audit-ticket-title">
           <div class="audit-ticket__head">
             <p id="audit-ticket-title">PLAYTEST AUDIT &middot; 11 AUG 2026</p>
             <strong><span>12</span> &rarr; <span>18</span> / 20</strong>
@@ -355,7 +355,7 @@
             <details><summary><span>THEMING</span><b>1 &rarr; 3</b></summary><p>Meaningful surface, text, suit, warning, danger and success roles. One point remains for production-wide token maturity.</p></details>
             <details><summary><span>VISUAL INTEGRITY</span><b>4 &rarr; 4</b></summary><p>The pixel-arcade hierarchy and ZA! personality stayed intact through the repairs.</p></details>
           </div>
-        </div>
+        </section>
 
         <p class="audit-honesty"><strong>Important:</strong> 18/20 is the dated score for the playtest prototype, not a WCAG certificate and not a made-up production score. The current game has separate proof: 66/66 automated checks, tested browser journeys that completed cleanly, and a final review that found no release-blocking or major problems.</p>
 
