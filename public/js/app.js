@@ -214,6 +214,8 @@ const ui = {
   // pointer went down and whether it travelled far enough to be a drag; the
   // click that follows is refused on that evidence. See `bindHandRow`.
   handDrag: null,
+  rowChrome: 0,      // the chrome the row was last sized against
+  settlingRow: false,
   swipeHintDone: false, // the swipe line is said once per session
   // Which of the four phases the hand is in, and until when the turn is still
   // visibly leaving your seat. Both are display state; neither decides a move.
@@ -1955,6 +1957,8 @@ function renderGame(snapshot) {
   renderHand(snapshot, view, yourTurn);
   renderActionBar(snapshot, view, yourTurn);
   renderMoments(snapshot, view);
+  // The panels are in now, so the row can be told what the zone actually costs.
+  settleRowAgainstChrome();
   paintHandState(snapshot, view, yourTurn);
   renderLog(view);
   renderNarration(snapshot, view);
@@ -3843,21 +3847,64 @@ const HAND_GAP = 8;
  *
  * So the ceiling is derived from what is actually left:
  *
- *   room = screen - hud - FELT_FLOOR - (hand zone minus the row)
+ *   room = screen - hud - feltFloor() - (hand zone minus the row)
  *
  * "hand zone minus the row" is the chrome — strip, bar, panels, rail, padding
  * — and it is measured rather than assumed. It is also the reason this is not
  * circular: the row is the only part of the zone whose height depends on the
  * card width, and it is the part being subtracted out.
  *
- * FELT_FLOOR is the one calibrated number here: the felt height below which
- * the piles start going under the hand zone. It was read off the live table
- * rather than guessed — at 390x667 the felt measured 336-348px across the
- * states where the clearance sat at +8 to +14, so 348 is the height at which
- * that clearance is about to run out. Tuning it moves every screen at once,
- * which is the point of having one number instead of a ladder of breakpoints.
+ * FELT_FLOOR is the one calibrated number here, and what it MEANS changed
+ * when the felt learned to compact itself. It used to be "the height below
+ * which the piles go under the hand zone" — a hard edge, because the felt's
+ * contents were a fixed size and 348px was where the clearance ran out.
+ *
+ * The felt now walks a density ladder against its own true-rectangle fit test
+ * (see `syncFeltDensity`), so it no longer HAS a hard edge at this end: give
+ * it less and it pays in chef size until it reaches its floor rung. So this
+ * number stopped being a cliff and became a PRICE — the room below which the
+ * ladder starts buying the hand's cards with the chefs' portraits.
+ *
+ * Re-read against the compacted felt. The whole-felt minimum at the worst cell
+ * — 390x667, eight chefs, every rung spent — is 289px: seat strip 132, belt 8,
+ * centre column 120, chatter row 29. 348 was therefore stale by 59px in the
+ * safe direction: the hand zone was refusing room the felt no longer needed,
+ * and paying for it in card width on exactly the screens the redesign exists
+ * to fix.
+ *
+ * THE MARGIN IS 21px, and it is deliberate rather than rounding. Reserving the
+ * bare 289 would mean the ladder is at its last rung in the eight-chef case
+ * BEFORE anything goes wrong — no room left to answer a nickname chip being
+ * earned, a fan growing, or the hand adding a row. 310 leaves the ladder a
+ * rung in hand while still handing the row 38px it did not have, which is
+ * 27px of card. Cards are read and aimed at every turn; portraits are
+ * reference. When the two compete this is the direction to lean, but not so
+ * far that the chefs are paying for a card nobody asked to be bigger.
+ *
+ * AND IT IS TWO NUMBERS, because the felt is two arrangements. 289 was
+ * measured with the chefs in the QUEUE — a strip above the column, which is
+ * what a phone draws. On the COUNTER they ring the piles, and a ring needs
+ * vertical room a strip does not: dropping the reserve to 310 there put the
+ * top chef 8px into the dough pile at 1366x768 with eight seats and the
+ * two-card lesson open. Not because the felt was too small in the abstract,
+ * but because the density ladder only re-walks when the SEATING changes —
+ * deliberately, so it and the direction fold cannot take turns undoing each
+ * other — and a hand zone that grows inside one of those spells is asking the
+ * felt for room the ladder has already spent.
+ *
+ * So the counter keeps the 348 it was verified at, and only the arrangement
+ * whose minimum was actually measured moves. The mode is read from the felt's
+ * own `data-mode` rather than guessed from a width: it is the seating telling
+ * us which shape it is in, which is the same source the ladder uses.
  */
-const FELT_FLOOR = 348;
+const FELT_FLOOR_QUEUE = 310;
+const FELT_FLOOR_COUNTER = 348;
+
+function feltFloor() {
+  return el.opponents && el.opponents.dataset.mode === 'queue'
+    ? FELT_FLOOR_QUEUE
+    : FELT_FLOOR_COUNTER;
+}
 /** The row's own padding over the card it holds — see `.hand__near`. */
 const ROW_CHROME = 20;
 const CARD_RATIO = 1.4;
@@ -3871,10 +3918,48 @@ const PHONE = window.matchMedia('(max-width: 519.98px)');
 function handRowRoom() {
   const screen = el.gameScreen ? el.gameScreen.clientHeight : window.innerHeight;
   const hud = el.hud ? el.hud.offsetHeight : 0;
+  const chrome = handChrome();
+  // Remembered, so the render that finishes after this one can tell whether
+  // the answer it got was sized against the chrome it ended up with.
+  ui.rowChrome = chrome;
+  return screen - hud - feltFloor() - chrome;
+}
+
+/** Everything in the hand zone that is not the row, measured. */
+function handChrome() {
   const zone = el.handZone ? el.handZone.offsetHeight : 0;
   const row = el.hand ? el.hand.offsetHeight : 0;
-  const chrome = Math.max(0, zone - row);
-  return screen - hud - FELT_FLOOR - chrome;
+  return Math.max(0, zone - row);
+}
+
+/**
+ * THE CHROME MOVES LATER IN THE SAME RENDER THAN THE ROW DOES.
+ *
+ * `renderMoments` runs after `renderHand`, because a window's copy is read out
+ * of the hand the render before it built. So on the frame a panel opens, the
+ * row was sized against a hand zone that did not have that panel in it yet —
+ * and the ceiling came back too generous by exactly the panel's height.
+ *
+ * Caught at 390x667 with eight chefs and the two-card lesson open: cards at
+ * 84px, row 128, and the felt squeezed to 289 — its measured minimum, with
+ * every rung of the density ladder spent and none of the 21px margin left.
+ * Nothing intersected, because the ladder saved it; but the margin existing on
+ * paper and not in the frame is the whole failure.
+ *
+ * So the render checks its own premise: if the chrome the row was sized
+ * against is not the chrome it finished with, the row is spaced once more
+ * against the real number. Once — the second pass measures the settled zone,
+ * so there is nothing left to disagree with and no third pass to schedule.
+ */
+function settleRowAgainstChrome() {
+  if (ui.settlingRow) return;
+  if (Math.abs(handChrome() - (ui.rowChrome || 0)) <= 1) return;
+  ui.settlingRow = true;
+  try {
+    resizeHandRow();
+  } finally {
+    ui.settlingRow = false;
+  }
 }
 
 /** The widest a card may be before the row starts eating the felt. */
@@ -6724,6 +6809,8 @@ function refreshHandLayout() {
   if (!view) return;
   syncHandSwap(snapshot, view);
   resizeHandRow();
+  // Same premise check as the render's: this path opens and closes panels too.
+  settleRowAgainstChrome();
   repaintHandState();
   // The picker is a phase, so the hand and the dough pile take their lock from
   // it exactly as they do from the move gate. Without this the pile stayed
