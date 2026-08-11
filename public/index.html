@@ -129,13 +129,18 @@
              keeps the marquee at three children whether the clock is running
              or not. -->
         <span class="marquee__line">
-          <span class="turn-label" id="turn-text">Waiting…</span>
+          <!-- The printed header stays deliberately short. The complete turn
+               instruction has its own live node below, so a phone never has
+               to choose between truncating the rule and making the cabinet
+               header two lines tall. -->
+          <span class="turn-label" id="turn-text" aria-hidden="true">TABLE</span>
           <!-- The last ten seconds of a turn. The digits are aria-hidden because
                a polite live region that changes every second is a siren, not a
                warning; the one sentence in #turn-warn is what gets announced,
                once, when the window opens. -->
           <span class="turn-count" id="turn-count" aria-hidden="true"></span>
         </span>
+        <span class="sr-only" id="turn-spoken">Waiting for the table.</span>
         <span class="sr-only" id="turn-warn"></span>
         <span class="marquee__dir" id="dir-chase" aria-hidden="true">
           <span class="za-chev">▸</span>
@@ -152,6 +157,11 @@
 
     <div class="table">
       <div class="opponents" id="opponents"></div>
+
+      <!-- Visual punctuation only. The live header already announces the
+           full instruction; this transient sign is the across-the-room cue
+           that makes a newly arrived turn impossible to miss. -->
+      <div class="turn-slam" id="turn-slam" aria-hidden="true" hidden>YOUR TURN</div>
 
       <div class="table-center">
         <div class="plaque" id="match-plaque" data-mode="match">
@@ -253,6 +263,28 @@
         </button>
         <button class="btn btn--ghost btn--sm" id="btn-pass" type="button">Keep it &amp; pass</button>
         <span class="hand-bar__hint" id="hand-hint"></span>
+
+        <!-- Cabinet utilities are available without permanently spending a
+             second action row. Native details provides a real expanded state
+             and a keyboard-operable disclosure without inventing a modal. -->
+        <details class="table-tools" id="table-tools">
+          <summary class="table-tools__trigger" aria-label="Table options">Table</summary>
+          <div class="screws" id="screw-rail">
+            <button class="screw screw--code code-chip" id="hud-code" type="button">
+              <span class="screw__head" aria-hidden="true"></span>
+              <span class="screw__label" id="hud-code-text">PIZZA-0000</span>
+              <span class="code-chip__done" aria-hidden="true">Copied</span>
+            </button>
+
+            <!-- Two presses in the game, one in the lobby. The label is its
+                 own node because writing the button would remove the screw
+                 head inserted beside it. -->
+            <button class="screw screw--leave" id="btn-leave-game" type="button">
+              <span class="screw__head" aria-hidden="true"></span>
+              <span class="screw__label" id="btn-leave-game-label">Leave</span>
+            </button>
+          </div>
+        </details>
       </div>
 
       <!-- THE ROW. Every card in your hand stands in the near rail at the same
@@ -279,27 +311,6 @@
            screen, and retired the moment the player scrolls it. -->
       <p class="hand-swipe" id="hand-swipe" hidden>SWIPE TO SEE THE REST OF YOUR HAND.</p>
 
-      <!-- THE BEZEL RAIL. Room code, sound and leave used to crowd the top
-           edge next to the marquee. They are cabinet hardware, not gameplay,
-           so they become screw heads on the bottom bezel: one 19px head each,
-           slot angled per control, VT323 label beside it. Same ids, same
-           handlers, same accessible names — only position and skin changed.
-           The sound screw is inserted here by app.js, between these two. -->
-      <div class="screws" id="screw-rail">
-        <button class="screw screw--code code-chip" id="hud-code" type="button">
-          <span class="screw__head" aria-hidden="true"></span>
-          <span class="screw__label" id="hud-code-text">PIZZA-0000</span>
-          <span class="code-chip__done" aria-hidden="true">Copied</span>
-        </button>
-
-        <!-- Two presses in the game, one in the lobby. The label is its own
-             node because the screw head lives in the button too, and writing
-             the button would wipe the head out of the DOM. -->
-        <button class="screw screw--leave" id="btn-leave-game" type="button">
-          <span class="screw__head" aria-hidden="true"></span>
-          <span class="screw__label" id="btn-leave-game-label">Leave</span>
-        </button>
-      </div>
     </footer>
 
     <!-- popovers ------------------------------------------------- -->

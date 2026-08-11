@@ -211,10 +211,11 @@ types. See [PROTOCOL.md](PROTOCOL.md).
 **Bots are ordinary players.** `server/bot.js` reads the same public state and
 its own hand, exactly as a human client does. It has no special access. It
 prefers +2, then skip, then reverse, then numbers, and keeps its wild cards for
-last. For a wild card it names the topping it holds most of. It also watches its
-neighbours for a missed ZA. Each bot makes up its mind **once per call-out
-window**, with a 70 % chance of noticing — so roughly one time in three, a bot
-looks the other way and you get away with it.
+last. For a wild card it names the topping it holds most of. When somebody
+misses ZA, the room appoints at most one possible bot observer, weighted by the
+regulars&rsquo; personalities. If chosen, that bot waits 900&ndash;1400 ms before calling
+it out; a real ZA shout cancels the catch. Adding more bots never multiplies the
+same mistake into seven simultaneous chances.
 
 **There are limits, and they are dull on purpose.** A WebSocket frame is capped at
 **16 KiB**; a socket that sends a larger one is closed. The server holds at most

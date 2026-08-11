@@ -84,11 +84,12 @@
     const before = compare.querySelector('[data-story-panel="before"]');
     const now = compare.querySelector('[data-story-panel="now"]');
     const beforeImage = before?.querySelector('img');
+    const nowImage = now?.querySelector('img');
     const buttons = Array.from(compare.querySelectorAll('[data-story-view]'));
     const toggle = compare.querySelector('.story-toggle');
     const stage = compare.querySelector('.story-panels');
 
-    if (!before || !now || !beforeImage || buttons.length !== 2 || !toggle || !stage) {
+    if (!before || !now || !beforeImage || !nowImage || buttons.length !== 2 || !toggle || !stage) {
       setCompareView(compare, initial, false);
       return;
     }
@@ -142,6 +143,42 @@
 
     let frame = 0;
     let crtMagicPlayed = false;
+
+    // A cabinet wipe must never outrun its picture. Photo pairs are small and
+    // reused elsewhere on the page, so start both requests here and keep the
+    // controls honestly unavailable until both endpoints can be painted. This
+    // also covers a fast range drag on a deliberately slow mobile connection.
+    const sliderImages = [beforeImage, nowImage];
+    compare.setAttribute('aria-busy', 'true');
+    range.disabled = true;
+    buttons.forEach((button) => { button.disabled = true; });
+    const imageReady = (image) => {
+      image.loading = 'eager';
+      if (image.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        image.addEventListener('load', resolve, { once: true });
+        image.addEventListener('error', resolve, { once: true });
+      });
+    };
+    let preparingImages = false;
+    const prepareImages = () => {
+      if (preparingImages) return;
+      preparingImages = true;
+      Promise.all(sliderImages.map(imageReady)).then(() => {
+        range.disabled = false;
+        buttons.forEach((button) => { button.disabled = false; });
+        compare.removeAttribute('aria-busy');
+      });
+    };
+    const story = compare.closest('.table-story');
+    if (!story || story.open) {
+      prepareImages();
+    } else {
+      story.addEventListener('toggle', () => {
+        if (story.open) prepareImages();
+      });
+    }
+
     const stopGlide = () => {
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;

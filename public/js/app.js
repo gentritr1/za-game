@@ -50,6 +50,7 @@ const el = {
   hudCodeText: $('hud-code-text'),
   turnBanner: $('turn-banner'),
   turnText: $('turn-text'),
+  turnSpoken: $('turn-spoken'),
   turnCount: $('turn-count'),
   turnWarn: $('turn-warn'),
   tableMeta: $('table-meta'),
@@ -59,6 +60,7 @@ const el = {
   btnLeaveGameLabel: $('btn-leave-game-label'),
   // table
   opponents: $('opponents'),
+  turnSlam: $('turn-slam'),
   drawPile: $('draw-pile'),
   drawSlot: $('draw-slot'),
   drawCount: $('draw-count'),
@@ -104,6 +106,8 @@ const el = {
   btnCalloutText: $('btn-callout-text'),
   btnPass: $('btn-pass'),
   handHint: $('hand-hint'),
+  tableTools: $('table-tools'),
+  tableToolsTrigger: document.querySelector('#table-tools > summary'),
   // popovers
   calloutPop: $('callout-pop'),
   calloutRows: $('callout-rows'),
@@ -340,6 +344,14 @@ const ui = {
   chainNode: null,
   chainTotalNode: null,
   turnMoment: null, // which of the marquee's three moments is showing
+  turnSpokenKey: '', // the authoritative turn/moment already sent to the live row
+  // The transient visual YOUR TURN sign is keyed to the server's turnSerial,
+  // so repeat snapshots cannot replay it and a two-player return to the same
+  // id still can. It is presentation only; the live header owns the words.
+  turnArrivalKey: '',
+  turnArrivalTimer: 0,
+  turnArrivalHideTimer: 0,
+  ownTurnsShown: 0,
   prevDeclared: new Map(), // playerId -> declaredZa last snapshot
   shoutNode: null,
   // ---- measurements cached against `layoutToken()`. Each holds the token it
@@ -671,6 +683,7 @@ function syncDesynced() {
   if (ui.screen === 'game') {
     el.turnBanner.classList.remove('is-you', 'is-callout');
     setTurnText('Reconnecting to the kitchen…', true);
+    setTurnSpoken('Reconnecting to the kitchen.', `connection:${net.state}`);
   }
   // An armed screw across a dropped line would forfeit the round on the press
   // that was only meant to ask. It starts again from Leave.
@@ -1302,6 +1315,7 @@ function resetRoundEffects() {
   ui.anchovyCount = 0;
   ui.zaReadyAt = 0;
   ui.zaEligible = false;
+  clearTurnArrival({ forget: true });
   // A new round always runs to the left again. Without this a round that ended
   // reversed would flash and scrub the moment the next one dealt.
   ui.prevDir = 0;
@@ -1349,6 +1363,7 @@ function resetGameView() {
   ui.callouts.clear();
   ui.turnMovingUntil = 0;
   ui.prevTurnId = null;
+  clearTurnArrival({ forget: true });
   clearTimeout(ui.turnMovingTimer);
   showSwipeCue(false);
   el.opponents.replaceChildren();
@@ -1365,6 +1380,8 @@ function resetGameView() {
   el.opponents.style.removeProperty('--port');
   el.opponents.style.removeProperty('--k');
   el.tableCentre.style.removeProperty('--card-w');
+  el.table.removeAttribute('data-players');
+  closeTableTools();
   el.table.classList.remove('is-tight', 'is-tight-2');
 }
 
@@ -2056,6 +2073,7 @@ function renderGame(snapshot) {
   if (el.tableMeta) {
     el.tableMeta.textContent = `${seated} ${seated === 1 ? 'PLAYER' : 'PLAYERS'}`;
   }
+  el.table.dataset.players = String(seated);
 
   // House Rules may be opened while another chef is thinking, but it may not
   // silently cover the start of a live game or the arrival of your own timed
@@ -2086,6 +2104,11 @@ function renderGame(snapshot) {
   renderDirection(view);
   renderOpponents(snapshot, view);
   syncCalloutWindows(snapshot, view);
+  // Room controls must never sit over a new gameplay decision. The decision
+  // renderer owns focus from here; folding TABLE only removes stale chrome.
+  if (ui.pendingWild || view.mustPlayDrawnCard || momentIsOpen(snapshot, view)) {
+    closeTableTools();
+  }
   // Before the hand is laid out: a rail measured on the frame it disappears
   // measures zero, and `layoutNear` spaces the row off that measurement.
   syncHandSwap(snapshot, view);
@@ -2097,7 +2120,8 @@ function renderGame(snapshot) {
   settleRowAgainstChrome();
   paintHandState(snapshot, view, yourTurn);
   renderLog(view);
-  renderNarration(snapshot, view);
+  renderNarration(snapshot, view, yourTurn);
+  syncTurnArrival(snapshot, view, yourTurn);
   syncCabinet(snapshot);
   syncShout(snapshot, view);
 
@@ -2142,7 +2166,15 @@ function renderTurnBanner(snapshot, view, yourTurn) {
   const moment = callout ? 'callout' : yourTurn ? 'you' : 'waiting';
   const changed = ui.turnMoment !== null && ui.turnMoment !== moment;
   ui.turnMoment = moment;
-  setTurnText(turnLabel(view, yourTurn, callout), changed);
+  setTurnText(turnHeadline(view, callout), changed);
+  const spokenKey = [
+    view.gameId,
+    view.turnSerial,
+    moment,
+    view.mustPlayDrawnCard ? 'drawn' : '',
+    ...(view.calloutTargets || []),
+  ].join(':');
+  setTurnSpoken(turnLabel(view, yourTurn, callout), spokenKey);
   armIdleCountdown(snapshot, view, yourTurn);
 }
 
@@ -2238,6 +2270,25 @@ function turnLabel(view, yourTurn, callout) {
     : `${current.name} is eyeing the pile…`;
 }
 
+/** The cabinet header is a location marker; action detail lives by the hand. */
+function turnHeadline(view, callout) {
+  if (!view || view.status !== 'playing') return 'ROUND OVER';
+  if (callout) return 'CALL OUT NOW';
+  const players = view.players.filter((player) => !player.left).length;
+  return `TABLE · ${players} ${players === 1 ? 'PLAYER' : 'PLAYERS'}`;
+}
+
+/**
+ * The full turn sentence has one polite owner even though the printed header
+ * is intentionally terse. The server serial is part of the key so a Skip or
+ * +2 that hands a two-player table back to the same chef is still announced.
+ */
+function setTurnSpoken(text, key) {
+  if (!el.turnSpoken || ui.turnSpokenKey === key) return;
+  ui.turnSpokenKey = key;
+  el.turnSpoken.textContent = el.turnSpoken.textContent.trim() === text ? `${text} ` : text;
+}
+
 /**
  * Swaps the turn label.
  *
@@ -2260,6 +2311,69 @@ function setTurnText(text, punctuate) {
   // A second moment change cancels the first rather than stacking on it.
   for (const running of el.turnText.getAnimations()) running.cancel();
   el.turnText.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: EASE_OUT });
+}
+
+/** Retires the visual turn sign without changing which serial it consumed. */
+function clearTurnArrival({ forget = false } = {}) {
+  clearTimeout(ui.turnArrivalTimer);
+  clearTimeout(ui.turnArrivalHideTimer);
+  ui.turnArrivalTimer = 0;
+  ui.turnArrivalHideTimer = 0;
+  if (el.turnSlam) {
+    el.turnSlam.hidden = true;
+    el.turnSlam.classList.remove('is-showing');
+  }
+  if (!forget) return;
+  ui.turnArrivalKey = '';
+  ui.turnSpokenKey = '';
+  ui.ownTurnsShown = 0;
+}
+
+/**
+ * One transient, visual-only YOUR TURN sign per authoritative turn serial.
+ * It is consumed even when the snapshot arrives inside a decision, preventing
+ * an old cue from appearing later after that decision has already taken over.
+ */
+function syncTurnArrival(snapshot, view, yourTurn) {
+  if (!yourTurn) {
+    clearTurnArrival();
+    return;
+  }
+
+  const key = `${view.gameId}:${view.turnSerial}:${snapshot.youId}`;
+  if (ui.turnArrivalKey === key) return;
+  ui.turnArrivalKey = key;
+
+  const ordinaryTurn =
+    handPhase(view, yourTurn) === 'await'
+    && !view.mustPlayDrawnCard
+    && !ui.pendingWild
+    && !momentIsOpen(snapshot, view);
+  if (!ordinaryTurn) return;
+
+  ui.ownTurnsShown += 1;
+  const hold = ui.ownTurnsShown <= 3 ? 1000 : 600;
+  const delay = wantsMotion() && (ui.paintedScreen !== 'game' || ui.shutterRunning)
+    ? SHUTTER_MS + 80
+    : 0;
+
+  clearTimeout(ui.turnArrivalTimer);
+  ui.turnArrivalTimer = setTimeout(() => {
+    ui.turnArrivalTimer = 0;
+    const latest = ui.snapshot;
+    const latestView = latest && latest.game;
+    const latestKey = latestView
+      ? `${latestView.gameId}:${latestView.turnSerial}:${latest.youId}`
+      : '';
+    if (!latestView || latestKey !== key || latestView.turnPlayerId !== latest.youId) return;
+    if (handPhase(latestView, true) !== 'await' || latestView.mustPlayDrawnCard || ui.pendingWild) return;
+    if (momentIsOpen(latest, latestView)) return;
+
+    el.turnSlam.hidden = false;
+    restartAnimation(el.turnSlam, 'is-showing', 'turn-slam');
+    clearTimeout(ui.turnArrivalHideTimer);
+    ui.turnArrivalHideTimer = setTimeout(() => clearTurnArrival(), hold);
+  }, delay);
 }
 
 /**
@@ -2572,6 +2686,16 @@ function feltFits() {
     }
   }
 
+  // The Pass-9 table gives the local player a real visual chair. It is not an
+  // opponent node, so the original ladder never measured it and could loosen
+  // the piles straight through that chair after the first settled render.
+  if (el.selfSeatVisual && el.selfSeatVisual.offsetParent !== null) {
+    const mine = offsetBoxIn(el.selfSeatVisual, room);
+    for (const part of parts) {
+      if (boxesOverlap(part, mine)) return false;
+    }
+  }
+
   // And nothing may be pushed off the top of the felt. This is deliberately
   // NOT "the column fits its own grid row": the column is pinned to the bottom
   // and a short row lets it reach up into the strip's whitespace, which costs
@@ -2795,7 +2919,9 @@ function orderedOpponents(snapshot, view) {
 const COUNTER_MAP = {
   1: [[50, 1, 't']],
   2: [[26, 4, 't'], [74, 4, 't']],
-  3: [[19, 9, 't'], [50, 1, 't'], [81, 9, 't']],
+  // Four players read as a table: left, opposite, right, with YOU closing the
+  // near edge. The previous shallow top row was a roster, not geography.
+  3: [[6, 34, 'l'], [50, 1, 't'], [94, 34, 'r']],
   4: [[6, 30, 'l'], [31, 3, 't'], [69, 3, 't'], [94, 30, 'r']],
   5: [[5, 34, 'l'], [25, 6, 't'], [50, 0, 't'], [75, 6, 't'], [95, 34, 'r']],
   // The two counts that put chefs on the side walls sit them lower than the
@@ -2808,21 +2934,32 @@ const COUNTER_MAP = {
   7: [[5, 54, 'l'], [11, 26, 'l'], [32, 2, 't'], [50, 0, 't'], [68, 2, 't'], [89, 26, 'r'], [95, 54, 'r']],
 };
 
+// The 118px phone plates need the last few pixels at either wall. This is the
+// same four-chair ring, opened outward just enough to leave Match in the
+// middle; wider counters keep the roomier inset above.
+const COMPACT_FOUR_COUNTER_MAP = [[1, 34, 'l'], [50, 1, 't'], [99, 34, 'r']];
+
 /* The ordinary phone breakpoint, plus two capacity guards. Seven opponent
    plates need a wider counter than a compact tablet can supply. In short
    landscape even three opponent plates cannot fit around the centre stack in
    the table half. Both use the ordered queue the phone already teaches;
    smaller rooms and taller counters retain geographic seating. */
 const QUEUE_BELOW = window.matchMedia('(max-width: 519.98px)');
+const REFLOW_BELOW = window.matchMedia('(max-width: 359.98px)');
 const FULL_TABLE_NARROW = window.matchMedia('(max-width: 839.98px)');
 const CROWDED_SHORT_LANDSCAPE = window.matchMedia(
   '(orientation: landscape) and (max-width: 1024px) and (max-height: 560px)'
 );
 
 function seatingMode(playerCount) {
+  // A portrait phone can hold the selected four-chair ring. Five or more
+  // players use the ordered queue; a 320px/400%-zoom viewport also queues so
+  // the plates retain their readable target size.
+  const compactPhoneNeedsQueue =
+    QUEUE_BELOW.matches && (playerCount >= 5 || REFLOW_BELOW.matches);
   const fullTableNeedsQueue = playerCount === 8 && FULL_TABLE_NARROW.matches;
   const crowdedShortTable = playerCount >= 4 && CROWDED_SHORT_LANDSCAPE.matches;
-  return QUEUE_BELOW.matches || fullTableNeedsQueue || crowdedShortTable ? 'queue' : 'counter';
+  return compactPhoneNeedsQueue || fullTableNeedsQueue || crowdedShortTable ? 'queue' : 'counter';
 }
 
 /**
@@ -2833,6 +2970,7 @@ function seatingMode(playerCount) {
  * would be the arrangement lying about which mode it is in.
  */
 QUEUE_BELOW.addEventListener('change', () => relayoutSeating());
+REFLOW_BELOW.addEventListener('change', () => relayoutSeating());
 FULL_TABLE_NARROW.addEventListener('change', () => relayoutSeating());
 CROWDED_SHORT_LANDSCAPE.addEventListener('change', () => relayoutSeating());
 
@@ -3139,7 +3277,10 @@ function placeSeats(order, ranks, view) {
   ui.queueHead = '';
   el.opponents.classList.remove('is-reforming');
 
-  const map = COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
+  const compactFour = count === 3 && QUEUE_BELOW.matches;
+  const map = compactFour
+    ? COMPACT_FOUR_COUNTER_MAP
+    : COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
   order.forEach((node, index) => {
     node._parts.body.style.removeProperty('transition');
     node._parts.body.style.removeProperty('transform');
@@ -3423,7 +3564,11 @@ function buildSeat(player) {
   const rank = document.createElement('span');
   rank.className = 'seat__rank';
   rank.setAttribute('aria-hidden', 'true');
-  node.append(edge, ring, rank);
+  // The ordinal is part of the plate, not a loose tag beneath the player.
+  // Keeping it in the moving body also makes queue handoffs travel as one
+  // object instead of leaving NOW/NEXT behind for a frame.
+  body.append(rank);
+  node.append(edge, ring);
 
   node._parts = {
     avatar, name, body, idcol, cards, count, countLong, countNum,
@@ -5161,13 +5306,20 @@ function paintHandState(snapshot, view, yourTurn) {
   if (heading === 'PICK A TOPPING' || heading === 'DRAW DECISION') word = '';
   if (phase === 'waiting' && youAreNext(snapshot, view)) word = "YOU'RE NEXT";
   if ((phase === 'waiting' || phase === 'moving') && momentIsOpen(snapshot, view)) word = 'ACT NOW';
+  const ordinaryTurn = phase === 'await' && heading === 'YOUR HAND';
+  // YOUR TURN already owns the local seat and the transient centre sign. The
+  // hand strip uses its second fact for the useful cross-check: how many of
+  // the server-marked cards can actually go on the pile.
+  if (ordinaryTurn) word = '';
 
   el.handSelf.dataset.phase = phase;
   el.handSelf.classList.toggle('is-live', phase === 'await');
   el.handSelf.classList.toggle('is-urgent', word === 'ACT NOW');
   if (el.handState.textContent !== word) el.handState.textContent = word;
-  const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
-  if (el.handCount.textContent !== cards) el.handCount.textContent = cards;
+  const handSummary = ordinaryTurn
+    ? `${(view.playableCardIds || []).length} PLAYABLE`
+    : `${count} ${count === 1 ? 'card' : 'cards'}`;
+  if (el.handCount.textContent !== handSummary) el.handCount.textContent = handSummary;
 
   // The roomy Pass-9 table includes a visual local-player plate so seating is
   // legible as geography. It is aria-hidden; this strip remains the only
@@ -5186,6 +5338,7 @@ function paintHandState(snapshot, view, yourTurn) {
       el.selfSeatPips.append(document.createElement('i'));
     }
     let plateWord = word;
+    if (!plateWord && ordinaryTurn) plateWord = 'YOUR TURN';
     if (!plateWord && heading === 'PICK A TOPPING') plateWord = 'PICK TOPPING';
     if (!plateWord && heading === 'DRAW DECISION') plateWord = 'PLAY OR PASS';
     el.selfSeatCount.textContent = String(count);
@@ -5752,16 +5905,41 @@ function narrationLine(entry, view, youId) {
   return narrationFallback(text);
 }
 
-function renderNarration(snapshot, view) {
+function visibleTurnInstruction(view) {
+  if (view.mustPlayDrawnCard) return 'YOUR TURN — PLAY THE DRAWN CARD OR PASS';
+  // The plaque already spells out the match, including its exact effect. The
+  // ribbon points to the server-marked cards instead of repeating that whole
+  // sentence, which also includes marked Wilds without needing a second rule.
+  return 'YOUR TURN — PLAY A MARKED CARD, OR DRAW';
+}
+
+function renderNarration(snapshot, view, yourTurn) {
+  let key = '';
+  let line = '';
+  const targets = view.calloutTargets || [];
+
+  // Current action outranks history. The complete log remains available in
+  // Kitchen Chatter; this one visual ribbon answers what the player can do now.
+  if (view.status === 'playing' && targets.length) {
+    key = `callout:${view.gameId}:${targets.join(',')}`;
+    line = 'CALL OUT NOW — SOMEBODY FORGOT ZA';
+  } else if (yourTurn) {
+    key = `turn:${view.gameId}:${view.turnSerial}:${view.mustPlayDrawnCard ? 'drawn' : 'hand'}`;
+    line = visibleTurnInstruction(view);
+  }
+
   const last = view.log && view.log.length ? view.log[view.log.length - 1] : null;
-  if (!last) {
+  if (!line && last) {
+    key = `log:${last.id}`;
+    line = narrationLine(last, view, snapshot.youId);
+  }
+  if (!line) {
     el.narration.textContent = '';
     el.narration.dataset.entry = '';
     return;
   }
-  if (el.narration.dataset.entry === String(last.id)) return;
-  el.narration.dataset.entry = String(last.id);
-  const line = narrationLine(last, view, snapshot.youId);
+  if (el.narration.dataset.entry === key && el.narration.textContent === line) return;
+  el.narration.dataset.entry = key;
   el.narration.textContent = line;
   // The line arriving is the event; a swap with no punctuation reads as the
   // same line having been there all along. Opacity only, and only where the
@@ -6475,6 +6653,7 @@ function commitPlay(card, topping, slot) {
   // the rest of the round. Nothing is spent on a move that did not happen.
   if (!send({ type: 'play', cardId: card.id, topping: topping || undefined })) return;
 
+  clearTurnArrival();
   bookFocus({ kind: 'play', at: at < 0 ? 0 : at });
   flyToDiscard(node);
   node.classList.add('is-leaving');
@@ -7193,14 +7372,12 @@ function closeWildPanel() {
 /**
  * A NEW DECISION SILENCES THE LAST ONE.
  *
- * This client has no central YOUR TURN slam to dismiss — the marquee carries
- * the turn state persistently and nothing else may write there. What it does
- * have is a line under the hand that holds the last thing said until a
- * snapshot replaces it, and a decision can open with no snapshot behind it at
- * all (the topping picker opens on a local tap). So the refusal that was on
- * screen a moment ago does not get to sit under a fresh question.
+ * The one-shot turn sign and the line under the hand both retire when a real
+ * decision arrives. A topping picker can open without a snapshot behind it,
+ * so waiting for the next render would leave stale guidance over the question.
  */
 function clearDecisionNoise() {
+  clearTurnArrival();
   if (el.handHint.textContent) el.handHint.textContent = '';
   el.handHint.classList.remove('is-refused');
   if (ui.shoutNode) {
@@ -8081,7 +8258,7 @@ const RULE_PAGES = [
   {
     h: 'Read the table',
     line: 'NOW plays. NEXT follows the arrow.',
-    sr: 'The marquee names whose turn it is. The seat marked NOW is playing, the seat marked NEXT follows, and the clockwise or counter-clockwise arrow shows which way play is moving. Your own hand strip says YOUR TURN or YOU\'RE NEXT when either one is you.',
+    sr: 'When your turn arrives, the centre sign says YOUR TURN. The seat marked NOW is playing, the seat marked NEXT follows, and the clockwise or counter-clockwise arrow shows which way play is moving. Your hand says how many cards are playable, or YOU\'RE NEXT when you are next.',
     demo: demoReadTable,
   },
   {
@@ -8454,6 +8631,41 @@ el.btnAddBot.addEventListener('click', () => {
 });
 el.btnStart.addEventListener('click', () => send({ type: 'startGame' }));
 el.btnLeaveLobby.addEventListener('click', () => send({ type: 'leaveRoom' }));
+
+// TABLE is progressive disclosure, not a fourth gameplay action. If one of
+// its own actions folds it, the trigger becomes the next meaningful chair;
+// an outside press already owns a new target and therefore gets no redirect.
+function closeTableTools(restoreFocus = false) {
+  const focusedInside = restoreFocus && el.tableTools.contains(document.activeElement);
+  el.tableTools.open = false;
+  if (focusedInside) el.tableToolsTrigger.focus({ preventScroll: true });
+}
+
+el.tableTools.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !el.tableTools.open) return;
+  event.preventDefault();
+  closeTableTools(true);
+});
+
+el.tableTools.addEventListener('click', (event) => {
+  const screw = event.target.closest('.screw');
+  if (!screw) return;
+  queueMicrotask(() => {
+    // The armed leave confirmation deliberately stays in view for its second
+    // press. Copy also stays long enough for its inline COPIED receipt to land.
+    if (screw === el.btnLeaveGame && ui.leaveArmed) return;
+    if (screw === el.hudCode) {
+      setTimeout(() => closeTableTools(true), 1100);
+      return;
+    }
+    closeTableTools(true);
+  });
+});
+
+document.addEventListener('pointerdown', (event) => {
+  if (!el.tableTools.open || el.tableTools.contains(event.target)) return;
+  closeTableTools();
+});
 
 // ------------------------------------------------- 03 · the armed screw ----
 /**

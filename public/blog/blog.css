@@ -721,6 +721,11 @@ a { color: var(--ui-cyan); }
   outline-offset: 3px;
 }
 
+.arcade-slider__input:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
 .arcade-slider__input::-webkit-slider-runnable-track {
   height: 14px;
   border: 0;
