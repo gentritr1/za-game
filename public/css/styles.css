@@ -2047,12 +2047,51 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .plaque[data-topping="cheese"] { --plaque-ink: var(--cheese); }
 .plaque[data-topping="anchovy"] { --plaque-ink: var(--anchovy); }
 
+/* The head is a ROW. Most of the time it holds one word; when the felt is too
+   short for a direction row of its own, it holds the direction too. */
 .plaque__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
   font-family: var(--font-display);
   font-size: 8px;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--text-mute);
+}
+
+.plaque__head-word { font-weight: inherit; }
+
+/* --- pass 8 · the folded direction ---------------------------------------
+   The chip keeps being the chip — same node, same word, same mirrored glyph,
+   written by the same line of `renderDirection`. What it loses inside the
+   plaque is the furniture it needed as a thing standing on its own: its own
+   border and its own padding, both of which would draw a box inside a box.
+   The plaque's border is already around it. */
+.plaque.is-folded .dir-chip {
+  border: none;
+  padding: 0;
+  gap: 5px;
+  font-size: 15px;
+  letter-spacing: .08em;
+  line-height: 1;
+}
+
+.plaque.is-folded .dir-chip__glyph { width: 14px; height: 14px; }
+
+/* One line, and the head's own rule keeps it centred. The separator is a rule
+   between two facts rather than a bullet, because MATCH and CLOCKWISE are not
+   items in a list — one says what the numbers below are for and the other says
+   which way the table is going. */
+.plaque.is-folded .plaque__head {
+  gap: var(--s2);
+  padding-bottom: 1px;
+}
+
+.plaque.is-folded .plaque__head-word {
+  padding-right: var(--s2);
+  border-right: 2px solid var(--bezel);
 }
 
 .plaque__body {
@@ -5449,6 +5488,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     .plaque__name,
     .plaque__value { font-size: 20px; }
     .plaque__or { font-size: 15px; }
+
+    /* FOLDED ON A PHONE, THE DIRECTION IS THE GLYPH AND NOTHING ELSE — which
+       is the form the spec prints, `MATCH ↻`, and here it is also the only one
+       that fits. Measured at 390px with the word in: the worst sentence the
+       deck can make (MATCH · COUNTER-CLOCKWISE · PEPPERONI OR DRAW TWO) is
+       434px wide with its right edge at 448, drawn 58px outside a 390px
+       window. The glyph is mirrored for a reverse, the marquee's chevron chase
+       is on screen at exactly these widths, and `#dir-announce` still says the
+       whole word on the banner's live region — so what goes is the third
+       telling, not the fact. */
+    .plaque.is-folded .dir-chip__word { display: none; }
+    .plaque.is-folded .dir-chip { gap: 0; }
   }
 
   @media (max-width: 379.98px) {

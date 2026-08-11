@@ -64,6 +64,7 @@ const el = {
   // the match plaque · what the next card has to be, in words
   plaque: $('match-plaque'),
   plaqueHead: $('plaque-head'),
+  plaqueHeadRow: $('plaque-head-row'),
   plaqueEmblem: $('plaque-emblem'),
   plaqueName: $('plaque-name'),
   plaqueAlt: $('plaque-alt'),
@@ -73,6 +74,8 @@ const el = {
   dirChip: $('dir-chip'),
   dirChipGlyph: $('dir-chip-glyph'),
   dirChipWord: $('dir-chip-word'),
+  tableCentre: document.querySelector('.table-center'),
+  centrePiles: document.querySelector('.table-center__piles'),
   logList: $('log-list'),
   narration: $('narration'),
   // hand
@@ -226,6 +229,11 @@ const ui = {
   tokenTurnTimer: 0,
   queuePlaced: false, // 2B · true once the strip has laid out at least once
   queueSlideTimer: 0,
+  // Pass 8 · the two heights the direction fold removes, cached from the last
+  // time they stood apart. See `syncDirectionHome` for why they cannot be
+  // measured while folded — and note there is deliberately no `folded` flag
+  // beside them: the chip's parent is the state, and one owner is the rule.
+  dirGeom: null,
   gameId: null,
   lastLogId: -1,
   // The connected-idle turn clock, held locally so the digits keep moving
@@ -1942,6 +1950,15 @@ function renderGame(snapshot) {
   el.handZone.classList.toggle('is-your-turn', yourTurn);
   // 04 · the nudge only exists while you actually have a legal move.
   armNudge(yourTurn, view.playableCardIds.length > 0);
+
+  // LAST, and last on purpose. It is the only thing in this function that
+  // READS layout, and the felt it measures is a leftover — what the hand zone
+  // did not take. Every renderer above can change that, so a fold decided
+  // before them is a fold decided against a table that no longer exists. It is
+  // safe here for the reason the deal cascade is not: the cards' transition
+  // delays are written at construction, so a forced read after the fact has
+  // nothing left to resolve early.
+  syncDirectionHome();
 }
 
 /**
@@ -2111,6 +2128,169 @@ function renderDirection(view) {
     sound.play('tape-scrub');
   }
   ui.prevDir = view.direction;
+}
+
+/* ------------------------------------------------- where direction lives --
+ * PASS 8 · THE DIRECTION ROW FOLDS INTO THE PLAQUE.
+ *
+ * Not "on phone". The condition is geometric, and it is the one the spec
+ * states: the row folds whenever the centre column would otherwise reach down
+ * into the player's own strip. Our felt has no self-plate on it — your strip
+ * is `.hand-self`, the first thing under the felt — so "reaching your own
+ * seat" is exactly "not fitting in the felt", and that is what is measured.
+ *
+ * A width rule would have been wrong twice over. Pass 8 makes compaction
+ * follow measured height, so a 1024x600 laptop is as short as a phone while
+ * being twice as wide; and our own felt is not a function of the viewport at
+ * all — it is whatever the marquee and the hand zone leave, and the hand zone
+ * grows with the hand. The same window can need the fold with ten cards in
+ * hand and not need it with three.
+ *
+ * MEASURED THE SAME WAY IN BOTH STATES, which is the only part of this that
+ * is subtle. Folded, the chip is inside the plaque and there is no separate
+ * row to measure, so the unfolded requirement would be unknowable from the
+ * folded layout — and a decision that reads a different quantity depending on
+ * which answer it last gave oscillates. So the two heights the fold removes
+ * are cached while unfolded and the requirement is always computed as though
+ * the row were out, in both states. The 6px of hysteresis on the way back is
+ * for sub-pixel rounding, not for taste.
+ */
+const DIR_UNFOLD_SLACK = 6;
+
+/**
+ * The media conditions that change how TALL the plaque and the chip are. The
+ * cached pair belongs to one type scale, and crossing any of these is a new
+ * one — so the cache carries the token it was taken under, and a reading from
+ * the wrong scale is thrown away rather than believed. The listeners stand the
+ * row back up on the spot, because a cache that can only be refilled while
+ * unfolded can never be refilled from a folded layout.
+ */
+const DIR_SCALE_MQ = [
+  '(max-width: 719.98px)',
+  '(max-width: 519.98px)',
+  '(max-width: 379.98px)',
+  '(max-height: 720px)',
+].map((query) => window.matchMedia(query));
+
+function dirScaleToken() {
+  return DIR_SCALE_MQ.map((mq) => (mq.matches ? '1' : '0')).join('');
+}
+
+for (const mq of DIR_SCALE_MQ) {
+  mq.addEventListener('change', () => {
+    unfoldDirection();
+    ui.dirGeom = null;
+    syncDirectionHome();
+  });
+}
+
+/**
+ * WHERE THE CHIP IS, not where a flag says it is.
+ *
+ * The fold has exactly one owner and it is the DOM: a boolean beside it would
+ * be a second answer to the same question, and the two would disagree the
+ * first time anything else touched the node. The chip's parent IS the state.
+ */
+function directionFolded() {
+  return el.dirChip.parentElement === el.plaqueHeadRow;
+}
+
+function unfoldDirection() {
+  if (!directionFolded()) return;
+  el.tableCentre.append(el.dirChip);
+  el.plaque.classList.remove('is-folded');
+  el.tableCentre.classList.remove('has-folded-dir');
+}
+
+function centreGaps() {
+  const style = getComputedStyle(el.tableCentre);
+  return {
+    gap: parseFloat(style.rowGap) || 0,
+    padding: (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0),
+  };
+}
+
+function syncDirectionHome() {
+  if (!el.tableCentre || !el.dirChip) return;
+  // A cached pair from a different type scale is not a measurement of this
+  // one. Stand the row up so the next pass can take it again for real.
+  if (ui.dirGeom && ui.dirGeom.token !== dirScaleToken()) {
+    unfoldDirection();
+    ui.dirGeom = null;
+  }
+  // `clientHeight` is the row the grid handed the centre column, inside its
+  // own padding. Zero means the screen is not laid out — a hidden game screen,
+  // or the first frame — and a fold decided against zero is a fold decided
+  // against nothing.
+  const available = el.tableCentre.clientHeight;
+  if (!available) return;
+
+  const { gap, padding } = centreGaps();
+  const pilesH = el.centrePiles ? el.centrePiles.offsetHeight : 0;
+  if (!pilesH) return;
+
+  const wasFolded = directionFolded();
+  if (!wasFolded) {
+    // Unfolded: everything is on screen and measurable, so this is also where
+    // the two cached numbers come from.
+    const plaqueH = el.plaque.offsetHeight;
+    const chipH = el.dirChip.offsetHeight;
+    if (plaqueH && chipH) ui.dirGeom = { plaqueH, chipH, token: dirScaleToken() };
+  }
+  const geom = ui.dirGeom;
+  if (!geom) return;
+
+  // What the column needs with the direction row standing on its own: the two
+  // piles, the plaque as it is when nothing is folded into it, the chip, and
+  // the two gaps between the three of them.
+  const needed = pilesH + geom.plaqueH + geom.chipH + gap * 2;
+
+  // WHERE ITS TOP WOULD BE. The column is pinned to the bottom of the felt, so
+  // adding a row does not push the bottom down — it reaches further UP, into
+  // whoever is sitting there. That is the encroachment the spec names, and it
+  // is a position, not a height.
+  const frame = el.tableCentre.getBoundingClientRect();
+  const style = getComputedStyle(el.tableCentre);
+  const floor = frame.bottom - (parseFloat(style.paddingBottom) || 0);
+  const topUnfolded = floor - needed;
+
+  // Folding is sticky by 6px of sub-pixel slack, so a column sitting exactly
+  // on the line does not fold and unfold on alternate snapshots.
+  const margin = wasFolded ? DIR_UNFOLD_SLACK : 0;
+
+  // Does it fit the felt at all? Below the felt is your own strip, and it is
+  // opaque: a column that overruns the bottom loses its bottom row, which is
+  // the direction and the plaque — the two things that answer the question.
+  const overruns = needed + padding > available - margin;
+
+  // Does it reach a CHEF? Only the seats standing over the column can be
+  // reached, so the test is horizontal before it is vertical: the piles and
+  // the plaque are centred and narrow, and at 1280 the two wall seats are
+  // nowhere near them while the top-centre chef is directly above.
+  const span = el.centrePiles.getBoundingClientRect();
+  const plaqueBox = el.plaque.getBoundingClientRect();
+  const left = Math.min(span.left, plaqueBox.left);
+  const right = Math.max(span.right, plaqueBox.right);
+  let reaches = false;
+  for (const seat of el.opponents.querySelectorAll('.seat')) {
+    const box = seat.getBoundingClientRect();
+    if (box.right <= left || box.left >= right) continue;
+    if (box.bottom > topUnfolded - margin) { reaches = true; break; }
+  }
+
+  const fold = overruns || reaches;
+  if (fold === wasFolded) return;
+
+  if (!fold) {
+    unfoldDirection();
+    return;
+  }
+  // ONE node, moved. A second copy of the direction in the plaque would be a
+  // second thing to keep true, and `renderDirection` would have to know which
+  // of them is on screen. It writes to the chip; the chip changes address.
+  el.plaqueHeadRow.append(el.dirChip);
+  el.plaque.classList.add('is-folded');
+  el.tableCentre.classList.add('has-folded-dir');
 }
 
 /**
@@ -2289,17 +2469,6 @@ function placeToken(token, order, ranks, view) {
     return;
   }
 
-  const map = COUNTER_MAP[Math.min(7, seats)] || COUNTER_MAP[7];
-  // Where you sit: the near edge, dead centre, which is the one place on the
-  // counter that is not in the map because it is not a seat.
-  const YOURS = [50, 78];
-  const spotOf = (node) => {
-    if (!node) return YOURS;
-    const index = order.indexOf(node);
-    const spot = map[Math.min(index, map.length - 1)];
-    return [spot[0], spot[1]];
-  };
-
   // The chef playing and the chef next, read off the same ranks the weights
   // are read off. `null` is you — you are at the counter too.
   let from = null;
@@ -2318,16 +2487,49 @@ function placeToken(token, order, ranks, view) {
     token.hidden = true;
     return;
   }
-  const a = spotOf(from);
-  const b = spotOf(to);
-
   const box = seatBox();
   if (box.width === 0 || box.height === 0) {
     token.hidden = true;
     return;
   }
-  const x = ((a[0] + b[0]) / 2 / 100) * box.width;
-  const y = ((a[1] + b[1]) / 2 / 100) * box.height + box.port * 0.5;
+
+  /* PASS 8 · MEASURED AGAINST THE PLATE, NOT AGAINST THE FELT.
+   *
+   * This used to read the two chefs' entries out of COUNTER_MAP and average
+   * their percentages. Percentages describe where a seat is ANCHORED, not
+   * where its plate ended up, and the plate is not a fixed size: a chef
+   * holding eight cards is a deck and a numeral, one holding two is a short
+   * fan, and the queue's head seat is a 58px portrait against a 34px tail.
+   * The ticket therefore drifted with the hand sizes of the two chefs it was
+   * standing between, and drifted differently at four seats and at eight.
+   *
+   * So both ends are measured. `getBoundingClientRect` and not `offsetLeft`
+   * here on purpose, against the usual rule: a counter seat carries a static
+   * `translateX(-50%)` and the rect is the only reading that includes it —
+   * which is the whole point, since what is wanted is where the plate IS. The
+   * caveat the kitchen log attaches to rects is about reading them mid-
+   * animation, and this is called after the counter has cleared every seat's
+   * transition and transform and written its final position.
+   *
+   * The y is taken from the plates' TOP EDGES rather than their middles, so
+   * the ticket rests on the edge of the seat it has arrived at — the one
+   * intersection pass 8 says to keep.
+   */
+  const frame = el.opponents.getBoundingClientRect();
+  // You are the one end with no plate to measure: there is no chef panel for
+  // yourself on the felt, only the strip below it. The near edge, dead centre,
+  // stays a proportion of the felt because there is nothing there to read.
+  const YOURS = [0.5, 0.78];
+  const spotOf = (node) => {
+    if (!node) return [YOURS[0] * box.width, YOURS[1] * box.height];
+    const seat = node.getBoundingClientRect();
+    return [seat.left - frame.left + seat.width / 2, seat.top - frame.top];
+  };
+  const a = spotOf(from);
+  const b = spotOf(to);
+
+  const x = (a[0] + b[0]) / 2;
+  const y = (a[1] + b[1]) / 2;
 
   token.hidden = false;
   // The glyph is drawn with borders, not set as a character: neither VT323 nor
@@ -2350,7 +2552,11 @@ function placeSeats(order, ranks, view) {
   const count = order.length;
   const { belt, token } = seatingFurniture();
   belt.dataset.dir = view.direction === -1 ? '-1' : '1';
-  placeToken(token, order, ranks, view);
+  // The queue has no counter to walk, so the token is simply not there. The
+  // counter places it at the END of this function instead of here: now that it
+  // measures the plates rather than reading their anchor percentages, placing
+  // it first would measure where the seats stood on the PREVIOUS render.
+  if (mode !== 'counter') token.hidden = true;
 
   if (mode === 'queue') {
     // A queue is only a queue if left-to-right IS the order of play, so the
@@ -2477,6 +2683,11 @@ function placeSeats(order, ranks, view) {
   // way down both sides.
   const deepest = map.reduce((low, spot) => Math.max(low, spot[1]), 0);
   el.opponents.style.setProperty('--rail-bottom', `${Math.max(16, 100 - deepest - 30)}%`);
+
+  // One read after every write, and the ticket is the thing that needs it: it
+  // is placed against the plates this loop has just moved, so it has to run
+  // after them or it measures the arrangement it is replacing.
+  placeToken(token, order, ranks, view);
 }
 
 /**
@@ -7534,6 +7745,12 @@ PHONE.addEventListener('change', () => {
 let resizeFrame = 0;
 window.addEventListener('resize', () => {
   resizeHandRow();
+  // Outside the rAF with `resizeHandRow`, and for the same reason: a
+  // backgrounded pane throttles rAF away entirely, and a laptop that came back
+  // from the background with the direction row standing in a felt that no
+  // longer has room for it would be the fold lying about which state it is in.
+  // The felt this measures is what the hand row above just finished leaving.
+  syncDirectionHome();
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     // The pit's height moves when it re-wraps, and the peek hangs off it.
@@ -7548,6 +7765,13 @@ window.addEventListener('resize', () => {
     // 2A/8 · and so is the seating: the counter hands over to the queue at the
     // breakpoint, not at the next snapshot.
     relayoutSeating();
+    // AGAIN, and after the seating this time. The fold asks whether the column
+    // would reach a chef, so it has to be asked once the chefs have moved —
+    // the synchronous call above runs before `relayoutSeating` and would be
+    // answering about the arrangement being replaced. The first call is the
+    // one that survives a throttled rAF; this one is the one that is right.
+    // Whichever runs second finds the state already correct and does nothing.
+    syncDirectionHome();
   });
 });
 
