@@ -29,6 +29,7 @@ const el = {
   shell: document.querySelector('.shell'),
   screens: Array.from(document.querySelectorAll('.screen')),
   gameScreen: document.querySelector('.screen--game'),
+  hud: document.querySelector('.hud'),
   table: document.querySelector('.table'),
   // home
   formCreate: $('form-create'),
@@ -3296,35 +3297,68 @@ const HAND_CARD_MIN = 54;
 const HAND_GAP = 8;
 
 /**
- * THE CEILING COMES DOWN ON A SHORT PHONE, AND IT IS THE FELT THAT ASKED.
+ * THE CEILING IS WHAT THE STAGE HAS LEFT, AND IT IS MEASURED.
  *
  * The row is as tall as its cards, so the hand zone's height is a function of
  * how many cards are in the hand: a crowded hand sits at the 54px floor and
  * the row is 96px, but a three-card hand takes the full 84px and the row is
- * 138px. The felt gets what is left, and at 390x667 that 42px swing is the
- * whole of the clearance the budget in the stylesheet just bought — measured
+ * 138px. The felt gets what is left, and at 390x667 that 42px swing was the
+ * whole of the clearance the stylesheet's budget had just bought — measured
  * with a three-card hand: zone 320px, and the oven's card 29px under the hand
  * zone's top edge, which is exactly the defect the budget was written to fix.
  *
- * So on a short phone the cards stop growing at the floor. Nothing shrinks —
- * 54px is the width the whole redesign is specified at and every card is still
- * whole, still readable and still a tap target — but the row's height stops
- * being a function of how well you are doing, which is the property that
- * matters: the hand zone is then the same height with two cards as with
- * twelve, and the felt's clearance can be stated as one number instead of a
- * range that dips under zero at the far end.
+ * This used to be answered with `(max-height: 700px) and (max-width: 519.98px)`
+ * — "a phone" — and that was the wrong question twice over. A 1024x600 laptop
+ * is every bit as short and no width test will ever catch it; and a phone and
+ * a laptop of the same height do NOT have the same room, because the bezel
+ * rail wraps to two rows at 390px and sits on one at 1024px, which is 44px of
+ * difference the viewport cannot tell you about.
  *
- * `matchMedia`, not a resize handler: a layout-mode flip behind a
- * `requestAnimationFrame` never fires in a backgrounded pane.
+ * So the ceiling is derived from what is actually left:
+ *
+ *   room = screen - hud - FELT_FLOOR - (hand zone minus the row)
+ *
+ * "hand zone minus the row" is the chrome — strip, bar, panels, rail, padding
+ * — and it is measured rather than assumed. It is also the reason this is not
+ * circular: the row is the only part of the zone whose height depends on the
+ * card width, and it is the part being subtracted out.
+ *
+ * FELT_FLOOR is the one calibrated number here: the felt height below which
+ * the piles start going under the hand zone. It was read off the live table
+ * rather than guessed — at 390x667 the felt measured 336-348px across the
+ * states where the clearance sat at +8 to +14, so 348 is the height at which
+ * that clearance is about to run out. Tuning it moves every screen at once,
+ * which is the point of having one number instead of a ladder of breakpoints.
  */
-const HAND_CARD_SHORT = HAND_CARD_MIN;
-const SHORT_TABLE = window.matchMedia('(max-height: 700px) and (max-width: 519.98px)');
-/** The phone column, where a two-line strip is a strip too many. */
+const FELT_FLOOR = 348;
+/** The row's own padding over the card it holds — see `.hand__near`. */
+const ROW_CHROME = 20;
+const CARD_RATIO = 1.4;
+
+/** A tier flip re-spaces the row; the ceiling itself no longer asks a query. */
+const SHORT_TABLE = window.matchMedia('(max-height: 700px)');
+/** The phone COLUMN. Still a width question: it is about text fitting. */
 const PHONE = window.matchMedia('(max-width: 519.98px)');
+
+/** What the stage can still spare for the row, in pixels. */
+function handRowRoom() {
+  const screen = el.gameScreen ? el.gameScreen.clientHeight : window.innerHeight;
+  const hud = el.hud ? el.hud.offsetHeight : 0;
+  const zone = el.handZone ? el.handZone.offsetHeight : 0;
+  const row = el.hand ? el.hand.offsetHeight : 0;
+  const chrome = Math.max(0, zone - row);
+  return screen - hud - FELT_FLOOR - chrome;
+}
+
+/** The widest a card may be before the row starts eating the felt. */
+function handCardCeiling() {
+  const fits = Math.floor((handRowRoom() - ROW_CHROME) / CARD_RATIO);
+  return Math.max(HAND_CARD_MIN, Math.min(HAND_CARD_MAX, fits));
+}
 
 /** The widest every card can be and still share `available` at `HAND_GAP`. */
 function handCardWidth(count, available) {
-  const ceiling = SHORT_TABLE.matches ? HAND_CARD_SHORT : HAND_CARD_MAX;
+  const ceiling = handCardCeiling();
   if (count <= 1) return ceiling;
   const fair = Math.floor((available - (count - 1) * HAND_GAP) / count);
   return Math.max(HAND_CARD_MIN, Math.min(ceiling, fair));

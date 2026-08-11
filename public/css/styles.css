@@ -2522,12 +2522,18 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    `display: none` and not a fade or a squeeze: while the window is up the row
    is out of the layout, out of the tab order and out of the accessibility
    tree, because a hand you are told to ignore is a hand that should not be
-   reachable. There is room for both on anything wider, so nothing is hidden
-   there. */
-@media (max-width: 519.98px) {
-  .hand-zone.is-swapped .hand,
-  .hand-zone.is-swapped .hand-swipe { display: none; }
-}
+   reachable.
+
+   AND AT EVERY WIDTH, not only on a phone. "There is room for both on anything
+   wider" was the old reason for the width gate that used to be here, and it
+   was measuring the wrong axis: a desktop window is wider but it is not
+   TALLER, and the ring is what pays for a panel either way — at 1280x780 the
+   squeeze arrived as the top seat riding up onto the Match plaque instead of
+   as a pile under the hand zone. The rule that decides WHICH panels get to do
+   this is unchanged and lives in `replacingMoment`: a window may only replace
+   the hand when the hand has nothing left to do. */
+.hand-zone.is-swapped .hand,
+.hand-zone.is-swapped .hand-swipe { display: none; }
 
 .btn--za {
   --btn-bg: var(--cheese);
@@ -2806,8 +2812,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    None of it comes out of the two things that may not move: every card stays
    at its 54px floor, and every button stays at its 44px tap target. It comes
    out of air — the zone's own padding, the gaps between its rows, the swipe
-   line's leading, and the room the row keeps over a lifted card. */
-@media (max-height: 700px) and (max-width: 519.98px) {
+   line's leading, and the room the row keeps over a lifted card.
+
+   HEIGHT ONLY. Both tiers used to carry `and (max-width: 519.98px)`, which
+   said "a phone" when what they actually respond to is a short stage — and a
+   1024x600 laptop is a short stage that no width test will ever catch. The
+   width clause is gone from both. A wide window is not a tall one. */
+@media (max-height: 700px) {
   .hand-zone {
     padding: 2px var(--s3) 4px;
     gap: 2px;
@@ -2930,7 +2941,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    Measured at 360x640 with a six-card hand: rail 96px -> 44px, hand zone
    288px -> 232px, and the pile's bottom from 9px under the hand zone to well
    clear of it. */
-@media (max-height: 660px) and (max-width: 519.98px) {
+@media (max-height: 660px) {
   .hand-zone {
     padding: 0 var(--s3) 2px;
     gap: 0;
