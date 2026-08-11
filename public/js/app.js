@@ -693,6 +693,15 @@ function handleMessage(message, connectionContext = {}) {
     case 'left':
       net.forget();
       ui.snapshot = null;
+      // Everything the table put on top of the board comes down with it. The
+      // round overlay is the one that matters: leaving from the receipts is
+      // the only way out a guest is offered there, and an overlay left open
+      // over Home still shows LEAVE TABLE — a second press asks a server that
+      // has already, correctly, forgotten this seat, and answers a player who
+      // has done nothing wrong with "join a table first".
+      closePopovers({ restoreFocus: false });
+      closeRules(false);
+      closeRoundOverlay();
       resetGameView();
       showScreen('home');
       break;
