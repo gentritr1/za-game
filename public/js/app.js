@@ -2274,7 +2274,9 @@ function turnLabel(view, yourTurn, callout) {
 function turnHeadline(view, callout) {
   if (!view || view.status !== 'playing') return 'ROUND OVER';
   if (callout) return 'CALL OUT NOW';
-  const players = view.players.filter((player) => !player.left).length;
+  const players = Array.isArray(view.players)
+    ? view.players.filter((player) => !player.left).length
+    : 0;
   return `TABLE · ${players} ${players === 1 ? 'PLAYER' : 'PLAYERS'}`;
 }
 
@@ -2286,7 +2288,13 @@ function turnHeadline(view, callout) {
 function setTurnSpoken(text, key) {
   if (!el.turnSpoken || ui.turnSpokenKey === key) return;
   ui.turnSpokenKey = key;
-  el.turnSpoken.textContent = el.turnSpoken.textContent.trim() === text ? `${text} ` : text;
+  if (el.turnSpoken.textContent.trim() !== text) {
+    el.turnSpoken.textContent = text;
+    return;
+  }
+  el.turnSpoken.textContent = el.turnSpoken.textContent.endsWith(' ')
+    ? `${text}\u00a0`
+    : `${text} `;
 }
 
 /**
@@ -2939,27 +2947,37 @@ const COUNTER_MAP = {
 // middle; wider counters keep the roomier inset above.
 const COMPACT_FOUR_COUNTER_MAP = [[1, 34, 'l'], [50, 1, 't'], [99, 34, 'r']];
 
-/* The ordinary phone breakpoint, plus two capacity guards. Seven opponent
-   plates need a wider counter than a compact tablet can supply. In short
-   landscape even three opponent plates cannot fit around the centre stack in
-   the table half. Both use the ordered queue the phone already teaches;
+/* The ordinary phone breakpoint, plus three capacity guards. Seven opponent
+   plates need a wider counter than a compact tablet can supply. A short phone
+   cannot hold the four-chair ring without putting Match or the piles through a
+   chair, and short landscape cannot fit three opponents around its half-width
+   centre stack. Each uses the ordered queue the phone already teaches;
    smaller rooms and taller counters retain geographic seating. */
 const QUEUE_BELOW = window.matchMedia('(max-width: 519.98px)');
 const REFLOW_BELOW = window.matchMedia('(max-width: 359.98px)');
 const FULL_TABLE_NARROW = window.matchMedia('(max-width: 839.98px)');
+const SHORT_PORTRAIT = window.matchMedia(
+  '(orientation: portrait) and (max-width: 519.98px) and (max-height: 620px)'
+);
 const CROWDED_SHORT_LANDSCAPE = window.matchMedia(
   '(orientation: landscape) and (max-width: 1024px) and (max-height: 560px)'
 );
 
 function seatingMode(playerCount) {
-  // A portrait phone can hold the selected four-chair ring. Five or more
-  // players use the ordered queue; a 320px/400%-zoom viewport also queues so
-  // the plates retain their readable target size.
+  // A tall portrait phone can hold the selected four-chair ring. Five or more
+  // players, a short felt, or a 320px/400%-zoom viewport use the ordered queue
+  // so the plates retain their readable target size.
   const compactPhoneNeedsQueue =
     QUEUE_BELOW.matches && (playerCount >= 5 || REFLOW_BELOW.matches);
   const fullTableNeedsQueue = playerCount === 8 && FULL_TABLE_NARROW.matches;
+  const shortPortraitNeedsQueue = playerCount >= 4 && SHORT_PORTRAIT.matches;
   const crowdedShortTable = playerCount >= 4 && CROWDED_SHORT_LANDSCAPE.matches;
-  return compactPhoneNeedsQueue || fullTableNeedsQueue || crowdedShortTable ? 'queue' : 'counter';
+  return compactPhoneNeedsQueue
+    || fullTableNeedsQueue
+    || shortPortraitNeedsQueue
+    || crowdedShortTable
+    ? 'queue'
+    : 'counter';
 }
 
 /**
@@ -2972,6 +2990,7 @@ function seatingMode(playerCount) {
 QUEUE_BELOW.addEventListener('change', () => relayoutSeating());
 REFLOW_BELOW.addEventListener('change', () => relayoutSeating());
 FULL_TABLE_NARROW.addEventListener('change', () => relayoutSeating());
+SHORT_PORTRAIT.addEventListener('change', () => relayoutSeating());
 CROWDED_SHORT_LANDSCAPE.addEventListener('change', () => relayoutSeating());
 
 /**
@@ -8513,7 +8532,13 @@ function openRules() {
   // too many.
   goRulePage(0, true);
   el.rulesBody.scrollTop = 0;
-  ui.rulesFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  // TABLE closes as soon as one of its actions fires. Save its still-visible
+  // summary as the chair, not the RULES item that is about to be folded away.
+  ui.rulesFocusReturn =
+    active && el.tableTools.open && el.tableTools.contains(active)
+      ? el.tableToolsTrigger
+      : active;
   // A popover left standing under the overlay would keep its own click-outside
   // and Escape behaviour behind an inert app.
   closePopovers();
