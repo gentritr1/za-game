@@ -226,3 +226,78 @@ KNOWN, NOT FIXED
   eight chefs, 175.5px at 1024x600 with eight. The plaque and the direction
   chip clear every seat in both of those; it is the piles above them that do
   not, and the lever is felt height, which belongs to the hand pass.
+
+--------------------------------------------------------------------------------
+AS SHIPPED · PASS 8, PART TWO — the felt's own density
+
+"Seat density and pile size are derived from the measured stage rather than an
+estimate." The table side of that clause, which had never been implemented.
+
+WHAT WAS WRONG. The piles reached into the chefs — 175px at 1024x600 and 107px
+at 390x667, both with eight at the table. Not because the felt was short: the
+felt's CONTENTS were sized by a media-query ladder that only ever asked how
+WIDE the window was, so a 1024x600 laptop drew 96px pile cards and 46px
+portraits into a felt of 312px.
+
+MEASURED, NOT MODELLED. There is no formula here relating a portrait edge to a
+finished seat height, because a seat is a portrait, a name plate that wraps, a
+fan that grows with the hand and a nickname chip that appears when it is
+earned. So a five-rung ladder is walked and the result is READ — one forced
+layout per rung, and the test is a true rectangle intersection of the centre
+column against every seat, both axes, never a band.
+
+  rungs      1 · 0.90 · 0.80 · 0.72 · 0.64  of whatever the stylesheet says
+             full size is at this width, so the 1600px and 2200px cabinets
+             step down from THEIR chefs instead of being flattened to a laptop's
+
+  floors     pile card 54px · the deck's own stated floor. At 54 the card is
+                             76px tall, so the dough pile — the only pile that
+                             is a button — is a 54x76 target.
+             portrait  34px · already shipped: the queue's tail portraits have
+                             been 34px since the seating pass.
+             notch     0.78 · already shipped: the phone's own --k.
+
+  is-tight   a rung, not a width. It takes the ROWS a seat spends on things
+             that are not the chef: the 13px line held open for a word only a
+             thinking bot says, and the 23px ordinal chip, which becomes a
+             corner badge instead of a row. Worth 36px of a 160px queue seat.
+  is-tight-2 the two pile labels. The plaque under them names the topping and
+             the oven is the one card lying face up.
+
+IT CLIMBS BACK. Tightening alone was wrong in the expensive direction: the
+first render of a round measures a table whose arrangement has not landed, so
+the walk ran to the floor and stayed there — 37px portraits where 46px already
+had zero intersections. Each render now also applies the next rung UP and
+measures it, keeping it only if it fits. Tightening is instant, loosening takes
+a render, so the table is only ever briefly too small.
+
+TWO COUPLINGS, BOTH FOUND BY MEASURING
+- The fold runs first and stays down while a rung is spent. Ordered, because
+  unfolding frees no room and costs 24px: the ladder would pay for it by
+  tightening, the room would read as space to unfold into, and the table would
+  breathe in and out once a snapshot.
+- A rung change re-runs the arrangement. The turn ticket is placed against the
+  plates and `placeSeats` runs before the ladder does, so without the second
+  pass the ticket kept the position it measured at the rung before — 8.7px off
+  the plate centres, against 0.00 once the two are in step.
+
+AND THE TICKET CAME OFF RECTS. It was written with `getBoundingClientRect` on
+the argument that a rect is the only reading that includes a seat's static
+`translateX(-50%)`. True, and it also includes every OTHER transform between
+there and the viewport: the game screen carries an entry scale, and one beat
+after a round began the same seat read 95.6px wide by rect against 97px by
+`offsetWidth`, its centre 661.3 against 668. The ticket was placed 6.7px out,
+in scaled pixels, against a token positioned in unscaled ones — settling
+correctly and wrong for exactly as long as a player is looking hardest. It and
+the fold now walk the offset chain and put the one transform that is real
+geometry back by hand, from `data-anchor`.
+
+MEASURED MINIMUM FELT, for re-calibrating the hand pass's FELT_FLOOR (348).
+The centre column's own height at the floor rung, which is the height below
+which the piles start going under the hand zone:
+
+  1280x780 / 1366x768   160px      1024x600   146px      390x667 / 360x640   120px
+
+At 390x667 with eight chefs the whole felt needs strip 132 + belt 8 + column
+120 + chatter row 29 = 289px, against the 329px it is given today. FELT_FLOOR
+is therefore stale in the safe direction by roughly 59px at that size.

@@ -230,6 +230,12 @@ const ui = {
   tokenTurnTimer: 0,
   queuePlaced: false, // 2B · true once the strip has laid out at least once
   queueSlideTimer: 0,
+  // Pass 8 · which rung of the density ladder the felt is drawn at, the
+  // stylesheet's own sizes it is stepped down from, and the arrangement that
+  // rung was chosen for. See `syncFeltDensity`.
+  density: 0,
+  densityBase: null,
+  densityToken: '',
   // Pass 8 · the two heights the direction fold removes, cached from the last
   // time they stood apart. See `syncDirectionHome` for why they cannot be
   // measured while folded — and note there is deliberately no `folded` flag
@@ -1244,6 +1250,16 @@ function resetGameView() {
   el.discardSlot.replaceChildren();
   el.narration.textContent = '';
   el.narration.dataset.entry = '';
+  // The felt's density is a property of a table, not of the session. Leaving
+  // hands the sizes back to the stylesheet so the next table is measured from
+  // the stylesheet's own figures rather than from the last table's rung.
+  ui.density = 0;
+  ui.densityBase = null;
+  ui.densityToken = '';
+  el.opponents.style.removeProperty('--port');
+  el.opponents.style.removeProperty('--k');
+  el.tableCentre.style.removeProperty('--card-w');
+  el.table.classList.remove('is-tight', 'is-tight-2');
 }
 
 /** A regular's portrait when the bot is one of the six, by name. */
@@ -1960,6 +1976,12 @@ function renderGame(snapshot) {
   // delays are written at construction, so a forced read after the fact has
   // nothing left to resolve early.
   syncDirectionHome();
+  // AND THEN THE DENSITY, in that order. The fold is the cheaper lever — it
+  // costs a row of furniture, not the size of the chefs — so it is spent
+  // first, and the ladder is only walked for whatever room folding did not
+  // already find. Both are measured against the boxes the renderers above
+  // have just finished writing.
+  syncFeltDensity();
 }
 
 /**
@@ -2203,6 +2225,283 @@ function unfoldDirection() {
   el.tableCentre.classList.remove('has-folded-dir');
 }
 
+/* ================================================== MEASURING THE FELT ===
+ * THE OFFSET CHAIN, and why it is not `getBoundingClientRect`.
+ *
+ * A rect is the VISUAL box: transforms included, mid-animation values
+ * included. Two things on this table are permanently transformed — a counter
+ * seat carries a static `translateX(-50%)`, and the queue's re-sort parks an
+ * inverse `translateX` on a seat's body for 300ms — and one of them is a
+ * transform that is deliberately in flight. Sizing the whole felt off a
+ * reading that changes while a seat is sliding is the "48px rib that measured
+ * 42" all over again.
+ *
+ * So every box below is walked up the `offsetParent` chain, which ignores
+ * transforms entirely, and the ONE transform that is real geometry rather
+ * than motion — the counter seat's half-width shift — is put back by hand,
+ * from the same `data-anchor` the arrangement wrote. A scrolled queue is
+ * corrected the same way, from `scrollLeft`, because offsets are measured
+ * from the padding box and the strip can be scrolled away from it.
+ */
+function offsetBoxIn(node, ancestor) {
+  let left = 0;
+  let top = 0;
+  let walker = node;
+  while (walker && walker !== ancestor) {
+    left += walker.offsetLeft;
+    top += walker.offsetTop;
+    const parent = walker.offsetParent;
+    if (!parent || parent === ancestor) break;
+    // Everything between here and the ancestor can be scrolled.
+    left -= parent.scrollLeft;
+    top -= parent.scrollTop;
+    walker = parent;
+  }
+  return { left, top, width: node.offsetWidth, height: node.offsetHeight };
+}
+
+/** A seat's box in `.table` space, with the arrangement's own shift put back. */
+function seatBoxIn(seat, ancestor) {
+  const box = offsetBoxIn(seat, ancestor);
+  // The counter centres a top-anchored chef on their percentage with a
+  // `translateX(-50%)`; a wall seat is hung off its edge and has none.
+  if (el.opponents.dataset.mode === 'counter' && seat.dataset.anchor === 't') {
+    box.left -= box.width / 2;
+  }
+  return box;
+}
+
+function boxesOverlap(a, b) {
+  return !(
+    a.left + a.width <= b.left ||
+    b.left + b.width <= a.left ||
+    a.top + a.height <= b.top ||
+    b.top + b.height <= a.top
+  );
+}
+
+/* ------------------------------------------------ the density of the felt --
+ * PASS 7/8 · "seat density and pile size are derived from the measured stage
+ * rather than an estimate."
+ *
+ * The complaint this answers is precise: at 1024x600 and 390x667 with eight
+ * chefs the piles reached 175px and 107px up into the seats. The felt was not
+ * too short — the felt's CONTENTS were too big for it, and they were sized by
+ * a media-query ladder that only ever asked how WIDE the window was.
+ *
+ * MEASURED, NOT MODELLED. There is no formula here relating a portrait edge to
+ * a seat's finished height, because there isn't one worth trusting: a seat is
+ * a portrait, a name plate that wraps, a fan that grows with the hand and a
+ * nickname chip that appears when it is earned. So the ladder is walked and
+ * the result is READ, one forced layout per rung, worst case five. It runs
+ * only when the arrangement it depends on changes — see `densityToken`.
+ *
+ * THE FLOORS ARE ABSOLUTE, and they are the point of the ladder rather than a
+ * safety net on it:
+ *
+ *   pile card   54px  · the deck's own stated floor ("Cards never fall below
+ *                       54px wide"). At 54 the card is 76px tall, so the dough
+ *                       pile — the only pile that is a button — is a 54x76
+ *                       target, comfortably past the 44pt minimum.
+ *   portrait    34px  · not a new number: the queue has shipped 34px tail
+ *                       portraits since the seating pass, so it is a size this
+ *                       design has already accepted as a legible chef. A seat
+ *                       at this rung still measures ~90px tall, so a seat that
+ *                       becomes a CALL OUT button is far past 44pt.
+ *   notch       0.78  · the phone's own `--k`, again already shipped.
+ *
+ * The rungs between them are proportions of whatever the stylesheet says the
+ * base is, so the 1600px and 2200px cabinets keep their larger chefs and step
+ * down from THEIR size rather than being flattened to the laptop's.
+ */
+const DENSITY_STEPS = [1, 0.90, 0.80, 0.72, 0.64];
+const PORT_FLOOR = 34;
+const CARD_FLOOR = 54;
+const NOTCH_FLOOR = 0.78;
+/** The queue sets a portrait per rank; these are its full-size three. */
+const QUEUE_PORTS = [58, 46, 34];
+
+/** The proportion the felt is currently drawn at. 1 is the stylesheet's own. */
+function densityScale() {
+  return DENSITY_STEPS[ui.density] || 1;
+}
+
+/** The portrait one queue seat gets, at a rung. Rank -1 is nobody at the oven. */
+function queuePort(rank, factor) {
+  const place = Math.min(Math.max(Number(rank) || 0, 0), QUEUE_PORTS.length - 1);
+  return Math.max(PORT_FLOOR, Math.round(QUEUE_PORTS[place] * factor));
+}
+
+/**
+ * What the stylesheet says the felt's full size is, at this width.
+ *
+ * Read with the inline overrides taken off, so the 1600px and 2200px cabinets
+ * are stepped down from THEIR chefs rather than flattened to the laptop's —
+ * and so a base can never be read back off a value this function itself wrote,
+ * which is how a ladder walks itself into the floor one resize at a time.
+ */
+function readDensityBase() {
+  el.opponents.style.removeProperty('--port');
+  el.opponents.style.removeProperty('--k');
+  el.tableCentre.style.removeProperty('--card-w');
+  const seatStyle = getComputedStyle(el.opponents);
+  return {
+    port: parseFloat(seatStyle.getPropertyValue('--port')) || 54,
+    notch: parseFloat(seatStyle.getPropertyValue('--k')) || 1,
+    card: parseFloat(getComputedStyle(el.tableCentre).getPropertyValue('--card-w')) || 96,
+  };
+}
+
+function applyDensity(step) {
+  const base = ui.densityBase;
+  if (!base) return;
+  const factor = DENSITY_STEPS[step] || 1;
+  const port = Math.max(PORT_FLOOR, Math.round(base.port * factor));
+  const notch = Math.max(NOTCH_FLOOR, Number((base.notch * factor).toFixed(3)));
+  const card = Math.max(CARD_FLOOR, Math.round(base.card * factor));
+  el.opponents.style.setProperty('--port', `${port}px`);
+  el.opponents.style.setProperty('--k', String(notch));
+  el.tableCentre.style.setProperty('--card-w', `${card}px`);
+
+  // THE QUEUE'S PORTRAITS ARE PART OF THE RUNG, not of the arrangement.
+  // They used to be written only by `placeSeats`, which runs once a render —
+  // so a rung applied here and measured here was measured against the seat
+  // sizes of the rung BEFORE it, and the ladder was choosing between states
+  // that were never going to be drawn. A strip seat's height is its portrait,
+  // so this is the one knob that has to move with the rest of them.
+  if (el.opponents.dataset.mode === 'queue') {
+    for (const seat of el.opponents.querySelectorAll('.seat')) {
+      const seatPort = queuePort(seat.dataset.rank, factor);
+      seat.style.setProperty('--port', `${seatPort}px`);
+      seat.dataset.box = seatPort >= 40 ? '1' : '0';
+    }
+  }
+  // Sizes are not the only thing a short felt can give up. `is-tight` takes
+  // the ROWS a seat spends on things that are not the chef — see the rule
+  // block in the stylesheet — and it is a rung, not a width.
+  if (el.table) {
+    el.table.classList.toggle('is-tight', step >= 1);
+    el.table.classList.toggle('is-tight-2', step >= 2);
+  }
+}
+
+/**
+ * Does anything on the felt stand on anything else?
+ *
+ * True rectangle intersection, both axes, against every seat — not a band
+ * test. A band says the piles and a chef share a stripe of the screen; two
+ * things can share a stripe and be a hundred pixels apart sideways, which is
+ * exactly the case at 1280 where the wall chefs sit level with the oven and
+ * nowhere near it.
+ */
+function feltFits() {
+  const room = el.table;
+  if (!room) return true;
+  const parts = [offsetBoxIn(el.centrePiles, room), offsetBoxIn(el.plaque, room)];
+  // A folded chip is inside the plaque and already covered by its box.
+  if (!directionFolded()) parts.push(offsetBoxIn(el.dirChip, room));
+
+  for (const seat of el.opponents.querySelectorAll('.seat')) {
+    const box = seatBoxIn(seat, room);
+    for (const part of parts) {
+      if (boxesOverlap(part, box)) return false;
+    }
+  }
+
+  // And nothing may be pushed off the top of the felt. This is deliberately
+  // NOT "the column fits its own grid row": the column is pinned to the bottom
+  // and a short row lets it reach up into the strip's whitespace, which costs
+  // nothing and is invisible. Requiring the row to contain it walked the
+  // ladder to its floor at 390x667 for a test no player could ever fail —
+  // eight chefs at 37px portraits to fix an overlap that had already gone at
+  // 48px. The rungs are paid for by the chefs, so they are only spent on
+  // something somebody can see.
+  return parts.every((part) => part.top >= 0);
+}
+
+/**
+ * The ladder, walked against live boxes.
+ *
+ * It only ever TIGHTENS while the arrangement stands still. The felt is shared
+ * with a hand that grows, so a rung that fitted a three-card table need not fit
+ * a ten-card one; loosening waits for the arrangement itself to change, which
+ * is what `token` is. That asymmetry is what stops the pair of levers here —
+ * this and the direction fold — from taking turns undoing each other.
+ */
+function syncFeltDensity() {
+  if (!el.tableCentre || !el.opponents || !el.table) return;
+  if (!el.opponents.querySelector('.seat')) return;
+  if (!el.tableCentre.clientHeight) return;
+
+  // The round is in the token because a seat's height is not constant inside
+  // one: a nickname chip earned last round adds 46px to whoever is wearing it,
+  // and the ladder only ever tightens while the token stands still. Without
+  // this, one tall moment pins the deeper rung for the rest of the session and
+  // the chefs ratchet down a step at a time and never come back.
+  const token = [
+    layoutToken(),
+    el.opponents.dataset.mode,
+    el.opponents.dataset.chefs,
+    ui.gameId,
+    directionFolded(),
+  ].join('|');
+  if (token !== ui.densityToken) {
+    ui.densityToken = token;
+    // The stylesheet's figures are re-read, because the width may have changed
+    // and with it what "full size" means. The RUNG is deliberately inherited:
+    // starting every new arrangement at full size means the first renders of a
+    // round are drawn too big and then corrected, and "too big" here is chefs
+    // standing on the oven — measured at 390x667, three seats overlapping by
+    // 6-10px for the length of the deal. Tightening is instant and loosening
+    // takes a render or two, so the table is only ever briefly too SMALL,
+    // which nobody can see and nothing collides in.
+    ui.densityBase = readDensityBase();
+  }
+  if (!ui.densityBase) return;
+
+  const entry = ui.density;
+  let step = entry;
+  applyDensity(step);
+  while (!feltFits() && step < DENSITY_STEPS.length - 1) {
+    step += 1;
+    applyDensity(step);
+  }
+
+  // AND IT CLIMBS BACK, one rung a render, by asking rather than assuming.
+  //
+  // Tightening alone was wrong, and wrong in the expensive direction: the very
+  // first render of a round measures a table whose arrangement has not landed
+  // yet — the strip is still counter-shaped on a phone, the deal is in the
+  // air — so the walk ran to the floor, and a rung that only ever tightens
+  // stayed there for the round. Measured at 390x667 with eight chefs: the
+  // ladder sat at rung 4 (37px head portrait) where rung 2 (46px) already had
+  // zero intersections.
+  //
+  // Loosening cannot oscillate because it is not a guess: the looser rung is
+  // applied and MEASURED, and kept only if it fits. A tighter rung always fits
+  // at least as well as a looser one, so the pair converges on the loosest
+  // rung that clears and stays there.
+  if (step === entry && step > 0) {
+    applyDensity(step - 1);
+    if (feltFits()) step -= 1;
+    else applyDensity(step);
+  }
+
+  // A RUNG MOVED, SO THE ARRANGEMENT IS RE-RUN. The turn ticket is placed in
+  // pixels against the plates, and the plates just changed size — `placeSeats`
+  // runs before this does, so without a second pass the ticket keeps the
+  // position it measured at the rung before. Measured over four hops at
+  // 1366x1000 while the ladder was loosening: the ticket's x drifted 8.7px off
+  // the plate centres it is supposed to be halfway between, against 0.05px
+  // once the two are in step.
+  if (step !== ui.density) {
+    ui.density = step;
+    relayoutSeating();
+  }
+  ui.density = step;
+
+}
+
 function centreGaps() {
   const style = getComputedStyle(el.tableCentre);
   return {
@@ -2250,9 +2549,12 @@ function syncDirectionHome() {
   // adding a row does not push the bottom down — it reaches further UP, into
   // whoever is sitting there. That is the encroachment the spec names, and it
   // is a position, not a height.
-  const frame = el.tableCentre.getBoundingClientRect();
+  // In `.table` space, up the offset chain — never a rect. The game screen
+  // carries an entry scale, and a rect measured while it is arriving is in
+  // scaled pixels: the same trap that put the turn ticket 6.7px off its plate.
+  const frame = offsetBoxIn(el.tableCentre, el.table);
   const style = getComputedStyle(el.tableCentre);
-  const floor = frame.bottom - (parseFloat(style.paddingBottom) || 0);
+  const floor = frame.top + frame.height - (parseFloat(style.paddingBottom) || 0);
   const topUnfolded = floor - needed;
 
   // Folding is sticky by 6px of sub-pixel slack, so a column sitting exactly
@@ -2268,18 +2570,24 @@ function syncDirectionHome() {
   // reached, so the test is horizontal before it is vertical: the piles and
   // the plaque are centred and narrow, and at 1280 the two wall seats are
   // nowhere near them while the top-centre chef is directly above.
-  const span = el.centrePiles.getBoundingClientRect();
-  const plaqueBox = el.plaque.getBoundingClientRect();
+  const span = offsetBoxIn(el.centrePiles, el.table);
+  const plaqueBox = offsetBoxIn(el.plaque, el.table);
   const left = Math.min(span.left, plaqueBox.left);
-  const right = Math.max(span.right, plaqueBox.right);
+  const right = Math.max(span.left + span.width, plaqueBox.left + plaqueBox.width);
   let reaches = false;
   for (const seat of el.opponents.querySelectorAll('.seat')) {
-    const box = seat.getBoundingClientRect();
-    if (box.right <= left || box.left >= right) continue;
-    if (box.bottom > topUnfolded - margin) { reaches = true; break; }
+    const box = seatBoxIn(seat, el.table);
+    if (box.left + box.width <= left || box.left >= right) continue;
+    if (box.top + box.height > topUnfolded - margin) { reaches = true; break; }
   }
 
-  const fold = overruns || reaches;
+  // AND IT STAYS DOWN WHILE THE FELT IS COMPACTED. The two levers have to be
+  // ordered or they take turns: unfolding frees no room but costs 24px, the
+  // ladder then tightens a rung to pay for it, the extra room reads as space
+  // to unfold into, and the table breathes in and out once a snapshot. The
+  // direction row is the cheaper thing to give up, so once the chefs are being
+  // made smaller it is not asked for back until the arrangement changes.
+  const fold = overruns || reaches || ui.density > 0;
   if (fold === wasFolded) return;
 
   if (!fold) {
@@ -2504,27 +2812,32 @@ function placeToken(token, order, ranks, view) {
    * The ticket therefore drifted with the hand sizes of the two chefs it was
    * standing between, and drifted differently at four seats and at eight.
    *
-   * So both ends are measured. `getBoundingClientRect` and not `offsetLeft`
-   * here on purpose, against the usual rule: a counter seat carries a static
-   * `translateX(-50%)` and the rect is the only reading that includes it —
-   * which is the whole point, since what is wanted is where the plate IS. The
-   * caveat the kitchen log attaches to rects is about reading them mid-
-   * animation, and this is called after the counter has cleared every seat's
-   * transition and transform and written its final position.
+   * So both ends are measured — up the OFFSET CHAIN, with the seat's own
+   * `translateX(-50%)` put back by hand from `data-anchor`.
+   *
+   * This was written with `getBoundingClientRect` first, on the argument that
+   * a rect is the only reading that includes that transform. The argument was
+   * right about the transform and wrong about everything else: a rect includes
+   * EVERY transform between here and the viewport, and the game screen carries
+   * an entry scale. Measured on a table one beat after a round began, the same
+   * seat read 95.6px wide by rect and 97px by `offsetWidth`, and its centre
+   * 661.3 against 668 — so the ticket was placed 6.7px off, in scaled pixels,
+   * against a token positioned in unscaled ones. It settled correctly and was
+   * wrong for as long as the screen was arriving, which is exactly the window
+   * a player is looking at the table hardest.
    *
    * The y is taken from the plates' TOP EDGES rather than their middles, so
    * the ticket rests on the edge of the seat it has arrived at — the one
    * intersection pass 8 says to keep.
    */
-  const frame = el.opponents.getBoundingClientRect();
   // You are the one end with no plate to measure: there is no chef panel for
   // yourself on the felt, only the strip below it. The near edge, dead centre,
   // stays a proportion of the felt because there is nothing there to read.
   const YOURS = [0.5, 0.78];
   const spotOf = (node) => {
     if (!node) return [YOURS[0] * box.width, YOURS[1] * box.height];
-    const seat = node.getBoundingClientRect();
-    return [seat.left - frame.left + seat.width / 2, seat.top - frame.top];
+    const seat = seatBoxIn(node, el.opponents);
+    return [seat.left + seat.width / 2, seat.top];
   };
   const a = spotOf(from);
   const b = spotOf(to);
@@ -2595,8 +2908,11 @@ function placeSeats(order, ranks, view) {
       node.style.removeProperty('top');
       node.dataset.anchor = 't';
       // The head of the queue is worth three times the room of a seat five
-      // places away; the tail only has to say who and how many.
-      const port = rank === 0 ? 58 : rank === 1 ? 46 : 34;
+      // places away; the tail only has to say who and how many. The size
+      // itself comes off the density ladder — `applyDensity` owns it, and
+      // writes it again the moment a rung moves — so this is the arrangement
+      // handing a NEW seat its first portrait, not a second opinion on it.
+      const port = queuePort(rank, densityScale());
       node.style.setProperty('--port', `${port}px`);
       node.dataset.box = port >= 40 ? '1' : '0';
       node.style.order = String(index);
@@ -7785,6 +8101,7 @@ window.addEventListener('resize', () => {
   // longer has room for it would be the fold lying about which state it is in.
   // The felt this measures is what the hand row above just finished leaving.
   syncDirectionHome();
+  syncFeltDensity();
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     // The pit's height moves when it re-wraps, and the peek hangs off it.
@@ -7806,6 +8123,7 @@ window.addEventListener('resize', () => {
     // one that survives a throttled rAF; this one is the one that is right.
     // Whichever runs second finds the state already correct and does nothing.
     syncDirectionHome();
+    syncFeltDensity();
   });
 });
 

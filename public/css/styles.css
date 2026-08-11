@@ -1376,7 +1376,46 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   to { transform: translateX(0); }
 }
 
+/* `--port` and `--k` are set inline by the client from the measured stage (see
+   `syncFeltDensity`), so this and the notch ladders below are what the felt is
+   stepped DOWN FROM rather than what it ends up at. They still decide the
+   full-size figure at every width, which is exactly what a base is for. */
 .opponents[data-crowd="1"] { --port: 46px; }
+
+/* --- pass 8 · the rows a seat gives up before the chefs get smaller -------
+   Making a portrait smaller is the loud lever. These two are the quiet ones,
+   and on a phone with eight chefs they are worth more: a queue seat measured
+   160px tall at the ladder's floor, and 36 of those pixels were furniture
+   rather than chef — a 13px line reserved for a word only a thinking bot ever
+   says, and a 23px ordinal chip on its own row above the portrait.
+
+   The status line keeps its word and stops holding a row open for it. The
+   ordinal stops being a row and becomes a corner: it is the same chip, in the
+   same colours, over the seat it belongs to — and the queue can afford that
+   because left-to-right IS the running order there, which is the argument the
+   arrangement was built on in the first place.
+
+   `is-tight` is a rung of the density ladder, never a width. A 1024x600
+   laptop reaches it and a 390x844 phone does not. */
+.table.is-tight .seat__status { min-height: 0; }
+
+.opponents[data-mode="queue"] .seat { position: relative; }
+
+.table.is-tight .opponents[data-mode="queue"] .seat__rank {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  order: 0;
+  align-self: auto;
+  padding: calc(2px * var(--k, 1)) calc(4px * var(--k, 1));
+}
+
+/* The two labels over the piles. The plaque under them now names the topping
+   in words and the oven is the one card lying face up; at the third rung the
+   labels are the third telling of both, and they cost 21px of a felt that has
+   run out. Off only at the rungs that have run out — the desktop keeps them. */
+.table.is-tight-2 .table-center .pile__label { display: none; }
 
 /* Below the one breakpoint the counter hands over to the queue and everything
    steps down with it. `--port` is set per seat there, by rank. */
@@ -3238,7 +3277,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* sizes */
+/* A pile card is 96px — until the felt says otherwise. `--card-w` on the pile
+   itself would out-rank the column's, and the two have to agree or the window
+   insets are computed for one width and drawn at another (the comment on
+   `.table-center` has said so since the arcade pass). So on the table the card
+   takes the column's figure, which the client sizes from the measured stage;
+   the 96px below is what a pile is worth off the table — in the rules demos,
+   and before the first measurement lands. */
 .card--pile { --card-w: 96px; }
+.table-center .card--pile { --card-w: inherit; }
 .card--mini { --card-w: 20px; }
 .card--mini .card__back-word { display: none; }
 
