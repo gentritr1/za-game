@@ -18,6 +18,8 @@ const CODE_WORDS = [
 const TICK_MS = 250;
 const BOT_THINK_MS = 800; // pause before a bot with no regular takes its turn
 const BOT_QUICK_MS = 300; // follow-up pause for a shout or a call-out
+const BOT_CALLOUT_MIN_MS = 900; // a human gets a real beat to remember ZA
+const BOT_CALLOUT_MAX_MS = 1400; // but a watching bot still feels attentive
 const AWAY_TURN_TIMEOUT_MS = 12000; // skip the turn of a player who is away
 const IDLE_TURN_TIMEOUT_MS = 45000; // skip the turn of a player who is here but still
 // The same, for a player whose last turn already ran out. Deliberately its own
@@ -44,6 +46,8 @@ const TIMINGS = {
   idleTurn: IDLE_TURN_TIMEOUT_MS,
   idleStruck: IDLE_STRUCK_TIMEOUT_MS,
   idleWarn: IDLE_WARN_MS,
+  botCalloutMin: BOT_CALLOUT_MIN_MS,
+  botCalloutMax: BOT_CALLOUT_MAX_MS,
   reconnectGrace: RECONNECT_GRACE_MS,
   emptyRoomTtl: EMPTY_ROOM_TTL_MS,
 };
@@ -82,6 +86,12 @@ class Room {
     this.phase = 'lobby'; // 'lobby' | 'playing' | 'roundOver'
     this.game = null;
     this.botDueAt = 0;
+    // One missed-ZA observer for the whole room. A null observer means the
+    // table-wide notice lottery missed; retaining the window prevents rerolls.
+    this.botCalloutWindow = null;
+    // A target stays here only while their current vulnerability is open. It
+    // lets another player become vulnerable without rerolling the first one.
+    this.botCalloutSeen = new Set();
     this.awayDueAt = 0;
     this.idleDueAt = 0;
     this.idleWarnMs = 0; // how much of the clock in play is the warning
@@ -127,7 +137,6 @@ class Room {
       connected: isBot ? true : Boolean(socket),
       disconnectedAt: null,
       wins: 0,
-      calloutWindow: null, // bots decide once per call-out window
       // Consecutive turns this seat has had taken off it by the idle clock.
       // Any action they take puts it back to nothing. See `idleClockFor`.
       idleStrikes: 0,
@@ -211,6 +220,91 @@ class Room {
     return seat && seat.isBot ? bot.findRegular(seat.regularId) : null;
   }
 
+  /** Players whose missed-ZA call-out window is still open. */
+  vulnerableZaPlayers() {
+    if (!this.game || this.game.status !== 'playing') return [];
+    return this.game.players.filter(
+      (player) => !player.left && player.vulnerable && player.hand.length === 1
+    );
+  }
+
+  /**
+   * Appoints at most one bot to notice this window.
+   *
+   * Each bot contributes its existing `notice` probability to one lottery of
+   * `bot count` tickets. The unused part of those tickets means nobody saw it.
+   * With one bot this is exactly that bot's old probability; adding bots no
+   * longer compounds the table toward an almost-certain instant punishment.
+   */
+  pickBotCalloutObserver(targetId) {
+    const candidates = this.seats.filter((seat) => {
+      if (!seat.isBot || seat.id === targetId) return false;
+      const player = game.findPlayer(this.game, seat.id);
+      return Boolean(player && !player.left);
+    });
+    if (candidates.length === 0) return null;
+
+    let ticket = this.game.rng() * candidates.length;
+    for (const seat of candidates) {
+      const probability = Math.max(0, Math.min(1, bot.noticeFor(this.regularOf(seat.id))));
+      ticket -= probability;
+      if (ticket < 0) return seat;
+    }
+    return null;
+  }
+
+  /**
+   * Starts, preserves or cancels the room's one delayed bot call-out window.
+   * Returns the current window so the timer loop can act when it is due.
+   */
+  reconcileBotCalloutWindow(now = Date.now()) {
+    if (this.phase !== 'playing' || !this.game || this.game.status !== 'playing') {
+      this.botCalloutWindow = null;
+      this.botCalloutSeen.clear();
+      return null;
+    }
+
+    const targets = this.vulnerableZaPlayers();
+    if (targets.length === 0) {
+      this.botCalloutWindow = null;
+      this.botCalloutSeen.clear();
+      return null;
+    }
+
+    const activeIds = new Set(targets.map((player) => player.id));
+    for (const targetId of this.botCalloutSeen) {
+      if (!activeIds.has(targetId)) this.botCalloutSeen.delete(targetId);
+    }
+
+    const pendingTargetIsActive = Boolean(
+      this.botCalloutWindow && activeIds.has(this.botCalloutWindow.targetId)
+    );
+    if (!pendingTargetIsActive) this.botCalloutWindow = null;
+    if (this.botCalloutWindow && this.botCalloutWindow.observerId) {
+      return this.botCalloutWindow;
+    }
+
+    // A missed lottery may remain as the room's completed window. Replace it
+    // only when a different, not-yet-observed player also becomes vulnerable.
+    const target = targets.find((player) => !this.botCalloutSeen.has(player.id));
+    if (!target) return this.botCalloutWindow;
+    this.botCalloutSeen.add(target.id);
+
+    const observer = this.pickBotCalloutObserver(target.id);
+    let dueAt = 0;
+    if (observer) {
+      const low = Math.min(TIMINGS.botCalloutMin, TIMINGS.botCalloutMax);
+      const high = Math.max(TIMINGS.botCalloutMin, TIMINGS.botCalloutMax);
+      dueAt = now + Math.round(low + this.game.rng() * (high - low));
+    }
+    this.botCalloutWindow = {
+      targetId: target.id,
+      observerId: observer ? observer.id : null,
+      dueAt,
+    };
+    return this.botCalloutWindow;
+  }
+
   // -- lifecycle -----------------------------------------------------------
 
   /**
@@ -266,6 +360,8 @@ class Room {
     this.lastStarterId = seats[startIndex].id;
     this.roundsDealt += 1;
     this.phase = 'playing';
+    this.botCalloutWindow = null;
+    this.botCalloutSeen.clear();
     this.syncConnectionFlags();
     this.scheduleTimers(true);
     return { ok: true };
@@ -534,7 +630,7 @@ class RoomManager {
    * Applies a game action. Returns `{ ok, error }`. Every action is checked
    * against the authoritative state, so a bad client cannot cheat.
    */
-  applyAction(room, seatId, message) {
+  applyAction(room, seatId, message, now = Date.now()) {
     if (!room.game) return { ok: false, error: 'The round has not started.' };
     const state = room.game;
     let result;
@@ -565,6 +661,10 @@ class RoomManager {
       // Something happened, so the player on turn is not the one holding it up
       // — and whoever did it is no longer a seat anybody is waiting on.
       room.touchIdleTimer(seatId);
+      // A play may open the window; ZA, a human call-out or a turn change may
+      // close it. Reconcile at the action boundary so cancellation is instant
+      // and the 900–1400ms delay starts when the vulnerability does.
+      room.reconcileBotCalloutWindow(now);
     }
     return result;
   }
@@ -613,26 +713,80 @@ class RoomManager {
     if (room.phase === 'playing' && room.game && room.game.status === 'playing') {
       room.scheduleTimers();
 
-      // A bot takes its turn.
-      if (room.botDueAt && now >= room.botDueAt) {
+      // Missed ZA has one room-level observer, chosen once and held until this
+      // human reaction window is due. The state is checked again before acting
+      // so a last-moment ZA shout always wins the race cleanly.
+      let callout = room.reconcileBotCalloutWindow(now);
+      const calloutIsDue = () => Boolean(
+        callout && callout.observerId && callout.dueAt && now >= callout.dueAt
+      );
+      const botTurnIsDue = () => Boolean(room.botDueAt && now >= room.botDueAt);
+
+      // A throttled/backgrounded process can observe more than one overdue
+      // event in the same tick. Run them by their scheduled time, not by the
+      // order of the blocks in this function: an earlier bot turn may close a
+      // ZA window before its later observer is entitled to act.
+      let botTurnRan = false;
+      const runBotTurn = () => {
         room.botDueAt = 0;
         const serialBefore = room.game.turnSerial;
         const current = game.currentPlayer(room.game);
-        const move = bot.decide(room.game, current.id, room.regularOf(current.id));
+        const move = bot.decide(
+          room.game,
+          current.id,
+          room.regularOf(current.id),
+          { allowCallout: false }
+        );
         if (move) {
-          this.applyAction(room, current.id, { type: move.action, ...move });
+          this.applyAction(room, current.id, { type: move.action, ...move }, now);
         } else {
           game.forceSkip(room.game, current.id, `${current.name} passes.`);
         }
         room.finishRoundIfOver();
-        // A shout or a call-out does not end the turn, so the timer must be
-        // wound up again or the bot would sit there for ever.
+        // A shout does not end the turn, so the timer must be wound up again
+        // or the bot would sit there for ever.
         room.scheduleTimers(true);
         if (room.botDueAt && room.game.turnSerial === serialBefore) {
           room.botDueAt = now + BOT_QUICK_MS;
         }
+        botTurnRan = true;
         changed = true;
+      };
+
+      if (
+        botTurnIsDue()
+        && (!calloutIsDue() || room.botDueAt <= callout.dueAt)
+      ) {
+        runBotTurn();
+        // The move may have closed the vulnerable target or opened a different
+        // window. Never act on the observer object from the state before it.
+        callout = room.reconcileBotCalloutWindow(now);
       }
+
+      if (calloutIsDue()) {
+        const observer = room.findSeat(callout.observerId);
+        const target = game.findPlayer(room.game, callout.targetId);
+        if (observer && observer.isBot && target && target.vulnerable && target.hand.length === 1) {
+          const result = this.applyAction(room, observer.id, {
+            type: 'callout',
+            targetId: target.id,
+          }, now);
+          if (result.ok) {
+            // Do not collapse a call-out and a due bot turn into one visual
+            // instant. The short follow-up beat keeps cause and effect legible.
+            if (room.botDueAt && room.botDueAt <= now) room.botDueAt = now + BOT_QUICK_MS;
+            changed = true;
+          }
+        } else {
+          // The selected observer disappeared. This window has still had its
+          // one decision; marking it as a miss prevents a new lottery per tick.
+          callout.observerId = null;
+          callout.dueAt = 0;
+        }
+      }
+
+      // A bot takes its turn.
+      if (!botTurnRan && botTurnIsDue()) runBotTurn();
 
       // The current player is away, so the table moves on.
       if (
@@ -672,29 +826,9 @@ class RoomManager {
       }
     }
 
-    // Bots also watch for a missed ZA while it is not their turn. Each
-    // bot makes up its mind once per call-out window. A decision on every
-    // tick would add up to a certainty, and no player would ever get away.
-    if (room.phase === 'playing' && room.game && room.game.status === 'playing') {
-      const window = room.game.players
-        .filter((p) => !p.left && p.vulnerable && p.hand.length === 1)
-        .map((p) => p.id)
-        .join(',');
-      for (const seat of room.seats) {
-        if (!seat.isBot) continue;
-        if (!window) {
-          seat.calloutWindow = null;
-          continue;
-        }
-        if (seat.calloutWindow === window) continue;
-        seat.calloutWindow = window;
-        const move = bot.decide(room.game, seat.id, room.regularOf(seat.id));
-        if (move && move.action === 'callout') {
-          const res = game.callOut(room.game, seat.id, move.targetId);
-          if (res.ok) changed = true;
-        }
-      }
-    }
+    // Direct timer moves use game functions rather than `applyAction`, so this
+    // final pass also cancels a window that one of those turn changes closed.
+    room.reconcileBotCalloutWindow(now);
 
     if (changed) room.broadcast();
   }

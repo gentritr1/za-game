@@ -112,11 +112,13 @@ const el = {
   scoreboard: $('scoreboard'),
   btnNextRound: $('btn-next-round'),
   btnToLobby: $('btn-to-lobby'),
+  btnRoundLeave: $('btn-round-leave'),
   roundWait: $('round-wait'),
   // house rules
   rulesOverlay: $('overlay-rules'),
   rulesDialog: $('rules-dialog'),
   rulesBody: $('rules-body'),
+  rulesClockNote: $('rules-clock-note'),
   btnRulesClose: $('btn-rules-close'),
   btnRulesHome: $('btn-rules-home'),
   btnRulesLobby: $('btn-rules-lobby'),
@@ -124,6 +126,7 @@ const el = {
   toast: $('toast'),
   connBanner: $('conn-banner'),
   connBannerText: $('conn-banner-text'),
+  btnConnLeave: $('btn-conn-leave'),
 };
 
 // ----------------------------------------------------------- the regulars --
@@ -214,6 +217,11 @@ const ui = {
   // pointer went down and whether it travelled far enough to be a drag; the
   // click that follows is refused on that evidence. See `bindHandRow`.
   handDrag: null,
+  // A direct touch on an unfamiliar action card explains the consequence
+  // before it commits. Mouse, keyboard and assistive activation remain direct.
+  specialPreview: null, // { cardId, kind }
+  specialPreviewTimer: 0,
+  learnedSpecialKinds: new Set(),
   rowChrome: 0,      // the chrome the row was last sized against
   settlingRow: false,
   swipeHintDone: false, // the swipe line is said once per session
@@ -262,7 +270,7 @@ const ui = {
   // the picker, the call-out list or the hire roster; `focusIntent` is the
   // action whose landing place is only built when the next snapshot arrives.
   announcer: null, // the shared visually-hidden live region
-  alerter: null,   // the assertive one, for the two timed opportunities only
+  alerter: null,   // assertive: costly ZA windows and the one round result
   lastAlarm: '',   // what it last said, so a re-derivation cannot repeat it
   popoverReturn: null,
   focusIntent: null, // { kind: 'play' | 'draw', cardId }
@@ -296,7 +304,8 @@ const ui = {
   calloutBeeps: [],
   pendingAt: 0, // a state-changing action is on the wire; see `armPending`
   pendingTimer: 0,
-  shoutArmedAt: 0, // when the shout became legal, for the timing score
+  zaReadyAt: 0, // when the shout became legal, for the fast-response stamp
+  zaEligible: false, // the eligibility transition, announced once when it opens
   dirJustFlipped: false,
   btnMute: null,
   muteLabel: null,
@@ -333,6 +342,7 @@ const ui = {
   handMetrics: null, // { token, railW } — the width the row is spaced against
   seatBox: null,     // { token, width, height, port } — the felt the token walks
   queueArrangement: '', // the queue's seats in rank order; unchanged means nothing slid
+  queueHead: '', // the visible NOW/NEXT head; a change brings the strip home
 };
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -351,8 +361,9 @@ const wantsMotion = () => !reduceMotion.matches;
  * across a change in it. The pit's rib rectangles went stale once precisely
  * because their invalidation was a list of remembered events.
  *
- * `innerWidth` and `innerHeight` are viewport properties; reading them does not
- * flush layout, so the check itself costs nothing it is trying to save.
+ * The visual viewport dimensions are viewport properties; reading them does
+ * not flush layout. They also follow mobile browser chrome and the on-screen
+ * keyboard, where `innerHeight` alone can stay stale.
  *
  * `paintedScreen`, not `ui.screen`, on purpose. `showScreen` claims `ui.screen`
  * the moment a room change starts, while the shutter is still down and the old
@@ -360,8 +371,17 @@ const wantsMotion = () => !reduceMotion.matches;
  * with the new room's token is exactly how a cache would go stale. Only
  * `paintScreen` — the one place the DOM actually swaps — moves this.
  */
+function viewportSize() {
+  const viewport = window.visualViewport;
+  return {
+    width: Math.round(viewport ? viewport.width : window.innerWidth),
+    height: Math.round(viewport ? viewport.height : window.innerHeight),
+  };
+}
+
 function layoutToken() {
-  return `${window.innerWidth}x${window.innerHeight}|${ui.paintedScreen}`;
+  const viewport = viewportSize();
+  return `${viewport.width}x${viewport.height}|${ui.paintedScreen}`;
 }
 
 // ------------------------------------------------------------------ motion --
@@ -574,6 +594,7 @@ const CONN_BACK = 'Lost the kitchen. Getting you back to your seat…';
  */
 function handleStatus(status) {
   if (status === 'closed') return; // the player left on purpose
+  el.btnConnLeave.hidden = !net.credentials || status === 'synchronized';
   if (status === 'synchronized') {
     hide(el.connBanner);
   } else {
@@ -584,22 +605,41 @@ function handleStatus(status) {
 }
 
 /**
- * Freezes the table while this client is not synchronized. One class does it:
- * the CSS blanks pointer input across the play column, and the action buttons
- * are disabled outright so the keyboard cannot reach them either. The banner
- * is outside the screen, so it keeps saying why.
+ * Freezes the table while this client is not synchronized. The class carries
+ * the visual/cursor state; `inert` gives pointer, keyboard and assistive input
+ * the same boundary. The banner is outside the screen, so it keeps saying why.
  */
 function syncDesynced() {
   const stale = !net.synchronized;
   for (const screen of el.screens) {
     if (screen.dataset.screen === 'home') continue;
     screen.classList.toggle('is-desynced', stale);
+    const active = screen.classList.contains('is-active');
+    screen.inert = !active || stale;
+  }
+  // A picker or roster cannot remain an interactive island over a frozen
+  // table. Close it without returning focus into the newly inert app.
+  if (stale) {
+    closePopovers({ restoreFocus: false });
+    closeRules(false);
   }
   // The round-over dialog is a sibling of the screens, not a child, so the
   // frozen screen does not cover it. Nothing else owns `disabled` on these two,
   // so this sets it both ways rather than waiting for a snapshot to undo it.
   for (const button of [el.btnNextRound, el.btnToLobby]) {
     if (button) button.disabled = stale;
+  }
+  // The connection banner sits outside the modal focus trap. If the host loses
+  // the line on the round screen, the two host-only decisions above are both
+  // disabled, so the dialog must grow its own live way out. Non-hosts already
+  // own this button; a synchronized host gets the ordinary two choices back.
+  if (el.overlay.classList.contains('is-open')) {
+    const offerRoundLeave = stale || !ui.snapshot || !ui.snapshot.isHost;
+    el.btnRoundLeave.hidden = !offerRoundLeave;
+    el.btnRoundLeave.disabled = false;
+    if (stale && (!el.overlay.contains(document.activeElement) || document.activeElement.disabled)) {
+      el.btnRoundLeave.focus({ preventScroll: true });
+    }
   }
   // Leaving: `renderActionBar` and `renderPiles` state the `disabled` of all
   // four controls below outright, on every snapshot, so the one that unfreezes
@@ -622,6 +662,10 @@ function syncDesynced() {
   ui.idleTimer = 0;
   ui.idleDeadline = 0;
   paintIdleCountdown();
+  if (ui.screen === 'game') {
+    el.turnBanner.classList.remove('is-you', 'is-callout');
+    setTurnText('Reconnecting to the kitchen…', true);
+  }
   // An armed screw across a dropped line would forfeit the round on the press
   // that was only meant to ask. It starts again from Leave.
   disarmLeave();
@@ -681,6 +725,17 @@ function handleMessage(message, connectionContext = {}) {
 function show(node) { node.classList.add('is-open'); }
 function hide(node) { node.classList.remove('is-open'); }
 
+// Name persistence is a convenience, never a prerequisite for sitting down.
+// Some privacy modes expose Storage but throw on access; keep that failure out
+// of the create/join path and out of boot.
+function readSavedName() {
+  try { return localStorage.getItem('za.name') || ''; } catch { return ''; }
+}
+
+function saveName(name) {
+  try { localStorage.setItem('za.name', name); } catch { /* play without persistence */ }
+}
+
 /**
  * There are three modals now, and only one `#app` to hide behind them. A modal
  * lives outside `#app` and makes it inert; whoever closes last is the one that
@@ -709,6 +764,34 @@ function openModal() {
   return null;
 }
 
+/** The first round-over destination that is both visible and actionable. */
+function roundFocusTarget() {
+  for (const node of [el.btnNextRound, el.btnToLobby, el.btnRoundLeave]) {
+    if (node && !node.hidden && !node.disabled && node.offsetParent !== null) return node;
+  }
+  return el.dialog;
+}
+
+/**
+ * Repair focus when a reconnect changes which round-over actions are present.
+ * A synchronized status arrives just before its fresh snapshot; that small
+ * gap can hide the temporary Leave button that held focus. Once the snapshot
+ * has rendered, focus must be back inside the still-open modal.
+ */
+function repairRoundFocusIfNeeded() {
+  if (!el.overlay.classList.contains('is-open')) return;
+  requestAnimationFrame(() => {
+    if (!el.overlay.classList.contains('is-open')) return;
+    const active = document.activeElement;
+    const usable = active instanceof HTMLElement
+      && el.dialog.contains(active)
+      && !active.disabled
+      && active.offsetParent !== null;
+    if (usable) return;
+    roundFocusTarget().focus({ preventScroll: true });
+  });
+}
+
 function openRoundOverlay() {
   if (el.overlay.classList.contains('is-open')) return;
   // The round is the news; the rules can wait. Its focus is not returned,
@@ -718,12 +801,7 @@ function openRoundOverlay() {
   show(el.overlay);
   syncAppInert();
   requestAnimationFrame(() => {
-    const firstAction = !el.btnNextRound.hidden
-      ? el.btnNextRound
-      : !el.btnToLobby.hidden
-        ? el.btnToLobby
-        : el.dialog;
-    firstAction.focus({ preventScroll: true });
+    roundFocusTarget().focus({ preventScroll: true });
   });
 }
 
@@ -812,11 +890,13 @@ function announce(text) {
  * announcer above all wait their turn, because a reader that is interrupted
  * for every card played is a reader nobody leaves on.
  *
- * The two timed opportunities are the exception, and they are the exception
+ * The two costly opportunities are the exception, and they are the exception
  * for the same reason they exist at all: they are the only moments where NOT
  * knowing costs cards, and they close on somebody else's schedule. A polite
- * queue would deliver "you forgot ZA" after the window it describes had shut.
- * So they get an assertive region of their own — and nothing else does.
+ * queue could deliver "you forgot ZA" after the window it describes had shut.
+ * The completed round also uses this channel once: the result replaces every
+ * move and is the one outcome nobody should discover by hunting through a
+ * receipt. Routine card events remain polite.
  *
  * `role="alert"` is not doubled up with the toast: the toast is a visible
  * strip, and this says something the screen has already said in a place a
@@ -866,7 +946,10 @@ function paintScreen(name) {
   for (const screen of el.screens) {
     const active = screen.dataset.screen === name;
     screen.classList.toggle('is-active', active);
-    screen.inert = !active;
+    // A reconnecting lobby/game is a stale picture. Keep it visible behind
+    // the banner, but remove it from pointer and keyboard input alike until a
+    // fresh snapshot synchronizes it again.
+    screen.inert = !active || (name !== 'home' && !net.synchronized);
   }
   // 1A · the cabinet only exists around the play column. Home and lobby float
   // in the void on a transparent screen, so panels left standing would show
@@ -1069,6 +1152,9 @@ document.addEventListener('pointerdown', (event) => {
 
 // ============================================================== SNAPSHOT ===
 function applySnapshot(snapshot) {
+  // A server update can change the turn, the top card or whether this card is
+  // still in the hand. A touch confirmation never survives that new truth.
+  clearSpecialPreview({ restoreHint: false });
   ui.snapshot = snapshot;
   // The authoritative answer is here, so the move is no longer pending. This
   // runs before anything is drawn: the renderers below set the enabled state
@@ -1199,7 +1285,8 @@ function resetRoundEffects() {
   // before it — so the oven rings once as the round opens.
   ui.prevTopping = null;
   ui.anchovyCount = 0;
-  ui.shoutArmedAt = 0;
+  ui.zaReadyAt = 0;
+  ui.zaEligible = false;
   // A new round always runs to the left again. Without this a round that ended
   // reversed would flash and scrub the moment the next one dealt.
   ui.prevDir = 0;
@@ -1223,6 +1310,8 @@ function resetGameView() {
   ui.handCards.clear();
   ui.handOrder = [];
   ui.nearRow = [];
+  ui.handDrag = null;
+  clearSpecialPreview({ restoreHint: false });
   ui.peekPointer = -1;
   clearPeek();
   ui.seatNodes.clear();
@@ -1356,11 +1445,16 @@ function renderLobby(snapshot) {
     // One Press Start word per seat, like a player-select screen.
     const status = document.createElement('span');
     status.className = 'seat-row__word';
-    status.textContent =
+    const isYou = seat.id === snapshot.youId;
+    const role =
       !seat.connected && !seat.isBot ? 'AWAY'
         : seat.id === snapshot.hostId ? 'HOST'
           : seat.isBot ? 'CPU'
             : 'READY';
+    // The cyan name remains a useful glance cue, but it is never the only
+    // answer to "which seat is mine?". Keep the existing role beside it so a
+    // host does not have to trade one identity for the other.
+    status.textContent = isYou ? `YOU · ${role}` : role;
     row.append(status);
 
     if (snapshot.isHost && seat.isBot) {
@@ -1375,7 +1469,8 @@ function renderLobby(snapshot) {
     rows.append(row);
   }
 
-  // Empty seats blink PRESS START until somebody sits down.
+  // Empty seats describe what they are. "PRESS START" looked like a command
+  // even though these rows are deliberately not controls.
   const openSeats = Math.max(0, snapshot.maxPlayers - snapshot.seats.length);
   for (let i = 0; i < Math.min(openSeats, 8); i++) {
     const empty = document.createElement('li');
@@ -1383,7 +1478,7 @@ function renderLobby(snapshot) {
     empty.setAttribute('aria-hidden', 'true');
     const word = document.createElement('span');
     word.className = 'seat-row__press';
-    word.textContent = 'PRESS START';
+    word.textContent = 'OPEN SEAT';
     empty.append(word);
     rows.append(empty);
   }
@@ -1941,6 +2036,26 @@ function renderGame(snapshot) {
 
   const yourTurn = view.turnPlayerId === snapshot.youId && view.status === 'playing';
 
+  // House Rules may be opened while another chef is thinking, but it may not
+  // silently cover the start of a live game or the arrival of your own timed
+  // turn. The player can still open it during their turn; in that case the
+  // dialog carries an explicit clock warning (see `syncRulesClockNote`).
+  if (el.rulesOverlay.classList.contains('is-open')) {
+    const gameStarted = ui.screen !== 'game';
+    const yourTurnArrived = yourTurn && ui.prevTurnId && ui.prevTurnId !== snapshot.youId;
+    if (gameStarted || yourTurnArrived) {
+      closeRules(false);
+      announce(
+        yourTurn
+          ? 'Your turn. House Rules closed because your clock is running.'
+          : 'The game started. House Rules closed.'
+      );
+      focusGameFallbackSoon(true);
+    } else {
+      syncRulesClockNote();
+    }
+  }
+
   animateTableDiff(snapshot, view);
   // Before anything is drawn: the strip over the hand and every card's
   // `disabled` are derived from the phase, and the phase has to know whether
@@ -1963,7 +2078,7 @@ function renderGame(snapshot) {
   renderLog(view);
   renderNarration(snapshot, view);
   syncCabinet(snapshot);
-  syncShout(view);
+  syncShout(snapshot, view);
 
   // 08 · your turn, loudly. One class drives the ping ring on the rail and
   // both borders warming from bezel to cheese, so the whole signal starts and
@@ -2068,14 +2183,38 @@ function armIdleCountdown(snapshot, view, yourTurn) {
   }, 250);
 }
 
+/** The server-published match condition, compressed for the live marquee. */
+function turnMatchChoices(view) {
+  if (!view) return [];
+  const meta = TOPPING_META[view.currentTopping];
+  const top = view.topCard;
+  const wildTop = Boolean(top && isWild(top));
+  const effect = effectOf(top);
+  const alternative = wildTop
+    ? ''
+    : effect
+      ? effect.word
+      : matchValue(top);
+  return [meta ? meta.label : '', alternative].filter(Boolean);
+}
+
 function turnLabel(view, yourTurn, callout) {
   if (view.status !== 'playing') return 'Round over';
   // The alarm colour needs a line that earns it. Whose turn it is is still on
   // screen either way — the rail is ringed and the hint under the hand says so.
   if (callout) return 'Somebody forgot to shout!';
-  if (yourTurn) return view.mustPlayDrawnCard ? 'Your turn — play it or pass' : 'Your turn, chef';
+  if (yourTurn) {
+    if (view.mustPlayDrawnCard) return 'Your turn — play the drawn card or pass';
+    const choices = turnMatchChoices(view);
+    return choices.length
+      ? `Your turn — play ${choices.join(' or ')}, a Wild, or draw`
+      : 'Your turn, chef';
+  }
   const current = view.players.find((p) => p.id === view.turnPlayerId);
-  return current ? `${current.name} is eyeing the pile…` : 'Waiting…';
+  if (!current) return 'Waiting…';
+  return current.connected === false
+    ? `${current.name} is away — table waiting`
+    : `${current.name} is eyeing the pile…`;
 }
 
 /**
@@ -2648,13 +2787,18 @@ const COUNTER_MAP = {
   7: [[5, 54, 'l'], [11, 26, 'l'], [32, 2, 't'], [50, 0, 't'], [68, 2, 't'], [89, 26, 'r'], [95, 54, 'r']],
 };
 
-/* The one breakpoint. Below it the counter hands over to the queue — said
-   once here and once in the stylesheet, and nowhere else. Both are read
-   through the same media engine, so they cannot silently disagree. */
+/* The ordinary phone breakpoint, plus one capacity guard: a full eight-seat
+   counter cannot fit inside the table half of a short landscape screen while
+   keeping readable names and 44px targets. In that one state it uses the same
+   ordered queue the portrait phone already teaches. */
 const QUEUE_BELOW = window.matchMedia('(max-width: 519.98px)');
+const FULL_TABLE_SHORT_LANDSCAPE = window.matchMedia(
+  '(orientation: landscape) and (min-width: 640px) and (max-width: 1024px) and (max-height: 560px)'
+);
 
-function seatingMode() {
-  return QUEUE_BELOW.matches ? 'queue' : 'counter';
+function seatingMode(playerCount) {
+  const fullShortTable = playerCount === 8 && FULL_TABLE_SHORT_LANDSCAPE.matches;
+  return QUEUE_BELOW.matches || fullShortTable ? 'queue' : 'counter';
 }
 
 /**
@@ -2665,6 +2809,7 @@ function seatingMode() {
  * would be the arrangement lying about which mode it is in.
  */
 QUEUE_BELOW.addEventListener('change', () => relayoutSeating());
+FULL_TABLE_SHORT_LANDSCAPE.addEventListener('change', () => relayoutSeating());
 
 /**
  * 2A/6 · place the seats.
@@ -2777,7 +2922,7 @@ function placeToken(token, order, ranks, view) {
   const seats = order.length;
   // A token needs two different places to stand between. At a table of two
   // there is one opponent and one of you, so the walk has nowhere to go.
-  if (seats < 2 || seatingMode() !== 'counter') {
+  if (seats < 2 || seatingMode(seats + 1) !== 'counter') {
     token.hidden = true;
     return;
   }
@@ -2865,9 +3010,9 @@ function placeToken(token, order, ranks, view) {
 }
 
 function placeSeats(order, ranks, view) {
-  const mode = seatingMode();
-  el.opponents.dataset.mode = mode;
   const count = order.length;
+  const mode = seatingMode(count + 1);
+  el.opponents.dataset.mode = mode;
   const { belt, token } = seatingFurniture();
   belt.dataset.dir = view.direction === -1 ? '-1' : '1';
   // The queue has no counter to walk, so the token is simply not there. The
@@ -2882,6 +3027,9 @@ function placeSeats(order, ranks, view) {
     const sorted = order
       .map((node) => ({ node, rank: Number(node.dataset.rank) }))
       .sort((a, b) => (a.rank < 0 ? 99 : a.rank) - (b.rank < 0 ? 99 : b.rank));
+    const head = sorted[0] ? `${sorted[0].node.dataset.id}:${sorted[0].rank}|${view.direction}` : '';
+    const headChanged = head !== ui.queueHead;
+    ui.queueHead = head;
 
     // Where every chef stood before the sort. `offsetLeft` rather than a rect:
     // a rect read mid-transition returns the transformed position, and the
@@ -2921,6 +3069,10 @@ function placeSeats(order, ranks, view) {
       node.dataset.box = port >= 40 ? '1' : '0';
       node.style.order = String(index);
     });
+    // The queue is allowed to overflow so every identity stays readable. If a
+    // player inspected its tail, bring NOW/NEXT back only when the head truly
+    // changes; ordinary snapshots never fight their scroll position.
+    if (headChanged) el.opponents.scrollLeft = 0;
     ui.queuePlaced = true;
 
     // `order` re-sorts on the frame it is set — there is nothing to tween. So
@@ -2974,6 +3126,7 @@ function placeSeats(order, ranks, view) {
   // against a reading taken before the counter had the seats.
   ui.queuePlaced = false;
   ui.queueArrangement = '';
+  ui.queueHead = '';
   el.opponents.classList.remove('is-reforming');
 
   const map = COUNTER_MAP[Math.min(7, Math.max(1, count))] || COUNTER_MAP[7];
@@ -3342,7 +3495,12 @@ function renderCardObject(parts, cardCount) {
  * A human opponent gets nothing: their tell is their own business.
  */
 function seatStatus(player, view, exposed, rank) {
-  if (!player.isBot || player.left || view.status !== 'playing') return '';
+  if (player.left || view.status !== 'playing') return '';
+  // Presence must be visible as a word, not only as a dimmed portrait. The
+  // long count already says it to assistive tech; this gives the same fact to
+  // a low-vision player at a glance.
+  if (player.connected === false && !player.isBot) return 'away';
+  if (!player.isBot) return '';
   if (exposed) return 'watching you';
   // Reads the same rank the weights do, rather than asking who is at the oven
   // a second time.
@@ -3360,7 +3518,7 @@ function updateSeat(node, player, view, exposed, rank) {
   parts.name.textContent = player.name;
   // Spoken only. The picture of the hand is the fan and the printed plate.
   parts.countLong.textContent =
-    `${player.name}, ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}`;
+    `${player.name}, ${player.cardCount} card${player.cardCount === 1 ? '' : 's'}${player.connected === false ? ', away' : ''}`;
   parts.countNum.textContent = String(player.cardCount).padStart(2, '0');
 
   // 13 · the chip beside the name.
@@ -3437,7 +3595,7 @@ function updateSeat(node, player, view, exposed, rank) {
 
   const badge = parts.badge;
   if (player.vulnerable && player.cardCount === 1) {
-    badge.textContent = 'FORGOT!';
+    badge.textContent = 'MISSED ZA!';
     badge.className = 'seat__badge seat__badge--caught is-shown';
   } else if (player.cardCount === 1) {
     badge.textContent = 'ZA!';
@@ -3484,10 +3642,16 @@ function syncCalloutWindows(snapshot, view) {
   for (const id of [...ui.callouts.keys()]) {
     if (open.has(id)) continue;
     const took = ui.gained.get(id) || 0;
-    // Three ways out: somebody called it (cards, pile untouched), a penalty
-    // card landed on them and closed it as a side effect (cards, new top), or
-    // they got away with it (no cards at all).
-    const how = took > 0 ? (ui.topChanged ? 'moot' : 'caught') : 'clean';
+    const player = view.players.find((candidate) => candidate.id === id);
+    // Four ways out: the player rescued themself by shouting, somebody called
+    // it (cards, pile untouched), a penalty card landed and made it moot, or
+    // the vulnerable turn completed without a catch. A successful self-rescue
+    // must never be narrated as "nobody was listening."
+    const how = player && player.declaredZa
+      ? 'declared'
+      : took > 0
+        ? (ui.topChanged ? 'moot' : 'caught')
+        : 'clean';
     closeCalloutWindow(id, how);
   }
 }
@@ -3505,7 +3669,8 @@ function openCalloutWindow(playerId, isMine) {
 
   if (isMine) {
     // You have no chef panel of your own, so your window lives over the hand,
-    // with the other contextual moments and the move on it as a real button.
+    // with the other contextual moments. The permanent ZA! button remains the
+    // one real control; this strip explains the urgency without duplicating it.
     // It is built here rather than in `renderMoments` because its life is an
     // OPENING and a CLOSING with three different outcomes, not a state to be
     // re-derived — and because the relief at the end of it is the point.
@@ -3521,19 +3686,11 @@ function openCalloutWindow(playerId, isMine) {
     sub.id = 'moment-reason-self';
     sub.textContent = 'Shout it before anyone notices.';
     words.append(label, sub, drain);
-    const cta = document.createElement('button');
-    cta.type = 'button';
-    cta.className = 'moment__cta';
-    cta.textContent = 'CALL ZA NOW';
-    // The visible reason IS the button's description, same as every other
-    // window's — a reader that lands on the button hears why it is there.
-    cta.setAttribute('aria-describedby', sub.id);
-    cta.onclick = declareZa;
-    box.append(words, cta);
+    box.append(words);
     // First in the strip: it is the only window that is about YOUR cards.
     el.moments.prepend(box);
     entry.node = box;
-    focusMoment(cta);
+    el.btnZa.setAttribute('aria-describedby', sub.id);
     // The window is a dashed sauce box and a steady bar, and it is the one
     // moment where not knowing costs you cards — so it is said on the
     // assertive channel by `renderMoments`, which runs on the same snapshot
@@ -3591,7 +3748,24 @@ function closeCalloutWindow(playerId, how) {
   }
 
   if (entry.mine && entry.node) {
-    if (ui.momentFocused && entry.node.contains(ui.momentFocused)) ui.momentFocused = null;
+    const stranded = document.activeElement === el.btnZa
+      || ui.momentFocused === el.btnZa
+      || entry.node.contains(document.activeElement)
+      || Boolean(ui.momentFocused && entry.node.contains(ui.momentFocused));
+    el.btnZa.removeAttribute('aria-describedby');
+    if (ui.momentFocused === el.btnZa || (ui.momentFocused && entry.node.contains(ui.momentFocused))) {
+      ui.momentFocused = null;
+    }
+    if (stranded) focusGameFallbackSoon(true);
+    if (how === 'declared') {
+      entry.node.classList.add('is-safe');
+      const title = entry.node.querySelector('.moment__title');
+      const sub = entry.node.querySelector('.moment__sub');
+      if (title) title.textContent = 'ZA! CALLED — YOU\'RE SAFE';
+      if (sub) sub.remove();
+      setTimeout(() => entry.node.remove(), 420);
+      return;
+    }
     if (how === 'clean') {
       entry.node.classList.add('is-safe');
       const title = entry.node.querySelector('.moment__title');
@@ -3916,7 +4090,10 @@ const PHONE = window.matchMedia('(max-width: 519.98px)');
 
 /** What the stage can still spare for the row, in pixels. */
 function handRowRoom() {
-  const screen = el.gameScreen ? el.gameScreen.clientHeight : window.innerHeight;
+  const visibleHeight = viewportSize().height;
+  const screen = el.gameScreen
+    ? Math.min(el.gameScreen.clientHeight, visibleHeight)
+    : visibleHeight;
   const hud = el.hud ? el.hud.offsetHeight : 0;
   const chrome = handChrome();
   // Remembered, so the render that finishes after this one can tell whether
@@ -4064,7 +4241,7 @@ function renderHand(snapshot, view, yourTurn) {
       // re-resolves its style — without the marker it would fade in from
       // nothing every time it was promoted instead of rising out of the pit.
       node.classList.add('is-entering');
-      node.addEventListener('click', () => onCardActivate(card, slot));
+      node.addEventListener('click', (event) => onCardActivate(card, slot, event));
       // The entry delay has to be written before the card is ever laid out.
       // The layout pass below reads offsetWidth, and that forced flush
       // resolves `@starting-style` and starts every fresh card's entry
@@ -4193,8 +4370,9 @@ function renderHand(snapshot, view, yourTurn) {
  */
 function dressCard(node, card, isPlayable, acting) {
   if (!node) return;
-  node.classList.toggle('is-playable', isPlayable);
-  node.classList.toggle('is-dimmed', !isPlayable);
+  const actionable = acting && isPlayable;
+  node.classList.toggle('is-playable', actionable);
+  node.classList.toggle('is-dimmed', !actionable);
   const name = describeCard(card);
   // Nothing here is ever `aria-disabled`: either the control is disabled, and
   // says it in the attribute that also takes it out of the tab order, or it is
@@ -4206,7 +4384,7 @@ function dressCard(node, card, isPlayable, acting) {
     return;
   }
   node.disabled = false;
-  node.setAttribute('aria-label', isPlayable ? `Play ${name} — playable` : `${name} — does not match`);
+  node.setAttribute('aria-label', actionable ? `Play ${name} — playable` : `${name} — does not match`);
 }
 
 /**
@@ -4618,7 +4796,13 @@ const DRAG_GUARD_MS = 1200;
  */
 function bindHandRow() {
   el.handNear.addEventListener('pointerdown', (event) => {
-    ui.handDrag = { x: event.clientX, y: event.clientY, at: Date.now(), moved: false };
+    ui.handDrag = {
+      x: event.clientX,
+      y: event.clientY,
+      at: Date.now(),
+      moved: false,
+      pointerType: event.pointerType || 'mouse',
+    };
   }, { passive: true });
 
   el.handNear.addEventListener('pointerup', (event) => {
@@ -4627,9 +4811,15 @@ function bindHandRow() {
     if (Math.abs(event.clientX - start.x) > DRAG_GUARD_PX ||
         Math.abs(event.clientY - start.y) > DRAG_GUARD_PX) {
       start.moved = true;
-      start.at = Date.now();
     }
+    // The click follows this event immediately. Stamping every release makes
+    // a deliberate hold remain a touch activation instead of aging into a
+    // synthetic keyboard click before it reaches the card handler.
+    start.at = Date.now();
+    start.pointerType = event.pointerType || start.pointerType;
   }, { passive: true });
+
+  el.handNear.addEventListener('pointercancel', () => { ui.handDrag = null; }, { passive: true });
 
   // Scrolling the row is the one thing the swipe line asks for, so the line
   // goes the moment it happens — by thumb, by trackpad or by the keyboard's
@@ -4764,14 +4954,29 @@ function retireSwipeCue() {
 function renderActionBar(snapshot, view, yourTurn) {
   const me = view.players.find((p) => p.id === snapshot.youId);
   const live = view.status === 'playing';
+  const recoveringZa = ui.callouts.has(snapshot.youId);
+  const canShoutZa = Boolean(live && view.canDeclareZa && me && me.cardCount <= 2);
+  const openedZa = canShoutZa && !ui.zaEligible;
 
-  // B · the clock for the timing score starts the instant the shout becomes
+  // B · the clock for the response stamp starts the instant the shout becomes
   // legal. That transition is the only reference point the client can see.
-  if (view.canDeclareZa) {
-    if (!ui.shoutArmedAt) ui.shoutArmedAt = Date.now();
+  if (canShoutZa) {
+    if (!ui.zaReadyAt) ui.zaReadyAt = Date.now();
   } else {
-    ui.shoutArmedAt = 0;
+    ui.zaReadyAt = 0;
   }
+
+  // Eligibility is a game event, not ambient status. Say it once when it
+  // opens, then leave the player to the visible button. The missed-ZA recovery
+  // window owns the assertive channel separately, so it is not repeated here.
+  if (openedZa && !recoveringZa) {
+    announce(
+      me.cardCount === 1
+        ? 'One card left. Shout ZA now.'
+        : 'Two cards. Shout ZA before playing again.'
+    );
+  }
+  ui.zaEligible = canShoutZa;
 
   // EVERY control on this bar has its `disabled` set here, on every snapshot,
   // both ways. That is the rule, and it is not decoration.
@@ -4799,8 +5004,13 @@ function renderActionBar(snapshot, view, yourTurn) {
   // beside it, and `relockHand` restates the same derivation between snapshots.
   const modal = Boolean(ui.pendingWild);
 
-  el.btnZa.disabled = !view.canDeclareZa || modal;
-  el.btnZa.classList.toggle('is-urgent', Boolean(view.canDeclareZa && me && me.cardCount <= 2 && !modal));
+  // One visible owner for every shout: the permanent ZA! button. Teaching and
+  // recovery may explain why it matters, but they never add a second control.
+  el.btnZa.hidden = !canShoutZa;
+  el.btnZa.disabled = !canShoutZa || modal;
+  el.btnZa.classList.toggle('is-urgent', Boolean(canShoutZa && !modal));
+  if (!canShoutZa && ui.momentFocused === el.btnZa) ui.momentFocused = null;
+  if ((recoveringZa || (openedZa && ui.keyboardActive)) && !modal) focusMoment(el.btnZa);
 
   const targets = view.calloutTargets || [];
   el.btnCallout.hidden = !live || targets.length === 0;
@@ -4990,10 +5200,11 @@ function youAreNext(snapshot, view) {
 /**
  * THE WINDOWS, AND THE ONE THING THEY ARE NOT ALLOWED TO DO.
  *
- * Three contextual actions arrive on somebody else's schedule: the shout at
- * two cards, the shout that saves you after you played to one without it, and
- * the call-out on a chef who forgot. Each gets a strip over the hand with the
- * move on it as a real button.
+ * Two contextual actions arrive on somebody else's schedule: the shout that
+ * saves you after you played to one without it, and the call-out on a chef who
+ * forgot. Each gets a strip over the hand with the move on it as a real button.
+ * Ordinary two-card eligibility stays on the permanent ZA! button so the same
+ * move is never offered twice at once.
  *
  * NOTHING IN HERE RUNS ON A CLOCK. A window exists exactly while the server
  * still says its move is legal — `calloutTargets` for the call-out,
@@ -5018,7 +5229,6 @@ function renderMoments(snapshot, view) {
   // questions with one keyboard between them.
   const held = Boolean(ui.pendingWild);
   const live = view.status === 'playing' && !held;
-  const me = view.players.find((p) => p.id === snapshot.youId);
   const targets = live ? (view.calloutTargets || []) : [];
 
   // THE DRAWN CARD IS A DECISION, SO IT GETS A DECISION'S FURNITURE. The move
@@ -5029,11 +5239,14 @@ function renderMoments(snapshot, view) {
   const drawn = Boolean(live && view.mustPlayDrawnCard);
   const drawnId = drawn ? (view.playableCardIds || [])[0] : null;
   const drawnCard = drawnId ? ui.handCards.get(drawnId) : null;
+  const drawnConsequence = drawnCard
+    ? specialConsequence(drawnCard, view, snapshot.youId)
+    : '';
   syncMoment('drawn', drawn, () => ({
     tone: 'cyan',
     title: drawnId ? 'YOU DREW A CARD' : 'NO MATCH — TURN ENDS',
     sub: drawnCard
-      ? `You drew ${describeCard(drawnCard)}. Play it, or keep it and pass.`
+      ? `You drew ${describeCard(drawnCard)}.${drawnConsequence ? ` ${drawnConsequence}` : ''} Play it, or keep it and pass.`
       : 'Nothing on it fits the pie. Keep it and pass.',
     // The card that cannot be played offers only the move that can be made.
     cta: drawnId ? 'PLAY IT' : 'KEEP & PASS',
@@ -5057,28 +5270,12 @@ function renderMoments(snapshot, view) {
       cta: 'CALL OUT NOW',
       // One target is the move itself; several is a choice, and the list that
       // already exists is where a choice is made.
-      press: () => (one ? calloutPlayer(targets[0]) : openCalloutPopover()),
+      press: (event) => (
+        one ? calloutPlayer(targets[0]) : openCalloutPopover(event.currentTarget)
+      ),
       grabs: true,
     };
   });
-
-  // The teaching strip. It is the one window that does NOT take focus: it
-  // comes up on every turn you spend at two cards, and a control that jumps
-  // under the keyboard twice a round is not a teacher, it is a nuisance.
-  // THE LESSON FITS ONE ROW ON A PHONE. It used to be a heading over a
-  // sentence over nothing, and the two said the same thing — so at 390px the
-  // heading IS the sentence, in the body face, on one line beside the button,
-  // and the consequence goes to the line under the hand where the rest of the
-  // teaching copy already lives. The strip is advice about a card you are
-  // about to play; it must not become taller than the cards.
-  syncMoment('za', Boolean(live && view.canDeclareZa && me && me.cardCount === 2), () => ({
-    tone: 'cheese',
-    title: PHONE.matches ? '2 CARDS — CALL ZA BEFORE PLAYING' : 'CALL ZA BEFORE YOU PLAY',
-    sub: PHONE.matches ? '' : '2 cards → call ZA before playing. Forget = +2.',
-    cta: 'CALL ZA',
-    press: declareZa,
-    grabs: false,
-  }));
 
   // THE ASSERTIVE CHANNEL, DECIDED IN ONE PLACE. Two windows can be worth
   // interrupting a reader for and they can both be open at once; the one about
@@ -5089,15 +5286,20 @@ function renderMoments(snapshot, view) {
   const names = targets
     .map((id) => (view.players.find((p) => p.id === id) || {}).name)
     .filter(Boolean);
-  alarm(
-    held
-      ? ''
-      : ui.callouts.has(snapshot.youId)
-        ? 'You forgot ZA. Call ZA now before another player catches you.'
-        : names.length
-          ? `${names.join(' and ')} forgot ZA and ${names.length === 1 ? 'has' : 'have'} one card left. Call them out now.`
-          : ''
-  );
+  // A finished round owns the assertive channel until the next round starts.
+  // Do not clear its result on later round-over snapshots; `renderRoundOver`
+  // announces that result once and the next playing snapshot clears it here.
+  if (view.status === 'playing') {
+    alarm(
+      held
+        ? ''
+        : ui.callouts.has(snapshot.youId)
+          ? 'You forgot ZA. Call ZA now before another player catches you.'
+          : names.length
+            ? `${names.join(' and ')} forgot ZA and ${names.length === 1 ? 'has' : 'have'} one card left. Call them out now.`
+            : ''
+    );
+  }
 
   // The self-recovery window is built by `syncCalloutWindows`, not here, so
   // the one-decision rule is stated on the strip itself rather than in each
@@ -5115,10 +5317,6 @@ function renderMoments(snapshot, view) {
  * takes the hand's place instead: while it is open the row is genuinely gone,
  * not squeezed and not scrolled away, and it comes straight back when the
  * window closes.
- *
- * The teaching strip at two cards is deliberately NOT one of these. It is
- * advice about a card you are about to play, and hiding the cards to give it
- * would be the interface arguing with itself.
  *
  * It runs before the row is laid out, not after: `layoutNear` measures the
  * rail, and a rail that is measured on the frame it disappears measures zero.
@@ -5138,15 +5336,13 @@ function syncHandSwap(snapshot, view) {
   el.handZone.classList.toggle('is-picking', Boolean(ui.pendingWild));
 }
 
-/** Any contextual window at all, including the teaching strip that never swaps. */
+/** Any contextual decision window at all. */
 function anyMomentOpen(snapshot, view) {
   if (!view || view.status !== 'playing') return false;
   if (ui.pendingWild) return true;
   if (view.mustPlayDrawnCard) return true;
   if ((view.calloutTargets || []).length) return true;
-  if (ui.callouts.has(snapshot.youId)) return true;
-  const me = view.players.find((p) => p.id === snapshot.youId);
-  return Boolean(view.canDeclareZa && me && me.cardCount === 2);
+  return ui.callouts.has(snapshot.youId);
 }
 
 /**
@@ -5194,8 +5390,11 @@ function syncMoment(kind, wanted, build) {
   let node = el.moments.querySelector(`.moment--${kind}`);
   if (!wanted) {
     if (node) {
-      if (ui.momentFocused && node.contains(ui.momentFocused)) ui.momentFocused = null;
+      const stranded = node.contains(document.activeElement)
+        || Boolean(ui.momentFocused && node.contains(ui.momentFocused));
+      if (stranded) ui.momentFocused = null;
       node.remove();
+      if (stranded) focusGameFallbackSoon(true);
     }
     return;
   }
@@ -5263,29 +5462,44 @@ function syncMoment(kind, wanted, build) {
  * both places a player is already deciding something.
  */
 function focusMoment(cta) {
-  if (!cta || ui.momentFocused === cta) return;
-  if (popoverOpen() || el.overlay.classList.contains('is-open')) return;
+  if (!cta || cta.hidden || cta.disabled || ui.momentFocused === cta) return;
+  if (popoverOpen() || openModal()) return;
+  // Two ZA windows can coexist at a three-plus-player table. Saving your own
+  // hand outranks accusing somebody else, so a later call-out render may not
+  // steal the focus already handed to the canonical self-rescue button.
+  const priority = urgentMomentControl();
+  if (priority && priority !== cta && ui.momentFocused === priority) return;
   if (el.moments.contains(document.activeElement)) return;
-  ui.momentFocused = cta;
   try {
     cta.focus({ preventScroll: true });
   } catch {
     cta.focus();
   }
+  // Mark the hand-off only if it actually landed. An inert app drops focus;
+  // remembering that failed attempt would suppress the retry after a dialog.
+  if (document.activeElement === cta) ui.momentFocused = cta;
+}
+
+/** The one costly control that should reclaim focus after a modal closes. */
+function urgentMomentControl() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view || view.status !== 'playing') return null;
+  if (ui.callouts.has(snapshot.youId) && !el.btnZa.hidden && !el.btnZa.disabled) return el.btnZa;
+  const callout = el.moments.querySelector('.moment--callout .moment__cta');
+  return callout && !callout.disabled ? callout : null;
 }
 
 /**
- * THE SHOUT HAS ONE OWNER. The ZA! button on the bar and the CALL ZA on a
- * window are two doors onto the same move, and a second entrance is how the
- * dead PASS button hid for weeks: the feature kept working through the other
- * door while its own control did nothing. Both doors call this, and this reads
- * the server's own `canDeclareZa` rather than either button's state.
+ * THE SHOUT HAS ONE OWNER. The permanent ZA! button is the only door onto the
+ * move; teaching and recovery strips explain it without cloning it. This still
+ * reads the server's `canDeclareZa`, because the visible control is not a rule.
  */
-function declareZa() {
+function declareZa(source = el.btnZa) {
   const view = ui.snapshot && ui.snapshot.game;
   if (!view || !view.canDeclareZa) return;
-  send({ type: 'za' });
-  playShout();
+  if (!send({ type: 'za' })) return;
+  playShout(source);
 }
 
 /**
@@ -5328,17 +5542,19 @@ function handHint(view, yourTurn, me) {
   // The drawn-card window says this, in more words and with both moves on it.
   // The same sentence twice, six lines apart, reads as two instructions.
   if (view.mustPlayDrawnCard) return '';
-  if (!yourTurn) return '';
-  // The consequence the one-row strip gave up. It belongs here rather than in
-  // a second row of the strip: this line is where every other thing the hand
-  // has to teach is already said.
-  if (PHONE.matches && view.canDeclareZa && me && me.cardCount === 2) {
-    return 'Forget ZA and you draw +2.';
+  // ZA can be shouted on anybody's turn, so its instruction must be checked
+  // before the ordinary "wait" return. A missed call has its own focused,
+  // assertive recovery panel and does not need this line repeated underneath.
+  if (view.canDeclareZa && me && !me.vulnerable && me.cardCount <= 2) {
+    return me.cardCount === 1
+      ? 'One card left — shout ZA now.'
+      : 'Two cards — shout ZA before playing again.';
   }
+  if (!yourTurn) return '';
   if (view.playableCardIds.length === 0) return 'Nothing fits. Grab one off the dough pile.';
-  if (me && me.cardCount === 2) return 'One card away — shout before you play!';
+  if (me && me.cardCount === 3) return 'Play a marked card. At 2 cards, shout ZA!';
   if (me && me.cardCount === 1) return 'Last slice. Make it count.';
-  return 'Pick a glowing card.';
+  return '';
 }
 
 function renderLog(view) {
@@ -5463,7 +5679,7 @@ function narrationLine(entry, view, youId) {
     const n = /that is (\d+) card/.exec(text);
     return `${first} CAUGHT ${second} — ${n ? n[1] : 2} CARDS`;
   }
-  if (has('shouts ZA') || has('yells')) return `${first} CALLED ZA — ONE CARD LEFT`;
+  if (has('shouts ZA') || has('yells')) return `${first} CALLED ZA`;
   if (has('Play now runs to the')) return 'PLAY ORDER REVERSED';
   if (has('goes again')) return `${first} ${vb('PLAYS', 'PLAY')} AGAIN`;
   if (has('is down to one slice')) return `${first} — ONE CARD LEFT`;
@@ -5676,6 +5892,16 @@ function renderRoundOver(snapshot, staged) {
       ? 'You still have crusts in hand. Rematch?'
       : 'Nobody finished the pie. Awkward.';
 
+  if (staged) {
+    alarm(
+      youWon
+        ? 'You won the round. Empty box, full glory.'
+        : winner
+          ? `${winner.name} won the round.`
+          : 'Round over. Nobody finished the pie.'
+    );
+  }
+
   if (el.dialog) el.dialog.classList.toggle('is-win', Boolean(youWon));
 
   // 13 · the titles are settled before the bills print, so the one you just
@@ -5686,6 +5912,8 @@ function renderRoundOver(snapshot, staged) {
 
   el.btnNextRound.hidden = !snapshot.isHost;
   el.btnToLobby.hidden = !snapshot.isHost;
+  el.btnRoundLeave.hidden = snapshot.isHost;
+  repairRoundFocusIfNeeded();
 
   // 09 · nothing starts by itself. The receipts are the point of this screen
   // and a five-second bar draining under them turned reading your own round
@@ -5944,6 +6172,53 @@ function focusSlot(slot) {
 }
 
 /**
+ * Restore a keyboard player after an urgent control disappears.
+ *
+ * The render that closes a ZA/call-out window also rebuilds the legal hand, so
+ * the destination is chosen one frame later from the finished authoritative
+ * state. Pointer players keep their own attention; this only repairs focus a
+ * keyboard action would otherwise drop onto the document body.
+ */
+function focusGameFallbackSoon(force = false) {
+  // `force` is for controls this interface moved focus onto itself. Even if a
+  // pointer opened the state, removing that programmatic focus still needs a
+  // successor; otherwise the browser drops it on BODY.
+  if (!force && !ui.keyboardActive) return;
+  requestAnimationFrame(() => {
+    if (openModal() || popoverOpen()) return;
+    const active = document.activeElement;
+    const usable = active instanceof HTMLElement
+      && active !== document.body
+      && active.isConnected
+      && !active.closest('[inert]')
+      // A closing overlay remains painted for its exit transition, so
+      // `offsetParent` alone calls its focused dialog usable for one frame.
+      // Once `.is-open` is gone that focus is already homeless; move it to
+      // the live game before the overlay finishes disappearing.
+      && !active.closest('.overlay:not(.is-open)')
+      && active.offsetParent !== null;
+    if (usable) return;
+
+    const urgent = urgentMomentControl();
+    if (urgent) {
+      ui.momentFocused = null;
+      focusMoment(urgent);
+      if (document.activeElement === urgent) return;
+    }
+
+    for (const id of ui.handOrder) {
+      if (focusSlot(ui.handSlots.get(id))) return;
+    }
+
+    for (const node of [el.drawPile, el.btnPass, el.btnCallout, el.handSelf, el.btnLeaveGame]) {
+      if (!node || node.disabled || node.hidden || node.offsetParent === null) continue;
+      node.focus({ preventScroll: true });
+      if (document.activeElement === node) return;
+    }
+  });
+}
+
+/**
  * Spends a booked intent, once the rails have been re-laid and the landing
  * place actually exists. Called at the end of `renderHand`.
  */
@@ -5978,15 +6253,118 @@ function spendFocusIntent(fresh, near) {
 }
 
 // =============================================================== ACTIONS ===
-function onCardActivate(card, slot) {
+const SPECIAL_PREVIEW_MS = 6500;
+
+/** What a special will do, stated without deciding whether it may be played. */
+function specialConsequence(card, view, playerId) {
+  if (!card) return '';
+  const player = view && view.players.find((candidate) => candidate.id === playerId);
+  if (player && player.cardCount === 1) {
+    if (card.kind === 'wild') {
+      return 'Choose a topping to play your last card; the round then ends.';
+    }
+    if (card.kind === 'wild4') {
+      return 'Choose a topping to play your last card; the round ends before anyone draws four.';
+    }
+    if (card.kind === 'skip') return 'As your last card, it ends the round before anyone is skipped.';
+    if (card.kind === 'reverse') return 'As your last card, it ends the round before direction changes.';
+    if (card.kind === 'draw2') return 'As your last card, it ends the round before anyone draws two.';
+  }
+  if (card.kind === 'skip') return 'The next chef is skipped.';
+  if (card.kind === 'reverse') {
+    const players = view ? view.players.filter((player) => !player.left) : [];
+    return players.length === 2
+      ? 'At a two-chef table, you play again.'
+      : 'Play reverses direction.';
+  }
+  if (card.kind === 'draw2') return 'The next chef draws two and is skipped.';
+  if (card.kind === 'wild') return 'You choose the next topping.';
+  if (card.kind === 'wild4') {
+    return 'You choose the next topping; the next chef draws four and is skipped.';
+  }
+  return '';
+}
+
+function restoreHandHint() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  if (!view || !snapshot || !el.handHint) return;
+  const yourTurn = view.turnPlayerId === snapshot.youId && view.status === 'playing';
+  const me = view.players.find((player) => player.id === snapshot.youId);
+  el.handHint.textContent = handHint(view, yourTurn, me);
+}
+
+function clearSpecialPreview({ restoreHint = true } = {}) {
+  clearTimeout(ui.specialPreviewTimer);
+  ui.specialPreviewTimer = 0;
+  const preview = ui.specialPreview;
+  ui.specialPreview = null;
+  if (preview) {
+    const slot = ui.handSlots.get(preview.cardId);
+    if (slot && slot.firstElementChild) slot.firstElementChild.classList.remove('is-previewing');
+  }
+  if (!el.handHint || el.handHint.dataset.specialPreview !== 'true') return;
+  delete el.handHint.dataset.specialPreview;
+  el.handHint.classList.remove('is-previewing');
+  if (restoreHint) restoreHandHint();
+}
+
+/**
+ * A direct first touch teaches an unfamiliar special instead of committing it.
+ * The same card's second touch confirms. Mouse, keyboard and assistive clicks
+ * keep their ordinary one-step behavior, and a new snapshot cancels the arm.
+ */
+function previewSpecialOnTouch(card, node, directTouch) {
+  const snapshot = ui.snapshot;
+  const consequence = specialConsequence(
+    card,
+    snapshot && snapshot.game,
+    snapshot && snapshot.youId
+  );
+  if (!directTouch || !consequence || ui.learnedSpecialKinds.has(card.kind)) {
+    clearSpecialPreview();
+    return false;
+  }
+  if (ui.specialPreview && ui.specialPreview.cardId === card.id) {
+    ui.learnedSpecialKinds.add(card.kind);
+    clearSpecialPreview({ restoreHint: false });
+    return false;
+  }
+
+  clearSpecialPreview({ restoreHint: false });
+  ui.specialPreview = { cardId: card.id, kind: card.kind };
+  node.classList.add('is-previewing');
+  const text = `${describeCard(card)}. ${consequence} Tap again to play.`;
+  el.handHint.dataset.specialPreview = 'true';
+  el.handHint.classList.remove('is-refused');
+  el.handHint.classList.add('is-previewing');
+  el.handHint.textContent = text;
+  announce(text);
+  ui.specialPreviewTimer = setTimeout(clearSpecialPreview, SPECIAL_PREVIEW_MS);
+  return true;
+}
+
+function onCardActivate(card, slot, event) {
   const node = slot.firstElementChild;
   if (!node || node.disabled) return;
+  const gesture = ui.handDrag;
+  const directTouch = Boolean(
+    event && event.detail > 0 && gesture
+    && Date.now() - gesture.at < DRAG_GUARD_MS
+    && gesture.pointerType !== 'mouse'
+  );
   // The row scrolls under the thumb, and the thumb starts on a card.
   if (draggedNotTapped()) return;
+  // The click consumed this pointer session. A later keyboard click must never
+  // inherit a touch from a card that was pressed minutes ago.
+  ui.handDrag = null;
   if (!node.classList.contains('is-playable')) {
+    clearSpecialPreview();
     refuseCard(node);
     return;
   }
+
+  if (previewSpecialOnTouch(card, node, directTouch)) return;
 
   if (isWild(card)) {
     openPicker(card, slot);
@@ -6031,8 +6409,7 @@ function refuseCard(node) {
  */
 function matchDemand(view) {
   if (!view) return "DOESN'T MATCH — that card cannot go on this pile.";
-  const meta = TOPPING_META[view.currentTopping];
-  const wants = [meta ? meta.label.toUpperCase() : '', matchValue(view.topCard).toUpperCase()];
+  const wants = turnMatchChoices(view).map((choice) => choice.toUpperCase());
   return `DOESN'T MATCH — need ${wants.filter(Boolean).join(', ')}, or a Wild.`;
 }
 
@@ -6819,7 +7196,7 @@ function refreshHandLayout() {
   relockHand();
 }
 
-function openCalloutPopover() {
+function openCalloutPopover(invoker = el.btnCallout) {
   const view = ui.snapshot && ui.snapshot.game;
   if (!view) return;
   const targets = view.calloutTargets || [];
@@ -6828,7 +7205,8 @@ function openCalloutPopover() {
     send({ type: 'callout', targetId: targets[0] });
     return;
   }
-  openedPopover(el.btnCallout);
+  const opener = invoker instanceof HTMLElement ? invoker : el.btnCallout;
+  openedPopover(opener);
   const rows = new DocumentFragment();
   for (const id of targets) {
     const player = view.players.find((p) => p.id === id);
@@ -6843,9 +7221,17 @@ function openCalloutPopover() {
     rows.append(button);
   }
   el.calloutRows.replaceChildren(rows);
-  const originX = popoverOriginX(el.calloutPop, el.btnCallout.getBoundingClientRect());
+  const originX = popoverOriginX(el.calloutPop, opener.getBoundingClientRect());
   if (originX !== null) el.calloutPop.style.setProperty('--origin-x', `${originX.toFixed(0)}px`);
   show(el.calloutPop);
+  // This is a timed choice, so opening its named dialog also enters it. The
+  // old path left focus on the trigger and put every unrelated hand control
+  // between the player and the two names they had just asked to choose from.
+  requestAnimationFrame(() => {
+    if (!el.calloutPop.classList.contains('is-open')) return;
+    const first = el.calloutRows.querySelector('.callout-btn');
+    if (first) first.focus({ preventScroll: true });
+  });
 }
 
 // -------------------------------------------------------- B · the shout ----
@@ -6854,47 +7240,47 @@ function openCalloutPopover() {
  * behind the middle frame only. It fires from the ZA! button, not the centre
  * of the screen, because the shout is yours.
  *
- * The timing score is measured from the moment the shout became legal, which
+ * The response stamp is measured from the moment the shout became legal, which
  * is the transition of `canDeclareZa` in the snapshot. The kit measures from
  * "playing the card"; the client never observes that instant for the play that
  * armed the button, and the wire protocol is not ours to extend, so this is
  * the nearest honest reference point. `TOO SLOW` is not implemented at all: a
- * missed window is never a button press, and the FORGOT! badge and the call-out
+ * missed window is never a button press, and the MISSED ZA! badge and call-out
  * penalty already narrate it.
  */
-function playShout() {
+function playShout(source = el.btnZa) {
   sound.play('power-up'); // rides the button slam and the starburst
-  const bar = el.btnZa.closest('.hand-bar');
-  if (!bar) return;
+  const stage = source && source.closest('.hand-bar, .moment');
+  if (!stage) return;
 
-  const barRect = bar.getBoundingClientRect();
-  const btnRect = el.btnZa.getBoundingClientRect();
-  bar.style.setProperty('--bx', `${(btnRect.left + btnRect.width / 2 - barRect.left).toFixed(0)}px`);
-  bar.style.setProperty('--by', `${(btnRect.top + btnRect.height / 2 - barRect.top).toFixed(0)}px`);
+  const stageRect = stage.getBoundingClientRect();
+  const btnRect = source.getBoundingClientRect();
+  stage.style.setProperty('--bx', `${(btnRect.left + btnRect.width / 2 - stageRect.left).toFixed(0)}px`);
+  stage.style.setProperty('--by', `${(btnRect.top + btnRect.height / 2 - stageRect.top).toFixed(0)}px`);
 
-  restartAnimation(el.btnZa, 'is-shouting', 'za-slam');
-  setTimeout(() => el.btnZa.classList.remove('is-shouting'), 220);
+  restartAnimation(source, 'is-shouting', 'za-slam');
+  setTimeout(() => source.classList.remove('is-shouting'), 220);
 
   if (wantsMotion()) {
     const burst = document.createElement('span');
     burst.className = 'za-burst';
     burst.setAttribute('aria-hidden', 'true');
-    bar.append(burst);
+    stage.append(burst);
     setTimeout(() => burst.remove(), 280);
   }
 
-  const armed = ui.shoutArmedAt;
-  ui.shoutArmedAt = 0;
+  const armed = ui.zaReadyAt;
+  ui.zaReadyAt = 0;
   if (!armed) return;
   const perfect = Date.now() - armed < 800;
-  const score = document.createElement('span');
-  score.className = perfect ? 'shout-score' : 'shout-score shout-score--ok';
-  score.setAttribute('aria-hidden', 'true');
-  score.textContent = perfect ? 'PERFECT! +500' : 'OK +100';
-  bar.append(score);
-  requestAnimationFrame(() => score.classList.add('is-on'));
-  setTimeout(() => score.classList.remove('is-on'), 780);
-  setTimeout(() => score.remove(), 1020);
+  const response = document.createElement('span');
+  response.className = perfect ? 'shout-response' : 'shout-response shout-response--ok';
+  response.setAttribute('aria-hidden', 'true');
+  response.textContent = perfect ? 'PERFECT ZA!' : 'ZA! CALLED';
+  stage.append(response);
+  requestAnimationFrame(() => response.classList.add('is-on'));
+  setTimeout(() => response.classList.remove('is-on'), 780);
+  setTimeout(() => response.remove(), 1020);
 }
 
 // =============================================================== CABINET ===
@@ -7251,15 +7637,23 @@ function syncChain() {
  * or a round seeds the map instead of firing, so joining a table mid-shout does
  * not throw ZA! across a board you just arrived at.
  */
-function syncShout(view) {
+function syncShout(snapshot, view) {
   const seen = ui.prevDeclared;
   let shouted = false;
+  let mine = false;
   for (const player of view.players) {
     const now = Boolean(player.declaredZa);
-    if (seen.has(player.id) && now && !seen.get(player.id)) shouted = true;
+    if (seen.has(player.id) && now && !seen.get(player.id)) {
+      shouted = true;
+      if (player.id === snapshot.youId) mine = true;
+    }
     seen.set(player.id, now);
   }
   if (shouted) showShout();
+  if (mine) {
+    announce('ZA called.');
+    focusGameFallbackSoon();
+  }
 }
 
 /** ZA! across the glass. Absolutely positioned, so the board does not move. */
@@ -7328,7 +7722,7 @@ function paintMuteToggle() {
  * THE INSTRUCTION CARD.
  *
  * A cabinet does not carry an essay. It carries an instruction card: pictures,
- * a headline, almost no words. This is that card — eight pages, one rule each,
+ * a headline, almost no words. This is that card — nine pages, one rule each,
  * flipped at the player's own pace and never on a timer.
  *
  * Every page is a demo, a headline of five words at most, and at most one line
@@ -7416,6 +7810,21 @@ function rcStage(className) {
 }
 
 // ------------------------------------------------------------- the demos ---
+
+/**
+ * The table's three navigation facts in their reading order: NOW is acting,
+ * the arrow names the direction, and NEXT is where play lands. The live
+ * marquee says the current name above the same picture.
+ */
+function demoReadTable() {
+  const stage = rcStage('deck__demo--row');
+  const now = rcEl('span', 'deck__seat deck__seat--you');
+  now.append(rcPlate('NOW'));
+  const next = rcEl('span', 'deck__seat deck__seat--next');
+  next.append(rcPlate('NEXT'));
+  stage.append(now, rcArrow('r'), next);
+  return stage;
+}
 
 /**
  * 1 · A card leaves a hand and lands on the oven card — once because it shares
@@ -7611,16 +8020,22 @@ function demoClock() {
 
 // -------------------------------------------------------------- the pages --
 /**
- * Eight pages in the order a player needs them. `sr` is the whole rule, in
+ * Nine pages in the order a player needs them. `sr` is the whole rule, in
  * full, for the visually-hidden node — shortening the page must never shorten
  * what is known, so anything that could not survive twelve visible words is
  * kept here word for word.
  */
 const RULE_PAGES = [
   {
+    h: 'Read the table',
+    line: 'NOW plays. NEXT follows the arrow.',
+    sr: 'The marquee names whose turn it is. The seat marked NOW is playing, the seat marked NEXT follows, and the clockwise or counter-clockwise arrow shows which way play is moving. Your own hand strip says YOUR TURN or YOU\'RE NEXT when either one is you.',
+    demo: demoReadTable,
+  },
+  {
     h: 'Match it',
     line: 'A Burnt Slice goes on any Burnt Slice.',
-    sr: 'Play a card that shares the topping in play, or the same number as the card in the oven, or the same symbol — a Burnt Slice goes on any Burnt Slice, whatever the topping. While a wild sits on top there is no symbol to match: only the topping the chef named, or another wild, will do.',
+    sr: 'Play a card that shares the topping in play, or the same number as the card in the oven, or the same symbol — a Burnt Slice goes on any Burnt Slice, whatever the topping. While a wild sits on top there is no symbol to match: only the topping the chef named, or another wild, will do. You may draw one card instead even when a card in your hand fits.',
     // game.js:208-222 canPlay — suit at 217, number-on-number at 218-220, and
     // kind-on-kind at 221 behind the `!isWild(top)` guard that switches symbol
     // matching off while a wild is the top card.
@@ -7652,8 +8067,8 @@ const RULE_PAGES = [
     // the turn on its own, and there is no pass to choose. The first draft said
     // "Play that card, or keep it and pass", which promised a choice the server
     // does not always offer.
-    line: 'If it fits: play it, or keep it and pass.',
-    sr: 'Nothing fits? Take one card off the dough pile. If it can be played you may play that card and nothing else, or keep it and pass; if it cannot be played your turn ends by itself.',
+    line: 'Draw one anytime. If it fits, play or pass.',
+    sr: 'You may take one card off the dough pile even when something in your hand fits. If the drawn card can be played, you may play that card and nothing else, or keep it and pass; if it cannot be played, your turn ends by itself.',
     // game.js:484-511 drawCard · 225-235 playableCardIds narrows to the drawn
     // card alone · 379-381 playCard refuses every other card · 514-523
     // passTurn, which is legal only after a draw.
@@ -7689,8 +8104,8 @@ const RULE_PAGES = [
   },
   {
     h: 'The kitchen clock',
-    line: '45 seconds a turn. Then the oven deals one.',
-    sr: 'Your turn carries 45 seconds — the marquee counts the last ten down, then the oven gives you one card and moves on. Drop off and the table only waits about 12 seconds; your seat is held for 2 minutes.',
+    line: '45 seconds. Miss one? Next turn is 12 until you move.',
+    sr: 'Your turn carries 45 seconds — the marquee counts the last ten down, then the oven gives you one card and moves on. After you time out, each return turn is only 12 seconds until you make any move; then your normal 45-second clock returns. Drop off and the table also waits about 12 seconds; your seat is held for 2 minutes.',
     // rooms.js:22 IDLE_TURN_TIMEOUT_MS = 45000 · 23 IDLE_WARN_MS = 10000, the
     // stretch the marquee counts · 21 AWAY_TURN_TIMEOUT_MS = 12000 · 24
     // RECONNECT_GRACE_MS = 120000 · 254-255 armed only for a seat that is not
@@ -7837,6 +8252,23 @@ function visibleRulesOpener() {
   return openers.find((node) => node && node.isConnected && node.offsetParent !== null) || null;
 }
 
+function ownTurnRunning() {
+  const snapshot = ui.snapshot;
+  const view = snapshot && snapshot.game;
+  return Boolean(
+    ui.screen === 'game'
+    && view
+    && view.status === 'playing'
+    && view.turnPlayerId === snapshot.youId
+  );
+}
+
+function syncRulesClockNote() {
+  const running = ownTurnRunning();
+  el.rulesClockNote.hidden = !running;
+  return running;
+}
+
 function openRules() {
   if (el.rulesOverlay.classList.contains('is-open')) return;
   buildRulesBody();
@@ -7847,6 +8279,7 @@ function openRules() {
   // too many.
   goRulePage(0, true);
   el.rulesBody.scrollTop = 0;
+  syncRulesClockNote();
   ui.rulesFocusReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // A popover left standing under the overlay would keep its own click-outside
   // and Escape behaviour behind an inert app.
@@ -7870,6 +8303,12 @@ function closeRules(restoreFocus = true) {
   // One frame late: `#app` is inert until the class change has been applied,
   // and focus() on anything inside an inert subtree is dropped on the floor.
   requestAnimationFrame(() => {
+    const urgent = urgentMomentControl();
+    if (urgent) {
+      ui.momentFocused = null;
+      focusMoment(urgent);
+      if (document.activeElement === urgent) return;
+    }
     const back =
       target && target.isConnected && !target.closest('[inert]') && target.offsetParent !== null
         ? target
@@ -7908,7 +8347,7 @@ el.formCreate.addEventListener('submit', (event) => {
     toast('The chef needs a name to shout.');
     return;
   }
-  localStorage.setItem('za.name', name);
+  saveName(name);
   send({ type: 'createRoom', name });
 });
 
@@ -7926,9 +8365,18 @@ el.formJoin.addEventListener('submit', (event) => {
     toast('Which table? Enter the code.');
     return;
   }
-  localStorage.setItem('za.name', name);
+  saveName(name);
   // A token from an earlier visit to this table takes the same seat back.
   send({ type: 'joinRoom', name, code, token: net.storedToken(code) });
+});
+
+// An invite opens with the table code already filled and focus in the shared
+// name field. Enter there means "use this invitation"; the dedicated Create
+// button still creates a new table when that is what the player clicks.
+el.inputName.addEventListener('keydown', (event) => {
+  if (event.isComposing || event.key !== 'Enter' || !el.inputCode.value.trim()) return;
+  event.preventDefault();
+  el.formJoin.requestSubmit();
 });
 
 el.btnCopyCode.addEventListener('click', () => copyCode(el.btnCopyCode));
@@ -7981,13 +8429,7 @@ function armLeave() {
   ui.leaveTimer = setTimeout(disarmLeave, LEAVE_ARM_MS);
 }
 
-el.btnLeaveGame.addEventListener('click', () => {
-  if (!ui.leaveArmed) {
-    armLeave();
-    return;
-  }
-  disarmLeave();
-
+function leaveTable() {
   // A confirmed leave has to land somewhere. Across a dead line the `leaveRoom`
   // is simply dropped — `send` toasts and returns false — and the player is held
   // at a table they have already decided twice to walk away from, with no route
@@ -7998,7 +8440,10 @@ el.btnLeaveGame.addEventListener('click', () => {
   // The wire path below is untouched for a connection that can still carry it,
   // because a leave the server hears about ends the round properly.
   if (!net.synchronized) {
-    net.forget();
+    // A reconnect may already have put `joinRoom` on the old socket. Replace
+    // that socket so its late joined/state pair cannot pull Home back into the
+    // table after the player explicitly chose to leave.
+    net.abandon();
     ui.snapshot = null;
     closePopovers({ restoreFocus: false });
     closeRules(false);
@@ -8014,6 +8459,15 @@ el.btnLeaveGame.addEventListener('click', () => {
   }
 
   send({ type: 'leaveRoom' });
+}
+
+el.btnLeaveGame.addEventListener('click', () => {
+  if (!ui.leaveArmed) {
+    armLeave();
+    return;
+  }
+  disarmLeave();
+  leaveTable();
 });
 
 el.drawPile.addEventListener('click', () => {
@@ -8032,9 +8486,9 @@ el.drawPile.addEventListener('click', () => {
 el.btnPass.addEventListener('click', passTurn);
 el.btnZa.addEventListener('click', () => {
   if (el.btnZa.disabled) return;
-  declareZa();
+  declareZa(el.btnZa);
 });
-el.btnCallout.addEventListener('click', openCalloutPopover);
+el.btnCallout.addEventListener('click', (event) => openCalloutPopover(event.currentTarget));
 
 /**
  * 2A/4 · pressing a chef calls them out.
@@ -8069,6 +8523,8 @@ el.calloutCancel.addEventListener('click', () => closePopovers());
 // 09 · the host decides. Nothing here is on a clock.
 el.btnNextRound.addEventListener('click', () => send({ type: 'newRound' }));
 el.btnToLobby.addEventListener('click', () => send({ type: 'backToLobby' }));
+el.btnRoundLeave.addEventListener('click', leaveTable);
+el.btnConnLeave.addEventListener('click', leaveTable);
 
 // Which modality the player is on right now. Focus is only moved for them
 // after a play or a draw when they are on the keyboard — see `bookFocus`.
@@ -8180,7 +8636,7 @@ PHONE.addEventListener('change', () => {
 });
 
 let resizeFrame = 0;
-window.addEventListener('resize', () => {
+function handleViewportChange() {
   resizeHandRow();
   // Outside the rAF with `resizeHandRow`, and for the same reason: a
   // backgrounded pane throttles rAF away entirely, and a laptop that came back
@@ -8212,7 +8668,18 @@ window.addEventListener('resize', () => {
     syncDirectionHome();
     syncFeltDensity();
   });
-});
+}
+
+window.addEventListener('resize', handleViewportChange);
+if (window.visualViewport) {
+  // Mobile browser chrome and the on-screen keyboard resize the visual
+  // viewport without consistently resizing `window`. The same layout path is
+  // safe for both; cached measurements key off the visible dimensions above.
+  window.visualViewport.addEventListener('resize', handleViewportChange);
+  // Panning a zoomed visual viewport changes viewport-relative rib geometry
+  // without changing its size. Only that pointer cache needs invalidating.
+  window.visualViewport.addEventListener('scroll', invalidatePit, { passive: true });
+}
 
 // ================================================================== BOOT ===
 function boot() {
@@ -8252,7 +8719,7 @@ function boot() {
   bindPit();
   bindHandRow();
 
-  const saved = localStorage.getItem('za.name');
+  const saved = readSavedName();
   if (saved) el.inputName.value = saved;
 
   const opening = openingMove();

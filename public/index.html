@@ -19,6 +19,7 @@
 <div class="conn-banner" id="conn-banner" role="status" aria-live="polite">
   <span class="conn-banner__dot"></span>
   <span id="conn-banner-text">Connecting to the kitchen…</span>
+  <button class="conn-banner__leave" id="btn-conn-leave" type="button" hidden>Leave table</button>
 </div>
 
 <main id="app">
@@ -225,16 +226,17 @@
            move-gate and it may never contradict the lock: while the hand is
            disabled it can say RESOLVING, TURN MOVING or WAIT YOUR TURN, but
            never YOUR TURN. -->
-      <div class="hand-self" id="hand-self">
+      <div class="hand-self" id="hand-self" tabindex="-1">
         <span class="hand-self__label" id="hand-label">YOUR HAND</span>
         <span class="hand-self__count" id="hand-count"></span>
         <span class="hand-self__state" id="hand-state"></span>
       </div>
 
       <!-- THE MOMENTS. Contextual windows that only exist while the server
-           says the move behind them is legal: the ZA teaching strip at two
-           cards, the recovery window when you played to one without shouting,
-           and the call-out window while `calloutTargets` names somebody.
+           says the move behind them is legal: the recovery warning when you
+           played to one without shouting, and the call-out window while
+           `calloutTargets` names somebody. The permanent ZA! button owns the
+           shout itself, so these panels never duplicate it.
            Nothing in here runs on a clock — see "the bar that promised a
            deadline" in the kitchen log. -->
       <div class="moments" id="moments"></div>
@@ -322,6 +324,7 @@
         <span data-icon="slice" aria-hidden="true">🍕</span> Another pie!
       </button>
       <button class="btn btn--ghost" id="btn-to-lobby" type="button">Back to the parlour</button>
+      <button class="btn btn--ghost" id="btn-round-leave" type="button">Leave table</button>
     </div>
     <p class="hint" id="round-wait"></p>
   </div>
@@ -335,7 +338,12 @@
      in the client allowed to build card markup. -->
 <div class="overlay" id="overlay-rules" role="dialog" aria-modal="true" aria-labelledby="rules-title">
   <div class="dialog dialog--rules" id="rules-dialog" tabindex="-1">
-    <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
+    <div class="rules-head">
+      <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
+      <p class="rules-clock-note" id="rules-clock-note" role="status" hidden>
+        YOUR TURN IS LIVE — THE CLOCK KEEPS RUNNING.
+      </p>
+    </div>
     <!-- The scroll lives here, not on the dialog: the dialog stays clipped in
          both axes, so nothing can ever scroll sideways. `tabindex` is what
          lets a keyboard reach the scroll on an engine that does not focus

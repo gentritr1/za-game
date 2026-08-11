@@ -114,9 +114,14 @@ export class Connection {
     this.onStatus = onStatus || (() => {});
     this.socket = null;
     this.retry = 0;
+    this.retryTimer = 0;
     this.credentials = null; // { name, code, token }
     this.closedByUser = false;
     this.state = 'disconnected';
+    // Every socket owns one generation. Replacing a socket invalidates all of
+    // its late events, including a join reply that arrives after the player
+    // explicitly abandoned that reconnect.
+    this.generation = 0;
     // True between a `joined` and the first `state` that follows it. Only that
     // pair — in that order — closes the gate.
     this.awaitingFirstState = false;
@@ -139,14 +144,18 @@ export class Connection {
   }
 
   connect() {
+    clearTimeout(this.retryTimer);
+    this.retryTimer = 0;
     this.closedByUser = false;
     this.awaitingFirstState = false;
     this.setState('connecting');
 
     const socket = new WebSocket(this.url);
+    const generation = ++this.generation;
     this.socket = socket;
 
     socket.addEventListener('open', () => {
+      if (generation !== this.generation) return;
       this.retry = 0;
       // Take the seat again after a drop. The board stays inert until the
       // server has answered, so the state moves to `joining` and not further.
@@ -166,6 +175,7 @@ export class Connection {
     });
 
     socket.addEventListener('message', (event) => {
+      if (generation !== this.generation) return;
       let message;
       try {
         message = JSON.parse(event.data);
@@ -184,6 +194,7 @@ export class Connection {
     });
 
     socket.addEventListener('close', () => {
+      if (generation !== this.generation) return;
       this.socket = null;
       this.awaitingFirstState = false;
       if (this.closedByUser) {
@@ -194,10 +205,17 @@ export class Connection {
       const wait = RETRY_STEPS[Math.min(this.retry, RETRY_STEPS.length - 1)];
       this.retry += 1;
       this.setState('disconnected');
-      setTimeout(() => this.connect(), wait);
+      clearTimeout(this.retryTimer);
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = 0;
+        this.connect();
+      }, wait);
     });
 
-    socket.addEventListener('error', () => { /* close follows */ });
+    socket.addEventListener('error', () => {
+      if (generation !== this.generation) return;
+      /* close follows */
+    });
   }
 
   /**
@@ -280,6 +298,26 @@ export class Connection {
       this.awaitingFirstState = false;
       this.setState('synchronized');
     }
+  }
+
+  /**
+   * Leaves a reconnect that may already have a join reply in flight.
+   *
+   * Clearing credentials alone cannot retract bytes already sent. Replace the
+   * socket and invalidate its generation so a late `joined`/`state` pair can
+   * never put the player back at the table they just left. The replacement
+   * socket opens Home with no seat to reclaim.
+   */
+  abandon() {
+    if (this.credentials) writeSeat(this.credentials.code, null);
+    this.credentials = null;
+    this.awaitingFirstState = false;
+
+    const stale = this.socket;
+    this.socket = null;
+    this.generation += 1;
+    if (stale && stale.readyState < WebSocket.CLOSING) stale.close();
+    this.connect();
   }
 
   /** The token for a table this tab already sat at, if there is one. */

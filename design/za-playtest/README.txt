@@ -1,4 +1,4 @@
-ZA! — TABLE PROTOTYPE (playtest build, pass 8)
+ZA! — TABLE PROTOTYPE (accessibility + mobile playtest build, pass 9)
 
 Open ZA-Table-Prototype.html in any browser. No install, no server, works offline.
 
@@ -18,16 +18,12 @@ Pick a scenario from the dropdown beside RESET TABLE, or use the URL:
   ?scenario=skip          ?scenario=draw2         ?scenario=incoming2
   ?scenario=wild          ?scenario=draw-playable ?scenario=draw-nomatch
   ?scenario=za            ?scenario=callout       ?scenario=bighand
+  ?scenario=last-card     ?scenario=empty-deck
 
 FREEZE ON (or ?freeze=1) stops the table on each teaching beat — Skip, +2,
-Reverse, a penalty landing — until you press CONTINUE. Use it to ask the
-question against the frame the tester actually saw.
-
-In participant mode a frozen table says only PAUSED — no facilitator wording, no
-button, nothing telling the tester which frame to study. Resume it three ways:
-the CONTINUE button (researcher mode), the C key, or a one-second press on the
-PAUSED panel itself. The long press is the one that works on a phone with no
-keyboard; a second browser window cannot resume the tester's device.
+Reverse, a penalty landing — until someone activates the visible CONTINUE
+(researcher) or RESUME TABLE (participant) button. The C key remains a
+researcher shortcut. Focus moves to the button, including on a phone.
 
 HOW TO RUN THE TEST
 Say nothing beforehand. Hand it over and let them play.
@@ -45,11 +41,11 @@ After 20 seconds, ask, in this order:
 If the answers are not immediate, the fix is comprehension, not polish.
 Run it once more with the OS "reduce motion" setting on and score that separately.
 
-TIMED MOMENTS
+DECISION WINDOWS
 When you forget ZA, or an opponent forgets it, the table says ZA WINDOW OPEN and
-the button takes focus immediately. In a scripted scenario the window has no
-deadline — read the banner aloud at normal speed and the call still works. In
-free play it stays open for eight seconds. SAY NOTHING and LET IT PASS decline it.
+the button takes focus immediately. The prototype never invents a countdown:
+the window stays open until CALL ZA NOW, SAY NOTHING, CALL OUT NOW or LET IT PASS
+is chosen.
 
 NOTES FOR THE TESTER
 - Desktop: hover a card to see what it will do, click to play. Tab and Enter work.
@@ -60,21 +56,40 @@ NOTES FOR THE TESTER
 - DRAW A CARD draws one. If it is playable you choose PLAY IT or KEEP & PASS;
   if it is not, your turn ends by itself.
 - +2 makes the next player draw two AND lose their turn.
-- Action cards say what they do: ↻ REVERSE, ⊘ SKIP, +2 DRAW TWO. The topping is
-  the border and the corner mark.
+- Action cards keep both facts printed at every size: the effect and the topping.
+  The border, topping glyph and full accessible name reinforce the same rule.
 - The travelling order ticket means only "the turn is moving here". It is not ZA.
 - A long hand scrolls sideways. The faded edges follow the scroll position, and
   the swipe line retires once they have swiped once.
-- Screen readers get the event ribbon on a polite channel and timed ZA
-  opportunities on an assertive one, with the reason attached to the button.
+- Screen readers get turn changes, event outcomes and invalid-card reasons on a
+  polite channel; costly ZA choices and round outcomes use the assertive channel.
 - Focus moves onto each new decision: CALL ZA NOW, CALL OUT NOW, PLAY IT, and
-  the first topping in the Wild picker.
+  the first topping in the Wild picker. It also moves to RESUME TABLE, PLAY AGAIN
+  and the HOW TO PLAY dialog, then returns to the control that opened the rules.
 
-The table sizes itself to the window. Checked at 390×667, 390×720, 390×844 and
-1280×780: nothing scrolls, and the active seat, the match target, the hand and
-DRAW A CARD are always above the fold. Cards never fall below 54 px wide.
-The supported minimum width is 360 px; below that the two-card lesson starts to
-crowd the ring and would need its own composition.
+The table sizes itself to the visible viewport. Portrait keeps the ring above the
+hand. Short landscape uses the same table/hand patterns side by side. Checked at
+320×640, 360×640, 390×667, 390×844, 568×320, 667×390, 720×640, 844×390 and
+1280×780. At extreme zoom or very short portrait heights, one vertical scroll
+keeps every action reachable without horizontal page scrolling. Cards never fall
+below 54 px wide and controls stay at least 44 px high.
+
+CHANGED SINCE PASS 8
+Turn truth is now shared by every seat label, so a Skip or +2 frame marks the
+victim SKIPPED and the real destination NEXT · every visual-only YOUR TURN,
+invalid play, pause, winner and empty-deck result is announced · ZA and callout
+choices wait for an explicit decision instead of expiring · participant freeze
+uses a real focused RESUME TABLE button · round end always offers PLAY AGAIN ·
+HOW TO PLAY is available on demand in a labelled, focus-trapped dialog · action
+cards print both effect and topping · inactive seats and illegal cards use opaque
+AA-contrast states instead of group opacity · short landscape is a two-column
+composition, 720 px hand overflow starts safely at the left edge, compact Match
+content stacks clear of side seats, and visible-viewport plus safe-area insets are
+honoured · readable source and the offline bundle now have a deterministic sync
+command in prototype-bundle.mjs.
+
+The pass notes below are retained as design history. Pass 9 above supersedes
+their older timer, participant-freeze and compact-Match behavior.
 
 CHANGED SINCE PASS 6
 Picking a Wild is now a decision panel like a drawn card: the played Wild is
@@ -85,8 +100,9 @@ derived from the measured stage rather than an estimate, so a panel can never
 leave the ring positioned against height it has already taken · accepting a drawn
 Wild clears the draw decision before the picker opens, so PLAY IT and KEEP & PASS
 can never sit beside PICK THE NEXT TOPPING · drawing or opening a Wild clears the
-YOUR TURN banner immediately · a frozen phone can be resumed by a one-second
-press on the PAUSED panel · the hand header now names what is actually there —
+YOUR TURN banner immediately · a frozen phone can be resumed without a keyboard
+(pass 9 replaces that old long press with RESUME TABLE) · the hand header now
+names what is actually there —
 ZA WINDOW, CALLOUT WINDOW, PICK A TOPPING, DRAW DECISION, TABLE PAUSED.
 
 Verified at 390×667 and 390×720 with every panel open: no element overlaps

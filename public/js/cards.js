@@ -142,8 +142,10 @@ function footLabel(card) {
   // SKIP, REVERSE, DRAW TWO. The parlour name is on the rules page, in the
   // chatter and in the spoken label; the banner is the one place on the card
   // where a player who has never seen this deck needs the answer, not the joke.
+  // The topping token stays beside the effect so the card never asks somebody
+  // to recover its match suit from colour alone.
   const effect = EFFECTS[card.kind];
-  if (effect) return effect.word;
+  if (effect) return `${effect.word} · ${TOPPINGS[card.suit].token}`;
   return KINDS[card.kind].label;
 }
 

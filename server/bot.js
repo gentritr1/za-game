@@ -54,6 +54,11 @@ const CATCHPHRASE_CUES = {
 /** Used when a seat has no regular (the seventh bot at a full table). */
 const DEFAULT_NOTICE = 0.7;
 
+/** How likely this regular is to notice a missed ZA. */
+function noticeFor(regular) {
+  return regular && typeof regular.notice === 'number' ? regular.notice : DEFAULT_NOTICE;
+}
+
 /** The regular with that id, or null. */
 function findRegular(id) {
   if (!id) return null;
@@ -143,6 +148,8 @@ function tieBreak(a, b, bias) {
  * @param {string} botId the seat deciding
  * @param {object|null} [regular] one entry of REGULARS. Without it the bot
  *        keeps the house defaults it had before the regulars moved in.
+ * @param {{allowCallout?: boolean}} [options] room play disables the immediate
+ *        call-out path because the room's fair, delayed observer owns it
  * @returns {{ action: 'play', cardId: string, topping?: string }
  *          |{ action: 'draw' }
  *          |{ action: 'pass' }
@@ -150,35 +157,42 @@ function tieBreak(a, b, bias) {
  *          |{ action: 'callout', targetId: string }
  *          |null}
  */
-function decide(state, botId, regular) {
-  const bot = game.findPlayer(state, botId);
-  if (!bot || bot.left || state.status !== 'playing') return null;
+function decide(state, botId, regular, options = {}) {
+  const botPlayer = game.findPlayer(state, botId);
+  if (!botPlayer || botPlayer.left || state.status !== 'playing') return null;
 
-  const notice = regular && typeof regular.notice === 'number' ? regular.notice : DEFAULT_NOTICE;
   const bias = (regular && regular.bias) || {};
 
   // Catch a careless neighbour. Bots are not perfect, so they miss some.
-  const target = state.players.find(
-    (p) => p.id !== botId && !p.left && p.vulnerable && p.hand.length === 1
-  );
-  if (target && state.rng() < notice) return { action: 'callout', targetId: target.id };
+  // Production room play turns this off: `Room.botCalloutWindow` gives the
+  // human a real reaction beat and appoints only one observer for the table.
+  if (options.allowCallout !== false) {
+    const target = state.players.find(
+      (p) => p.id !== botId && !p.left && p.vulnerable && p.hand.length === 1
+    );
+    if (target && state.rng() < noticeFor(regular)) {
+      return { action: 'callout', targetId: target.id };
+    }
+  }
 
   if (game.currentPlayer(state).id !== botId) return null;
 
   // Shout before playing the second to last card.
-  if (bot.hand.length <= 2 && !bot.declaredZa) return { action: 'za' };
+  if (botPlayer.hand.length <= 2 && !botPlayer.declaredZa) return { action: 'za' };
 
   const playableIds = new Set(game.playableCardIds(state, botId));
-  const options = bot.hand.filter((c) => playableIds.has(c.id));
+  const playable = botPlayer.hand.filter((c) => playableIds.has(c.id));
 
-  if (options.length > 0) {
-    const size = bot.hand.length;
-    options.sort(
+  if (playable.length > 0) {
+    const size = botPlayer.hand.length;
+    playable.sort(
       (a, b) => rankWithBias(a, bias, size) - rankWithBias(b, bias, size) || tieBreak(a, b, bias)
     );
-    const card = options[0];
+    const card = playable[0];
     const move = { action: 'play', cardId: card.id };
-    if (game.isWild(card)) move.topping = bestTopping(bot.hand.filter((c) => c.id !== card.id));
+    if (game.isWild(card)) {
+      move.topping = bestTopping(botPlayer.hand.filter((c) => c.id !== card.id));
+    }
     return move;
   }
 
@@ -195,4 +209,5 @@ module.exports = {
   pickRegular,
   cueFor,
   DEFAULT_NOTICE,
+  noticeFor,
 };
