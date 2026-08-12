@@ -11,14 +11,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Kaushan+Script&display=swap">
 <link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/table-pass9.css">
 </head>
-<body>
+<body data-ui="pass9">
 
 <div class="crt-overlay" aria-hidden="true"></div>
 
-<div class="conn-banner" id="conn-banner" role="status" aria-live="polite">
-  <span class="conn-banner__dot"></span>
-  <span id="conn-banner-text">Connecting to the kitchen…</span>
+<div class="conn-banner" id="conn-banner">
+  <span class="conn-banner__status" role="status" aria-live="polite">
+    <span class="conn-banner__dot" aria-hidden="true"></span>
+    <span id="conn-banner-text">Connecting to the kitchen…</span>
+  </span>
+  <button class="conn-banner__leave" id="btn-conn-leave" type="button" hidden>Leave table</button>
 </div>
 
 <main id="app">
@@ -100,8 +104,8 @@
   <!-- THE SHELL owns the width policy for everything under it (see "the shell"
        in styles.css). Nothing inside it measures the viewport for itself any
        more; it asks the shell for the play column instead. -->
-  <div class="shell">
-  <section class="screen screen--game" data-screen="game" aria-label="Game table" hidden>
+  <div class="shell" data-ui="pass9">
+  <section class="screen screen--game" data-screen="game" data-ui="pass9" aria-label="Game table" hidden>
 
     <header class="hud">
       <!-- THE MARQUEE. One strip carries all three things the header used to
@@ -111,7 +115,12 @@
            needed; the word still exists for screen readers in .marquee__sr,
            and a static arrow takes over under prefers-reduced-motion. -->
       <p class="hud__turn marquee" id="turn-banner" role="status" aria-live="polite">
-        <span class="marquee__mark" aria-hidden="true">ZA!</span>
+        <span class="marquee__brand" aria-hidden="true">
+          <span class="marquee__mark">ZA!</span>
+          <span class="marquee__bulbs">
+            <i></i><i></i><i></i>
+          </span>
+        </span>
         <!-- The label and the countdown are ONE grid item, not two. The strip
              is a three-track grid, and below 520px the chevron chase is the
              third of those tracks — so a countdown standing on its own became
@@ -120,13 +129,18 @@
              keeps the marquee at three children whether the clock is running
              or not. -->
         <span class="marquee__line">
-          <span class="turn-label" id="turn-text">Waiting…</span>
+          <!-- The printed header stays deliberately short. The complete turn
+               instruction has its own live node below, so a phone never has
+               to choose between truncating the rule and making the cabinet
+               header two lines tall. -->
+          <span class="turn-label" id="turn-text" aria-hidden="true">TABLE</span>
           <!-- The last ten seconds of a turn. The digits are aria-hidden because
                a polite live region that changes every second is a siren, not a
                warning; the one sentence in #turn-warn is what gets announced,
                once, when the window opens. -->
           <span class="turn-count" id="turn-count" aria-hidden="true"></span>
         </span>
+        <span class="sr-only" id="turn-spoken">Waiting for the table.</span>
         <span class="sr-only" id="turn-warn"></span>
         <span class="marquee__dir" id="dir-chase" aria-hidden="true">
           <span class="za-chev">▸</span>
@@ -136,6 +150,7 @@
           <span class="za-chev">▸</span>
           <span class="marquee__arrow" data-icon="cycle">↻</span>
         </span>
+        <span class="marquee__meta" id="table-meta" aria-hidden="true">TABLE · 2 PLAYERS</span>
         <span class="marquee__sr" id="dir-announce">to the left</span>
       </p>
     </header>
@@ -143,22 +158,70 @@
     <div class="table">
       <div class="opponents" id="opponents"></div>
 
-      <div class="table-center">
-        <button class="pile pile--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
-          <span class="pile__label">Dough pile</span>
-          <span class="pile__slot" id="draw-slot"></span>
-          <span class="pile__count" id="draw-count">0</span>
-        </button>
+      <!-- Visual punctuation only. The live header already announces the
+           full instruction; this transient sign is the across-the-room cue
+           that makes a newly arrived turn impossible to miss. -->
+      <div class="turn-slam" id="turn-slam" aria-hidden="true" hidden>YOUR TURN</div>
 
-        <div class="pile pile--discard">
-          <span class="pile__label">The oven</span>
-          <span class="pile__slot" id="discard-slot"></span>
-          <span class="topping-now" id="topping-now">
-            <i class="topping-now__emoji" aria-hidden="true">🍕</i>
-            <b class="topping-now__name">Pepperoni</b>
+      <div class="table-center">
+        <div class="plaque" id="match-plaque" data-mode="match">
+          <span class="plaque__head" id="plaque-head-row" aria-hidden="true">
+            <b class="plaque__head-word" id="plaque-head">Match</b>
           </span>
+          <span class="plaque__body" aria-hidden="true">
+            <span class="plaque__topping">
+              <i class="plaque__emblem" id="plaque-emblem" aria-hidden="true"></i>
+              <b class="plaque__name" id="plaque-name">Pepperoni</b>
+            </span>
+            <span class="plaque__alt" id="plaque-alt">
+              <span class="plaque__or" aria-hidden="true">or</span>
+              <b class="plaque__value" id="plaque-value">0</b>
+            </span>
+          </span>
+          <span class="sr-only" id="plaque-spoken"></span>
         </div>
+
+        <div class="table-center__piles">
+          <!-- The deck is table furniture. The one draw action lives beside
+               the hand below, where a thumb and a keyboard reach it without
+               hunting across the table. The existing slot/count ids stay the
+               render source, so the deck and the action cannot disagree. -->
+          <div class="pile pile--deck" aria-hidden="true">
+            <span class="pile__label">Deck</span>
+            <span class="pile__slot" id="draw-slot"></span>
+            <span class="pile__count" id="draw-count">0</span>
+          </div>
+
+          <div class="pile pile--discard">
+            <span class="pile__label">Top card</span>
+            <span class="pile__slot" id="discard-slot"></span>
+          </div>
+        </div>
+
+        <!-- The direction of play, in the word for it, at every width. The
+             marquee's chevron chase and the token walking the counter are both
+             pictures of this; below 520px the chase is hidden and above it the
+             token is the only carrier, so neither is on screen at all sizes.
+             This is, and it is never inside anybody else's box. -->
+        <span class="dir-chip" id="dir-chip" data-dir="1">
+          <span class="dir-chip__glyph" id="dir-chip-glyph" aria-hidden="true"></span>
+          <b class="dir-chip__word" id="dir-chip-word">Clockwise</b>
+        </span>
       </div>
+
+      <!-- A visual-only place for the local player completes the table
+           geography on roomy screens. The real, accessible phase strip stays
+           above the hand and remains the single spoken copy. -->
+      <div class="self-seat-visual" id="self-seat-visual" aria-hidden="true">
+        <span class="self-seat-visual__ticket"></span>
+        <span class="self-seat-visual__avatar" id="self-seat-avatar"></span>
+        <span class="self-seat-visual__name">YOU</span>
+        <span class="self-seat-visual__pips" id="self-seat-pips"></span>
+        <span class="self-seat-visual__count" id="self-seat-count">0</span>
+        <span class="self-seat-visual__state" id="self-seat-state">WAIT</span>
+      </div>
+
+      <p class="narration" id="narration" aria-hidden="true"></p>
 
       <aside class="log" id="log">
         <h2 class="log__title">Kitchen chatter</h2>
@@ -167,7 +230,31 @@
     </div>
 
     <footer class="hand-zone">
+      <!-- YOUR STRIP. You have no chef panel of your own around the counter,
+           so the one place that says what phase YOU are in is here, over your
+           own cards. The word is derived from the snapshot and the local
+           move-gate and it may never contradict the lock: while the hand is
+           disabled it can say RESOLVING, TURN MOVING or WAIT YOUR TURN, but
+           never YOUR TURN. -->
+      <div class="hand-self" id="hand-self" tabindex="-1">
+        <span class="hand-self__label" id="hand-label">YOUR HAND</span>
+        <span class="hand-self__count" id="hand-count"></span>
+        <span class="hand-self__state" id="hand-state"></span>
+      </div>
+
+      <!-- THE MOMENTS. Contextual windows that only exist while the server
+           says the move behind them is legal: the recovery warning when you
+           played to one without shouting, and the call-out window while
+           `calloutTargets` names somebody. The permanent ZA! button owns the
+           shout itself, so these panels never duplicate it.
+           Nothing in here runs on a clock — see "the bar that promised a
+           deadline" in the kitchen log. -->
+      <div class="moments" id="moments"></div>
+
       <div class="hand-bar">
+        <button class="btn btn--draw" id="draw-pile" type="button" aria-label="Draw a card from the dough pile">
+          Draw a card
+        </button>
         <button class="btn btn--za" id="btn-za" type="button">
           <span data-icon="slice" aria-hidden="true">🍕</span> ZA!
         </button>
@@ -176,48 +263,57 @@
         </button>
         <button class="btn btn--ghost btn--sm" id="btn-pass" type="button">Keep it &amp; pass</button>
         <span class="hand-bar__hint" id="hand-hint"></span>
+
+        <!-- Cabinet utilities are available without permanently spending a
+             second action row. Native details provides a real expanded state
+             and a keyboard-operable disclosure without inventing a modal. -->
+        <details class="table-tools" id="table-tools">
+          <summary class="table-tools__trigger" aria-label="Table options">Table</summary>
+          <div class="screws" id="screw-rail">
+            <button class="screw screw--code code-chip" id="hud-code" type="button">
+              <span class="screw__head" aria-hidden="true"></span>
+              <span class="screw__label" id="hud-code-text">PIZZA-0000</span>
+              <span class="code-chip__done" aria-hidden="true">Copied</span>
+            </button>
+
+            <!-- Two presses in the game, one in the lobby. The label is its
+                 own node because writing the button would remove the screw
+                 head inserted beside it. -->
+            <button class="screw screw--leave" id="btn-leave-game" type="button">
+              <span class="screw__head" aria-hidden="true"></span>
+              <span class="screw__label" id="btn-leave-game-label">Leave</span>
+            </button>
+          </div>
+        </details>
       </div>
 
-      <!-- THE PIT. Dead cards drop into the rib strip; only the cards you can
-           actually play stand up full size in the near rail below it. The peek
-           is a sibling of both, not a child of the strip: it lands over the
-           near rail and must not be clipped by it. -->
-      <div class="hand" id="hand" data-mode="review">
+      <!-- THE ROW. Every card in your hand stands in the near rail at the same
+           size, whether you can play it or not: a card you cannot read is a
+           card you cannot learn from, and a dead card on your turn is a
+           teaching tap. Cards shrink from 84px toward a hard 54px floor to
+           fit, and past the floor the rail scrolls — it never shrinks below
+           the floor and it never overlaps. The pit strip below is kept for the
+           density policy it used to hold (see PIT_ENGAGES in app.js); while
+           the row is the policy it stays empty and CSS collapses it. -->
+      <div class="hand" id="hand" data-mode="review" data-pit="0">
         <div class="hand__pit" id="hand-pit" role="group" aria-label="No dead cards"></div>
-        <div class="hand__near" id="hand-near" role="group" aria-label="Cards you can play"></div>
+        <div class="hand__near" id="hand-near" role="group" aria-label="Your hand"></div>
         <div class="hand__peek" id="hand-peek" aria-hidden="true" hidden></div>
+        <!-- The scroll cue, on both edges, each one following the scroll: the
+             row runs out under a fade rather than stopping at an edge that
+             looks like the end of the hand — and a fade drawn at an edge there
+             is nothing past would be saying the opposite. -->
+        <span class="hand__fade hand__fade--left" id="hand-fade-left" aria-hidden="true"></span>
+        <span class="hand__fade hand__fade--right" id="hand-fade" aria-hidden="true"></span>
       </div>
 
-      <!-- THE BEZEL RAIL. Room code, sound and leave used to crowd the top
-           edge next to the marquee. They are cabinet hardware, not gameplay,
-           so they become screw heads on the bottom bezel: one 19px head each,
-           slot angled per control, VT323 label beside it. Same ids, same
-           handlers, same accessible names — only position and skin changed.
-           The sound screw is inserted here by app.js, between these two. -->
-      <div class="screws" id="screw-rail">
-        <button class="screw screw--code code-chip" id="hud-code" type="button">
-          <span class="screw__head" aria-hidden="true"></span>
-          <span class="screw__label" id="hud-code-text">PIZZA-0000</span>
-          <span class="code-chip__done" aria-hidden="true">Copied</span>
-        </button>
+      <!-- Said once per session, the first time the hand is wider than the
+           screen, and retired the moment the player scrolls it. -->
+      <p class="hand-swipe" id="hand-swipe" hidden>SWIPE TO SEE THE REST OF YOUR HAND.</p>
 
-        <!-- Two presses in the game, one in the lobby. The label is its own
-             node because the screw head lives in the button too, and writing
-             the button would wipe the head out of the DOM. -->
-        <button class="screw screw--leave" id="btn-leave-game" type="button">
-          <span class="screw__head" aria-hidden="true"></span>
-          <span class="screw__label" id="btn-leave-game-label">Leave</span>
-        </button>
-      </div>
     </footer>
 
     <!-- popovers ------------------------------------------------- -->
-    <div class="popover" id="picker" role="dialog" aria-modal="false" aria-label="Choose a topping">
-      <p class="popover__title" id="picker-title">Chef's choice — pick a topping</p>
-      <div class="popover__grid" id="picker-grid"></div>
-      <button class="btn btn--quiet btn--sm btn--block" id="picker-cancel" type="button">Cancel</button>
-    </div>
-
     <div class="popover popover--list" id="callout-pop" role="dialog" aria-modal="false" aria-label="Call out a player">
       <p class="popover__title">Who forgot to shout?</p>
       <div class="popover__rows" id="callout-rows"></div>
@@ -242,6 +338,7 @@
         <span data-icon="slice" aria-hidden="true">🍕</span> Another pie!
       </button>
       <button class="btn btn--ghost" id="btn-to-lobby" type="button">Back to the parlour</button>
+      <button class="btn btn--ghost" id="btn-round-leave" type="button">Leave table</button>
     </div>
     <p class="hint" id="round-wait"></p>
   </div>
@@ -255,7 +352,10 @@
      in the client allowed to build card markup. -->
 <div class="overlay" id="overlay-rules" role="dialog" aria-modal="true" aria-labelledby="rules-title">
   <div class="dialog dialog--rules" id="rules-dialog" tabindex="-1">
-    <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
+    <div class="rules-head">
+      <h2 class="dialog__title dialog__title--rules" id="rules-title">HOUSE RULES</h2>
+      <p class="rules-clock-note" id="rules-clock-note" role="status" hidden></p>
+    </div>
     <!-- The scroll lives here, not on the dialog: the dialog stays clipped in
          both axes, so nothing can ever scroll sideways. `tabindex` is what
          lets a keyboard reach the scroll on an engine that does not focus

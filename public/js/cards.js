@@ -7,6 +7,8 @@
  * does not change. See the README for the full file naming convention.
  */
 
+import { icon, suitIcon } from './icons.js';
+
 /**
  * Arcade direction: the frame, indexes and banner are DOM + Press Start 2P,
  * and only the sprite in the centre window is generated art. The 55 baked
@@ -15,6 +17,8 @@
 export const USE_IMAGES = false;
 
 export const ASSET_DIR = 'assets/cards';
+// Still used by the rules deck and optional cabinet art. Live card faces do
+// not load these sprites in the Pass-9 table.
 export const SPRITE_DIR = 'assets/sprites';
 
 /**
@@ -47,18 +51,67 @@ export function isWild(card) {
   return card && (card.kind === 'wild' || card.kind === 'wild4');
 }
 
+/**
+ * THE EFFECT-FIRST CARDS.
+ *
+ * Playtesting the comprehension prototype turned up the same answer over and
+ * over: a player looking at Burnt Slice cannot tell you what it does, and a
+ * player looking at ⊘ SKIP can. The three cards whose whole point is what they
+ * do to the table therefore lead with the effect — a big glyph in the window
+ * and the effect word on the banner — while the topping steps back to the
+ * keyline colour and the corner mark. The parlour names are not deleted; they
+ * move to where a name belongs, which is the spoken label and the rule book.
+ *
+ * `word` is the banner. `glyph` names an icon in `icons.js`, or `text` is set
+ * when the effect is already a legible pair of characters and drawing it would
+ * be a worse version of typing it. Both never at once.
+ */
+export const EFFECTS = {
+  skip: { word: 'Skip', glyph: 'skip', text: null, spoken: 'skip' },
+  reverse: { word: 'Reverse', glyph: 'reverse', text: null, spoken: 'reverse' },
+  draw2: { word: 'Draw two', glyph: null, text: '+2', spoken: 'draw two' },
+};
+
+/** The effect a card leads with, or null for a number, a wild or no card. */
+export function effectOf(card) {
+  if (!card) return null;
+  return EFFECTS[card.kind] || null;
+}
+
 /** Full spoken name of a card. Used for the log and for aria labels. */
 export function describeCard(card) {
   if (!card) return 'no card';
   if (isWild(card)) return KINDS[card.kind].label + (card.kind === 'wild4' ? ' plus four' : '');
   const suit = TOPPINGS[card.suit].label;
   if (card.kind === 'number') return `${suit} ${card.value}`;
-  // "Extra Toppings" is a name, not an effect: heard on its own it could be
-  // anything. The Whole Pie already says "plus four", so the +2 says what it
-  // costs too — otherwise the two penalties are told apart only by a symbol in
-  // a corner, which is exactly what a spoken name is for.
-  if (card.kind === 'draw2') return `${suit} ${KINDS.draw2.label}, draw two`;
+  // A name is not an effect: "Extra Toppings" heard on its own could be
+  // anything, and so could "Burnt Slice" and "Flip the Pie". The +2 has said
+  // what it costs for a while; now that the printed face leads with the effect
+  // on all three, all three say it out loud too, in the one word the banner
+  // uses. Word order is unchanged — the effect is appended, never swapped in
+  // front of the name, so every line that prints this reads as it always did.
+  const effect = EFFECTS[card.kind];
+  if (effect) return `${suit} ${KINDS[card.kind].label}, ${effect.spoken}`;
   return `${suit} ${KINDS[card.kind].label}`;
+}
+
+/**
+ * The other way onto the pile, in words.
+ *
+ * A card is legal if it matches the topping, OR if it repeats what the top
+ * card IS: the same number, or the same action. This is that second thing,
+ * named for a player who has just been told their card does not match.
+ *
+ * A wild on top names nothing — after it, only the topping somebody chose is
+ * asked for — so it returns the empty string rather than a word, and the
+ * sentence it is printed into never offers a way in that is not there.
+ */
+export function matchValue(card) {
+  if (!card || isWild(card)) return '';
+  if (card.kind === 'number') return String(card.value);
+  const effect = EFFECTS[card.kind];
+  if (effect) return effect.word;
+  return KINDS[card.kind].label;
 }
 
 /**
@@ -90,6 +143,13 @@ function footLabel(card) {
   if (card.kind === 'wild') return 'Any topping';
   if (card.kind === 'wild4') return 'Whole pie +4';
   if (card.kind === 'number') return TOPPINGS[card.suit].label;
+  // SKIP, REVERSE, DRAW TWO. The parlour name is on the rules page, in the
+  // chatter and in the spoken label; the banner is the one place on the card
+  // where a player who has never seen this deck needs the answer, not the joke.
+  // The topping token stays beside the effect so the card never asks somebody
+  // to recover its match suit from colour alone.
+  const effect = EFFECTS[card.kind];
+  if (effect) return `${effect.word} · ${TOPPINGS[card.suit].token}`;
   return KINDS[card.kind].label;
 }
 
@@ -194,7 +254,7 @@ export function renderCard(card, options = {}) {
     return root;
   }
 
-  // --- arcade face: DOM frame + sprite window ---
+  // --- Pass-9 face: DOM frame + one unmistakable centre mark ---
   const index = cornerIndex(card);
   // Press Start 2P is fixed pitch at 11px a glyph, so a two-glyph index (+2,
   // <>, +4) needs 22px of face where a one-glyph index needs 11. Only the rib
@@ -218,13 +278,24 @@ export function renderCard(card, options = {}) {
 
   const windowEl = el('span', 'card__window');
   windowEl.setAttribute('aria-hidden', 'true');
-  const sprite = el('img', 'card__sprite');
-  sprite.src = `${SPRITE_DIR}/${spriteSlug(card)}.png`;
-  sprite.alt = '';
-  sprite.decoding = 'async';
-  sprite.loading = 'lazy';
-  sprite.draggable = false;
-  windowEl.append(sprite, el('span', 'card__value', index));
+
+  // THE EFFECT LEADS. Number cards use the topping emblem in the middle and
+  // keep their number in both corners; effect cards use the consequence glyph
+  // and word. This is the selected Pass-9 face, with no decorative sprite
+  // competing behind the thing a player must recognise quickly.
+  const effect = effectOf(card);
+  if (effect) root.classList.add('card--effect');
+  const value = el('span', 'card__value');
+  if (effect && effect.glyph) {
+    value.classList.add('card__value--glyph');
+    value.append(icon(effect.glyph));
+  } else if (card.kind === 'number') {
+    value.classList.add('card__value--suit');
+    value.append(suitIcon(card.suit, 'card__suit-glyph'));
+  } else {
+    value.textContent = effect && effect.text ? effect.text : index;
+  }
+  windowEl.append(value);
 
   // The banner carries both forms of its own name and the stylesheet picks
   // one: a card the next card covers can only finish the three-letter token in
@@ -240,14 +311,6 @@ export function renderCard(card, options = {}) {
 
   root.append(makeCorner('tl'), windowEl, banner, makeCorner('br'));
   return root;
-}
-
-/** Which window sprite a card face uses. One per suit, action kind, or wild. */
-function spriteSlug(card) {
-  if (card.kind === 'wild') return 'chefs-choice';
-  if (card.kind === 'wild4') return 'whole-pie';
-  if (card.kind === 'number') return TOPPINGS[card.suit].slug;
-  return KINDS[card.kind].slug;
 }
 
 /** Small swatch used by the topping picker and the current-topping badge. */

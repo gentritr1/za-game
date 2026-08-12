@@ -104,6 +104,13 @@
   --s6: 24px;
   --s8: 32px;
 
+  /* Full-screen surfaces opt into viewport-fit=cover. Keep every operable
+     edge inside the device cutout and home-indicator insets. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
   /* geometry: the arcade look has no round corners. All radii are zero on
      purpose, so a stray var() cannot reintroduce a curve. */
   --r-sm: 0;
@@ -194,7 +201,9 @@ h1, h2, h3,
 .divider,
 .log__title,
 .seat__name,
-.topping-now,
+.plaque,
+.dir-chip,
+.narration,
 .code-chip,
 .hand-bar__hint {
   font-family: var(--font);
@@ -346,7 +355,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .screen--lobby {
   display: grid;
   place-items: center;
-  padding: var(--s4);
+  padding:
+    max(var(--s4), var(--safe-top))
+    max(var(--s4), var(--safe-right))
+    max(var(--s4), var(--safe-bottom))
+    max(var(--s4), var(--safe-left));
   overflow-y: auto;
   background: transparent;
 }
@@ -823,6 +836,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   overflow: hidden;
   left: var(--panel-w);
   right: var(--panel-w);
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 /* The screws left, so the marquee is the HUD's only tenant — and a strip
@@ -1109,11 +1123,29 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     grid-area: 1 / 1;
   }
 
-  /* The piles sit at 56% of the felt, which is what leaves the top of the
-     table to the people sitting at it. */
+  /* The piles sat at 56% of the felt — `padding-top: 12%` — which is what
+     leaves the top of the table to the people sitting at it. The intent is
+     right and the mechanism was not, so the mechanism changed and the intent
+     did not: the stack is now pinned to the BOTTOM of the felt, which at
+     1280x800 puts the piles within a few pixels of where 12% put them.
+
+     Why it had to change. Percentage padding resolves against the containing
+     block's WIDTH, never its height, so `12%` is 154px of downward push on a
+     1280px felt whatever the felt's height is — and the centre column is no
+     longer just the two piles, it carries the match plaque and the direction
+     chip under them. A fixed push plus a taller stack in a shorter felt spills
+     out of the bottom, and the hand zone is opaque and sits above it: measured
+     at 1280x800, `#dir-chip` ran to 432 against a `.hand-zone` starting at
+     422.5, and the direction of play was simply gone. Capping the percentage
+     bought 1280x800 back and still lost 1280x720.
+
+     Bottom-pinned, the failure mode inverts. A felt too short for the stack
+     now crowds the seats above it instead of feeding the bottom of the stack
+     to the hand zone — and the bottom of the stack is where the plaque and the
+     chip are. The thing that gets squeezed is never the thing that answers the
+     question. */
   .table-center {
     position: relative;
-    padding-top: 12%;
     z-index: 1;
   }
 }
@@ -1196,6 +1228,27 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .opponents[data-mode="queue"] .seat .seat__rank { display: block; }
+
+/* --- the tag the counter used to leave unsaid -----------------------------
+   The counter's argument for hiding the ordinal was that position IS the
+   ordinal there — true of 03 and 04, and not true of the two that matter.
+   "Whose turn is it" and "who is next" were the two questions playtesters
+   asked while looking straight at the answer, so on the counter the chip
+   comes back for exactly those two ranks and stays off for the rest. Two
+   tags on a table, never eight.
+
+   It goes last in the seat rather than over the head: `.seat__badge` (ZA! and
+   FORGOT!) already owns the space above the portrait, and a chef who is NEXT
+   and down to one card would have had both in the same nine pixels. */
+.opponents[data-mode="counter"] .seat.is-turn .seat__rank,
+.opponents[data-mode="counter"] .seat.is-next .seat__rank {
+  display: block;
+  order: 3;
+  align-self: center;
+  margin-top: calc(2px * var(--k, 1));
+  padding: calc(3px * var(--k, 1)) calc(6px * var(--k, 1));
+  white-space: nowrap;
+}
 
 .opponents[data-mode="queue"] .seat.is-turn {
   background: rgba(255, 225, 77, .1);
@@ -1335,7 +1388,46 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   to { transform: translateX(0); }
 }
 
+/* `--port` and `--k` are set inline by the client from the measured stage (see
+   `syncFeltDensity`), so this and the notch ladders below are what the felt is
+   stepped DOWN FROM rather than what it ends up at. They still decide the
+   full-size figure at every width, which is exactly what a base is for. */
 .opponents[data-crowd="1"] { --port: 46px; }
+
+/* --- pass 8 · the rows a seat gives up before the chefs get smaller -------
+   Making a portrait smaller is the loud lever. These two are the quiet ones,
+   and on a phone with eight chefs they are worth more: a queue seat measured
+   160px tall at the ladder's floor, and 36 of those pixels were furniture
+   rather than chef — a 13px line reserved for a word only a thinking bot ever
+   says, and a 23px ordinal chip on its own row above the portrait.
+
+   The status line keeps its word and stops holding a row open for it. The
+   ordinal stops being a row and becomes a corner: it is the same chip, in the
+   same colours, over the seat it belongs to — and the queue can afford that
+   because left-to-right IS the running order there, which is the argument the
+   arrangement was built on in the first place.
+
+   `is-tight` is a rung of the density ladder, never a width. A 1024x600
+   laptop reaches it and a 390x844 phone does not. */
+.table.is-tight .seat__status { min-height: 0; }
+
+.opponents[data-mode="queue"] .seat { position: relative; }
+
+.table.is-tight .opponents[data-mode="queue"] .seat__rank {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  order: 0;
+  align-self: auto;
+  padding: calc(2px * var(--k, 1)) calc(4px * var(--k, 1));
+}
+
+/* The two labels over the piles. The plaque under them now names the topping
+   in words and the oven is the one card lying face up; at the third rung the
+   labels are the third telling of both, and they cost 21px of a felt that has
+   run out. Off only at the rungs that have run out — the desktop keeps them. */
+.table.is-tight-2 .table-center .pile__label { display: none; }
 
 /* Below the one breakpoint the counter hands over to the queue and everything
    steps down with it. `--port` is set per seat there, by rank. */
@@ -1725,15 +1817,44 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* centre of the table: the two piles ------------------------------------- */
+/* The centre column: the two piles side by side, the match plaque under them,
+   the direction of play under that. One stack, so the three things a player
+   has to read to take a turn are read in one place and in one order — what is
+   on the pile, what it has to be matched with, and which way the turn goes.
+
+   PINNED TO THE BOTTOM, and the pin is load-bearing. The felt is the grid's
+   `1fr` row — whatever the marquee and the hand zone leave — and the hand zone
+   grows with the hand. On a phone holding ten cards the felt is smaller than
+   the piles alone, which was true before this stack existed, and a CENTRED
+   column feeds both of its ends to its neighbours. The bottom end is the
+   plaque and the chip: the two things that answer "what can I play" and "which
+   way is this going", under an opaque hand zone. They went first and they went
+   invisibly. Bottom-pinned, a squeeze rides the piles up into the seats
+   instead — still wrong, still visible, and never the answer that vanishes. */
 .table-center {
+  /* And it paints over the seats, at every width, not only from 520px up
+     where the felt-sharing grid already gave it a layer. A squeezed felt is
+     going to overlap SOMETHING; the only question is which of the two is
+     readable afterwards. The seats are portraits and a card count, and both
+     survive being half-covered. The plaque is a sentence. */
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s1);
+  padding-bottom: var(--s2);
+  /* The pile slot and the card that fills it have to agree, or the window
+     insets are computed for one width and drawn at another. Both are 96px. */
+  --card-w: 96px;
+}
+
+.table-center__piles {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: clamp(var(--s4), 5vw, var(--s8));
-  padding-bottom: var(--s4);
-  /* The pile slot and the card that fills it have to agree, or the window
-     insets are computed for one width and drawn at another. Both are 96px. */
-  --card-w: 96px;
 }
 
 .table-center::before {
@@ -1943,35 +2064,183 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   30% { opacity: 1; }
 }
 
-/* current topping badge -------------------------------------------------- */
-.topping-now {
-  position: absolute;
-  left: 50%;
-  bottom: -14px;
+/* ---------------------------------------------------------- match plaque --
+   The badge that used to sit under the oven said IN PLAY · CHEESE. True, and
+   half the rule: a player still had to know that the top card's NUMBER plays
+   too, and there was nowhere on the table that said so. The plaque says the
+   whole condition, in the order a player asks it — this topping, or this.
+
+   It is drawn as a cabinet plate rather than a pill: 3px keyline in the
+   topping's own colour on the console dark, hard shadow, the arcade kit's
+   plate. The keyline IS the recolour, so a topping change is a change of the
+   frame around the answer, not a wash the answer has to be read through.
+
+   Nothing here transitions. Two saturated suit colours tweened pass through
+   colours that are not toppings at all, which is the same reason the badge
+   before it snapped. */
+.plaque {
+  --plaque-ink: var(--cheese);
+
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--s1);
-  padding: var(--s1) var(--s3);
-  border-radius: var(--r-pill);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .01em;
-  white-space: nowrap;
-  transform: translateX(-50%);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, .5);
-  /* The topping plate snaps to the new colour. A tween between two saturated
-     fills passes through colours that are not toppings at all. `none` rather
-     than a deleted line, for the reduced-motion reason spelled out on the
-     marquee above. */
+  gap: 3px;
+  padding: 6px 14px;
+  max-width: 100%;
+  background: var(--console);
+  border: 3px solid var(--plaque-ink);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .6);
   transition: none;
 }
 
-.topping-now__emoji { font-style: normal; font-size: 13px; }
+.plaque[data-topping="pepperoni"] { --plaque-ink: var(--sauce); }
+.plaque[data-topping="basil"] { --plaque-ink: var(--basil); }
+.plaque[data-topping="cheese"] { --plaque-ink: var(--cheese); }
+.plaque[data-topping="anchovy"] { --plaque-ink: var(--anchovy); }
 
-.topping-now.t-pepperoni { background: var(--sauce); color: var(--void); }
-.topping-now.t-basil { background: var(--basil); color: var(--void); }
-.topping-now.t-cheese { background: var(--cheese); color: var(--void); }
-.topping-now.t-anchovy { background: var(--anchovy); color: var(--void); }
+/* The head is a ROW. Most of the time it holds one word; when the felt is too
+   short for a direction row of its own, it holds the direction too. */
+.plaque__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  font-family: var(--font-display);
+  font-size: 8px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+
+.plaque__head-word { font-weight: inherit; }
+
+/* --- pass 8 · the folded direction ---------------------------------------
+   The chip keeps being the chip — same node, same word, same mirrored glyph,
+   written by the same line of `renderDirection`. What it loses inside the
+   plaque is the furniture it needed as a thing standing on its own: its own
+   border and its own padding, both of which would draw a box inside a box.
+   The plaque's border is already around it. */
+.plaque.is-folded .dir-chip {
+  border: none;
+  padding: 0;
+  gap: 5px;
+  font-size: 15px;
+  letter-spacing: .08em;
+  line-height: 1;
+}
+
+.plaque.is-folded .dir-chip__glyph { width: 14px; height: 14px; }
+
+/* One line, and the head's own rule keeps it centred. The separator is a rule
+   between two facts rather than a bullet, because MATCH and CLOCKWISE are not
+   items in a list — one says what the numbers below are for and the other says
+   which way the table is going. */
+.plaque.is-folded .plaque__head {
+  gap: var(--s2);
+  padding-bottom: 1px;
+}
+
+.plaque.is-folded .plaque__head-word {
+  padding-right: var(--s2);
+  border-right: 2px solid var(--bezel);
+}
+
+.plaque__body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* One line at every width the table has room for; the phone stacks it in
+     the media query below rather than wrapping mid-condition. */
+  flex-wrap: nowrap;
+}
+
+.plaque__topping,
+.plaque__alt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plaque__alt[hidden] { display: none; }
+
+.plaque__emblem {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.plaque__emblem svg { width: 100%; height: 100%; display: block; }
+
+.plaque__name,
+.plaque__value {
+  font-family: var(--font);
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+/* The topping is said in its own colour; the alternative is said in plain ink,
+   because it is not a topping and must never be mistaken for one. */
+.plaque__name { color: var(--plaque-ink); }
+.plaque__value { color: var(--text); }
+
+.plaque__or {
+  font-family: var(--font);
+  font-size: 19px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+
+/* The effect glyph beside REVERSE or SKIP. `+2` needs none: it is already the
+   picture of itself. */
+.plaque__mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--text);
+}
+
+.plaque__mark svg { width: 100%; height: 100%; display: block; }
+
+/* ------------------------------------------------------- direction chip -- */
+/* Small, quiet, and always there. The chase in the marquee is hidden at 520px
+   and up; the token walking the counter does not exist below it. This is the
+   one carrier at every width, so it is deliberately the plainest: a word. */
+.dir-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 9px;
+  border: 2px solid var(--bezel);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+  white-space: nowrap;
+}
+
+.dir-chip__word { font-weight: 400; }
+
+.dir-chip__glyph {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  display: block;
+}
+
+.dir-chip__glyph svg { width: 100%; height: 100%; display: block; }
+
+/* Reversed is the same two arrows read the other way round — mirrored, not a
+   second drawing, so the two states cannot drift apart. */
+.dir-chip[data-dir="-1"] .dir-chip__glyph { transform: scaleX(-1); }
 
 /* ------------------------------------------------------------------- log -- */
 .log {
@@ -2058,7 +2327,27 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand-zone.is-your-turn::before { opacity: 1; }
 
-/* The bar is the anchor for the shout starburst and the timing score, so both
+/* ----------------------------------------------------------- narration --
+   One line, the last thing that happened, over the player's own hand. It is a
+   fixed 1em box whether or not there is anything in it: a line that appears
+   and disappears would push the hand up and down the screen every turn, and
+   the hand holding still is worth more than the 17px. */
+.narration {
+  margin: 0;
+  min-height: 1.15em;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ui-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The bar anchors the shout starburst and response stamp, so both
    fire from the ZA! button rather than the middle of the screen. */
 .hand-bar {
   position: relative;
@@ -2075,6 +2364,259 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-weight: 600;
   color: var(--text-dim);
 }
+
+/* The reason a card would not go on the pile, written where the hand already
+   talks. Sauce, because it is a refusal, and it stays until the board moves. */
+.hand-bar__hint.is-refused {
+  color: var(--sauce-hi);
+  letter-spacing: .04em;
+}
+
+.hand-bar__hint.is-previewing {
+  color: var(--ui-cyan);
+  letter-spacing: .03em;
+}
+
+/* --- your strip ---------------------------------------------------------- */
+/* You have no chef panel around the counter, so this is the one place that
+   says what phase YOU are in. It never contradicts the lock under it: while
+   the cards are disabled it can read RESOLVING, TURN MOVING, WAIT YOUR TURN or
+   ACT NOW, and never YOUR TURN. */
+.hand-self {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-height: 20px;
+}
+
+/* Nothing in the strip breaks mid-phrase. "YOUR HAND" over three lines beside
+   "14 / cards" is not a label, it is a column — the strip wraps as whole
+   pieces or not at all. DRAWN CARD ONLY is the longest word it ever carries
+   and it is what the sizes are set against at 390px. */
+.hand-self__label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: .1em;
+  white-space: nowrap;
+  color: var(--ui-cyan);
+}
+
+.hand-self__count {
+  font-size: var(--fs-label);
+  letter-spacing: .06em;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.hand-self__state {
+  margin-left: auto;
+  padding: 3px 6px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+/* Your turn inverts the word onto bone; a window that wants an answer inverts
+   it onto sauce. Both are the same shape, so the strip never reflows. */
+.hand-self.is-live .hand-self__state {
+  color: var(--void);
+  background: var(--text);
+}
+
+.hand-self.is-urgent .hand-self__state {
+  color: var(--void);
+  background: var(--sauce);
+}
+
+/* --- the moments --------------------------------------------------------- */
+/* One strip per contextual action, stacked over the hand. Every one of them
+   exists exactly while the server still says its move is legal, and not one
+   of them holds a clock. */
+.moments {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.moments:empty { display: none; }
+
+.moment {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s1) var(--s2);
+  background: var(--console);
+  border: var(--bd-thin) solid var(--bezel);
+}
+
+.moment--alarm { border-color: var(--sauce); }
+.moment--cheese { border-color: var(--cheese); }
+
+.moment__words {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.moment__title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: .06em;
+}
+
+.moment--alarm .moment__title { color: var(--sauce-hi); }
+.moment--cheese .moment__title { color: var(--cheese); }
+
+.moment__sub {
+  font-size: var(--fs-label);
+  line-height: 1.25;
+  color: var(--text-dim);
+}
+
+/* THE CTA IS ONE LINE. It is the move, and a move that wraps to two rows at
+   390px reads as a paragraph with a border. It never shrinks and it never
+   wraps: the words beside it give up their width first, and 44px of height is
+   the floor everything else in the cabinet already stands on. */
+.moment__cta {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px var(--s2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: var(--void);
+  background: var(--sauce);
+  border: none;
+  box-shadow: var(--sh-lift);
+  cursor: pointer;
+}
+
+.moment--cheese .moment__cta { background: var(--cheese); }
+
+.moment--cyan .moment__cta { background: var(--ui-cyan); }
+.moment--cyan { border-color: var(--ui-cyan); }
+.moment--cyan .moment__title { color: var(--ui-cyan); }
+
+/* The other answer. Quiet on purpose: keeping the card and passing is a real
+   move and never the one being recommended, so it is a bordered ghost rather
+   than a second fill competing with the first. Same 44px floor, same one line. */
+.moment__alt {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px var(--s2);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: transparent;
+  border: 2px solid var(--bezel);
+  cursor: pointer;
+}
+
+.moment__cta:focus-visible,
+.moment__alt:focus-visible {
+  outline: 2px solid var(--ui-cyan);
+  outline-offset: 3px;
+}
+
+/* --- the topping picker, as a panel ---------------------------------------- */
+/* It is the same furniture as the drawn-card decision, laid out downwards
+   instead of across: the wild that was played, the question, then the four
+   answers in a named 2x2. It stacks because the group is the widest thing in
+   it and a 2x2 beside a card face at 390px would put two toppings off the
+   screen. */
+.moment--wild {
+  align-items: center;
+  gap: var(--s2);
+}
+
+.moment--bone { border-color: var(--text); }
+.moment--bone .moment__title { color: var(--text); }
+
+/* The card sits beside the question and its answers. Stacked above them this
+   panel is 250px tall, and on a 667px phone the felt above it has about 30px
+   to give — beside them the card costs no height at all, because the column
+   next to it is taller than the card is. */
+.moment__wild-body {
+  flex: 1 1 auto;
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.moment__wild-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.moment__wild-head .moment__title { flex: 1 1 auto; min-width: 0; }
+
+/* The card is shown ONCE, and this is it — the panel is about a specific wild
+   and says which. It never takes a pointer: it is evidence, not a control. */
+.moment__wild-card {
+  --card-w: 54px;
+
+  flex: 0 0 auto;
+  pointer-events: none;
+  box-shadow: var(--sh-lift);
+}
+
+.moment__toppings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+}
+
+/* Every answer is a 44px target, same as every other decision's buttons. */
+.moment__toppings .topping-btn {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.moment__toppings .topping-btn:focus-visible {
+  outline: 2px solid var(--ui-cyan);
+  outline-offset: 3px;
+}
+
+/* Cancel rides the question's line, never the group: it is not a fifth
+   topping. Nothing has been sent yet — a wild reaches the wire only once a
+   topping names it — so a card tapped by mistake stays retractable. */
+.moment__wild-cancel { flex: 0 0 auto; }
+
+/* ONE DECISION AT A TIME, stated on the strip itself so it holds for the
+   windows this file does not build. */
+.moments.is-held > :not(.moment--wild) { display: none; }
+
+/* THE SWAP. On a phone a timed window takes the hand's place rather than
+   pushing it: a strip that appears above the row at 390px shoves the row — and
+   the counter above it — up and off the fold, so the answer to "what just
+   happened" arrives by moving everything the player was looking at.
+   `display: none` and not a fade or a squeeze: while the window is up the row
+   is out of the layout, out of the tab order and out of the accessibility
+   tree, because a hand you are told to ignore is a hand that should not be
+   reachable.
+
+   AND AT EVERY WIDTH, not only on a phone. "There is room for both on anything
+   wider" was the old reason for the width gate that used to be here, and it
+   was measuring the wrong axis: a desktop window is wider but it is not
+   TALLER, and the ring is what pays for a panel either way — at 1280x780 the
+   squeeze arrived as the top seat riding up onto the Match plaque instead of
+   as a pile under the hand zone. The rule that decides WHICH panels get to do
+   this is unchanged and lives in `replacingMoment`: a window may only replace
+   the hand when the hand has nothing left to do. */
+.hand-zone.is-swapped .hand,
+.hand-zone.is-swapped .hand-swipe { display: none; }
 
 .btn--za {
   --btn-bg: var(--cheese);
@@ -2162,19 +2704,23 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand__pit:empty { display: none; }
 
-/* The near rail. It reserves its 132px for the whole of your turn so the row
-   never jumps under your thumb; on their turn nothing is live, so it collapses
-   to nothing and gives the room to the pit — unless a peek needs somewhere to
-   land. */
+/* THE ROW. Every card in the hand stands here at one shared width, live or
+   dead. `--hand-card-w` is written by `layoutNear` once per render: 84px while
+   there is room for 84px, down to a 54px floor under pressure, and never below
+   it — under the floor the rail scrolls instead (see `.is-scrolling`).
+   Reserving the row's height off the same number keeps it from jumping under
+   a thumb mid-turn without stranding 56px of empty console at 54px cards. */
 .hand__near {
+  --hand-card-w: 84px;
+
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  min-height: 132px;
+  min-height: calc(var(--hand-card-w) * var(--card-ratio) + 14px);
   padding-top: 14px;
 }
 
-/* A rail that cannot fit even at MAX_OVERLAP scrolls rather than hanging its
+/* A row that cannot fit even at the 54px floor scrolls rather than hanging its
    far cards off a screen that clips (see `layoutNear`). Two things have to
    change with the overflow, and both are the difference between a scrollbar
    that works and one that lies:
@@ -2202,15 +2748,62 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand__near.is-scrolling::-webkit-scrollbar-track { background: var(--console); }
 .hand__near.is-scrolling::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 0; }
 
-.hand[data-mode="review"] .hand__near {
+/* Only while there IS a pit. The two-rail hand gave the near rail's room to
+   the strip on somebody else's turn; a row that is the whole hand has nowhere
+   to give it to, and collapsing it would drop every card off the screen. */
+.hand[data-mode="review"][data-pit="1"] .hand__near {
   min-height: 0;
   padding-top: 0;
 }
 
-.hand[data-mode="review"].has-peek .hand__near {
+.hand[data-mode="review"][data-pit="1"].has-peek .hand__near {
   min-height: 132px;
   padding-top: 14px;
 }
+
+/* THE SCROLL CUE. The row runs out under a fade rather than stopping at an
+   edge that looks like the end of the hand. It never takes the pointer that is
+   scrolling it, and — the part that matters — each edge is drawn only while
+   there is something under it. A fade at an edge with nothing past it is not a
+   soft ending, it is a claim that there is more. */
+.hand__fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  display: none;
+  pointer-events: none;
+}
+
+/* Fading to the surface the row actually sits on — the hand zone's cabinet,
+   not the console the pit strip is cut into. A gradient that ends on the wrong
+   colour is a dark bar down the edge, not a card running out of screen.
+   Contrast is a property of a pairing. */
+.hand__fade--right {
+  right: 0;
+  background: linear-gradient(90deg, rgba(16, 20, 38, 0), var(--cabinet));
+}
+
+.hand__fade--left {
+  left: 0;
+  background: linear-gradient(270deg, rgba(16, 20, 38, 0), var(--cabinet));
+}
+
+/* `is-overflowing` says the row is longer than the rail; `is-at-start` and
+   `is-at-end` say where the scroll currently is. Both edges need both facts. */
+.hand.is-overflowing:not(.is-at-end) .hand__fade--right { display: block; }
+.hand.is-overflowing:not(.is-at-start) .hand__fade--left { display: block; }
+
+/* Said once per session and retired the moment the hand is scrolled. */
+.hand-swipe {
+  margin: 0;
+  font-size: var(--fs-label);
+  letter-spacing: .06em;
+  text-align: center;
+  color: var(--ui-cyan);
+}
+
+.hand-swipe[hidden] { display: none; }
 
 /* The peek is a sibling of both rails, never a child of the strip: it lands
    over the near rail, which is one more way of saying a peek is not a play. */
@@ -2253,9 +2846,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .hand__near .hand-slot {
-  /* 84px at four cards and at fourteen. Past four they overlap; they never
-     shrink. */
-  --card-w: 84px;
+  /* The row's one width, written by `layoutNear`. Every card in the hand is
+     this wide — there is no second size and nothing overlaps, so the card you
+     are looking at is the card you will hit. */
+  --card-w: var(--hand-card-w, 84px);
   margin-left: var(--overlap, 8px);
 }
 
@@ -2280,6 +2874,180 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .hand[data-mode="review"] .hand__pit .hand-slot {
   --card-w: 32px;
   margin-left: 4px;
+}
+
+/* THE SHORT-WINDOW BUDGET ------------------------------------------------- */
+/* On a short phone the felt is the row that loses. The game screen is a grid
+   of header / felt / hand zone, and the hand zone states a height while the
+   felt takes `1fr` — so the felt is handed whatever is left, and at 390x667
+   what was left was 29px less than the piles need. The oven's card hung under
+   the hand zone's top edge, which is the one place on the screen a card must
+   never be.
+
+   It cannot be fixed from the felt side: the pile sizes were tried and moved
+   the pile's top by 0.0px. And it does not come back one-for-one, which is the
+   part worth writing down — the centre rides the felt down as the felt grows,
+   so **a pixel given to the felt buys about 0.55 of a pixel of clearance**.
+   Measured by forcing the zone's height in 10px steps at 390x667 and reading
+   the pile's bottom against the zone's top: 356px of zone gives 28.3px of
+   overlap, 310px gives 0.3px, 297px gives -4.6px. So the budget below has to
+   find about 60px, not the 30px the overlap looks like it needs.
+
+   None of it comes out of the two things that may not move: every card stays
+   at its 54px floor, and every button stays at its 44px tap target. It comes
+   out of air — the zone's own padding, the gaps between its rows, the swipe
+   line's leading, and the room the row keeps over a lifted card.
+
+   HEIGHT ONLY. Both tiers used to carry `and (max-width: 519.98px)`, which
+   said "a phone" when what they actually respond to is a short stage — and a
+   1024x600 laptop is a short stage that no width test will ever catch. The
+   width clause is gone from both. A wide window is not a tall one. */
+@media (max-height: 700px) {
+  .hand-zone {
+    padding: 2px var(--s3) 4px;
+    gap: 2px;
+  }
+
+  /* The swipe line gives up its row. It is the one-time half of a two-part
+     cue and the other half is permanent: both edges of the row now fade, and
+     each fade follows the scroll, so a card running out under a gradient says
+     the same thing the sentence did. Keeping the sentence costs 17px of a
+     budget that has nowhere else to go without shrinking a card or a tap
+     target — and a 54px card under the hand zone's own top edge is a worse
+     answer than a cue with one part instead of two.
+
+     Tried first and rejected: fitting the four screws onto one row, which is
+     the only other 40px in here. They come to 369px of label in a 362px rail,
+     and the shave that just fits at 12px labels puts them back on two rows the
+     moment the sound screw says SND OFF. A budget that depends on a word's
+     length is not a budget. */
+  .hand-swipe { display: none; }
+
+  /* A window is 89px of the budget when it opens, and on your own turn it
+     cannot take the hand's place (that would be a soft-lock — see
+     `replacingMoment`), so it is added on top of everything else. This is the
+     one case that still costs the felt its clearance, so the window gives up
+     what it can without giving up a word: leading, padding, and the padding
+     that pushed its buttons past their 44px floor. */
+  /* While any window is open the rail drops to heads only. Copied deliberately
+     from the 560px tier below, down to the visually-hidden label rather than
+     `display: none` — the label is the accessible name of the button it sits
+     in, and a screw head with no name is not a control. One row of 44px heads
+     instead of two rows of 44px labels: 51px back, every control still there,
+     every name still spoken. */
+  /* The picker is the tallest panel and the briefest state in the game: it
+     lives between tapping a wild and naming its colour, it suppresses every
+     other window, and the player's own next press ends it. So the rail stands
+     down entirely for it — the only state where that is defensible, because
+     nothing on the rail is part of the decision and CANCEL is inside the panel
+     the caret is already in. */
+  .hand-zone.is-picking .screws { display: none; }
+
+  .hand-zone.has-moment .screw {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .hand-zone.has-moment .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .moment { padding: 2px var(--s2); gap: var(--s2); }
+  .moment__title { line-height: 1.4; }
+
+  .moment__sub { font-size: 14px; line-height: 1.15; }
+  .moment__cta,
+  .moment__alt { padding-block: 6px; }
+
+  /* Two rows of screws are unavoidable at this width — measured at 4px of side
+     padding and an 8px column gap, the four labels still come to 369px of
+     content in a 362px rail — so the row they are separated by is what gives
+     instead, and every screw keeps its label and its 44px target.
+
+     `.hand-zone .screws`, not `.screws`: the rail's own rule is 3700 lines
+     further down and sets the `gap` SHORTHAND, which quietly beats a bare
+     `row-gap` written earlier however short the window is. The first version
+     of this line looked right and did nothing. */
+  .hand-zone .screws { row-gap: 0; }
+
+  /* The bar is as tall as the ZA! button, and the ZA! button was 52.5px: 44px
+     of tap target and 8.5px of padding that had pushed it past its own floor.
+     `min-height` still holds the 44, so this takes the excess and not the
+     target — the one place in the budget where the number that matters is
+     defended by the rule that produced it. */
+  .hand-bar .btn { padding-block: 6px; }
+
+  .hand-self { min-height: 0; }
+  .hand-self__label { font-size: 10px; }
+  .hand-self__count { font-size: 14px; }
+  .hand-self__state { font-size: 10px; padding: 2px 5px; }
+
+  .hand-swipe { font-size: 13px; line-height: 1.1; }
+
+  /* The room over the row is for the 12px a playable card lifts and the ring
+     that lands 3px outside it. 18px still clears both; 14px would not. */
+  .hand__near {
+    min-height: calc(var(--hand-card-w) * var(--card-ratio) + 10px);
+    padding-top: 10px;
+  }
+
+  .hand__near.is-scrolling {
+    padding-top: 18px;
+    padding-bottom: 2px;
+  }
+}
+
+/* The second tier, for the genuinely short ones. 360x640 has 27px less felt
+   than 390x667, and the first tier still leaves the oven's card 9px under the
+   hand zone. The last of the air is gone by here, so this tier stops spending
+   air and spends type instead — the same trade the 560px tier below makes, one
+   step earlier and one step gentler: the room code keeps its label, because it
+   is the one thing on the rail a player has to read out to somebody else, and
+   the other three go to heads with their names intact. One row instead of two.
+
+   Measured at 360x640 with a six-card hand: rail 96px -> 44px, hand zone
+   288px -> 232px, and the pile's bottom from 9px under the hand zone to well
+   clear of it. */
+@media (max-height: 660px) {
+  .hand-zone {
+    padding: 0 var(--s3) 2px;
+    gap: 0;
+  }
+
+  .hand-zone .screws { column-gap: var(--s3); }
+
+  /* And the windows give up the last of their padding here. */
+  .moment { padding: 0 var(--s2); }
+  .moment__sub { font-size: 13px; }
+
+  .screw--sound,
+  .screw--rules,
+  .screw--leave {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  /* Visually hidden, never `display: none`: the label is the accessible name
+     of the button it sits in, and a screw head with no name is not a control. */
+  .screw--sound .screw__label,
+  .screw--rules .screw__label,
+  .screw--leave .screw__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* ----------------------------------------------------------------- cards -- */
@@ -2374,6 +3142,30 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   text-shadow: 3px 3px 0 var(--void), -2px -2px 0 var(--void), 2px -2px 0 var(--void), -2px 2px 0 var(--void);
 }
 
+/* The drawn effect glyph, in the box the printed value used to have. It is
+   sized off `--card-w` like the value it replaces, so a Reverse in the hand
+   and the same Reverse on the pile are the same card at two scales. The hard
+   void outline is the value's, kept: the window has a sprite behind it and a
+   stroke drawn straight onto pixel art disappears into it. */
+.card__value--glyph {
+  display: grid;
+  place-items: center;
+  width: calc(var(--card-w) * 0.42);
+  height: calc(var(--card-w) * 0.42);
+  color: var(--text);
+  filter:
+    drop-shadow(2px 2px 0 var(--void)) drop-shadow(-2px -2px 0 var(--void))
+    drop-shadow(2px -2px 0 var(--void)) drop-shadow(-2px 2px 0 var(--void));
+  text-shadow: none;
+}
+
+.card__value--glyph .ico,
+.card__value--glyph svg { width: 100%; height: 100%; display: block; }
+
+/* +2 is already two legible characters; drawing it would be a worse version of
+   typing it. It only needs the room the glyphs get. */
+.card--effect .card__value { font-size: calc(var(--card-w) * 0.30); }
+
 .card__banner {
   position: absolute;
   left: 0;
@@ -2425,7 +3217,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .card__index--tl { top: calc(var(--card-w) * 0.045); left: calc(var(--card-w) * 0.06); }
 .card__index--br { bottom: calc(var(--card-w) * 0.045); right: calc(var(--card-w) * 0.06); transform: rotate(180deg); }
 
-.card__index-val { font-size: 11px; }
+/* The number is half the match rule — "BASIL OR 7" — so it has to survive the
+   card it is printed on. Two things were against it: a fixed 11px that stayed
+   11px while the card grew to 84, and the suit colour laid straight onto the
+   sprite behind it with no outline, which is the one place a saturated hue on
+   pixel art disappears. It now scales with the card and carries the same void
+   outline the centre value has, so it reads at 54px and at 84px, over art or
+   over felt. The colour stays: it is the topping saying its own name. */
+.card__index-val {
+  font-size: max(11px, calc(var(--card-w) * 0.17));
+  text-shadow:
+    2px 2px 0 var(--void), -1px -1px 0 var(--void),
+    1px -1px 0 var(--void), -1px 1px 0 var(--void);
+}
 
 /* Suit without colour — but only where colour is all there is. A full face has
    a sprite in its window and its name along the banner, so the letter would be
@@ -2435,6 +3239,20 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    at 9px. It inherits `--suit` from the corner it sits in, so it is exactly the
    colour of the keyline it is standing in for — one more glyph, no new colour. */
 .card__index-suit { display: none; }
+
+/* THE EFFECT CARDS ARE THE EXCEPTION, and for the reason the rule gives: on a
+   Reverse the window now says REVERSE and the banner says REVERSE, so the
+   topping is no longer the third telling of anything — it is the only thing
+   the middle of the card has stopped saying. The letter comes back beside the
+   index, so a topping is a keyline colour AND a mark, never colour alone. */
+.card--effect .card__index-suit {
+  display: block;
+  font-family: var(--font);
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0;
+}
 
 .card--rib .card__index-suit {
   display: block;
@@ -2467,7 +3285,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 }
 
 /* sizes */
+/* A pile card is 96px — until the felt says otherwise. `--card-w` on the pile
+   itself would out-rank the column's, and the two have to agree or the window
+   insets are computed for one width and drawn at another (the comment on
+   `.table-center` has said so since the arcade pass). So on the table the card
+   takes the column's figure, which the client sizes from the measured stage;
+   the 96px below is what a pile is worth off the table — in the rules demos,
+   and before the first measurement lands. */
 .card--pile { --card-w: 96px; }
+.table-center .card--pile { --card-w: inherit; }
 .card--mini { --card-w: 20px; }
 .card--mini .card__back-word { display: none; }
 
@@ -2542,6 +3368,25 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 .hand .card.is-playable { outline-color: var(--cheese); }
 
+/* A shape and a word, not just a warmer border: the check survives grayscale
+   and marks the exact cards the server says can be played. */
+.hand .card.is-playable::after {
+  content: "\2713";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: var(--cheese);
+  color: var(--void);
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 1;
+}
+
 /* 12 · the card lets go faster than it takes the press. Measured before this
    rule: press 150ms down, 220ms back — the one control in the cabinet where
    the release was SLOWER than the press, and it is the one the player hits
@@ -2569,14 +3414,40 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   outline-offset: 3px;
 }
 
-/* A dead card in the pit is reference, not a card: it never takes the pointer,
-   because the strip around it is the control. It stays in the tab order all
-   the same — the scrub is pointer-only, and a keyboard has to be able to reach
-   the hand it cannot drag across. Focus shows the peek. */
+/* A card that does not match stays fully readable and unmarked. ON YOUR TURN IT IS
+   STILL A CONTROL: it takes the pointer, it keeps its place in the tab order,
+   and pressing it says why it cannot be played — which is the one rule new
+   players arrive without, asked at the one moment they are asking it.
+   `pointer-events: none` used to sit here, and it made every dead card a
+   button that answered nothing. Whole-card opacity/filter also reduced the
+   small banner and corner text below AA contrast, so legality is carried by
+   the legal card's lift, outline and check instead. */
 .hand .card.is-dimmed {
-  opacity: .85;
-  filter: saturate(.7) brightness(.92);
+  opacity: 1;
+  filter: none;
+}
+
+.hand .card.is-previewing { outline-color: var(--ui-cyan); }
+
+/* Two cases where a card genuinely is not a control: a rib in the pit, where
+   the strip around it is the control, and any card outside your turn, which
+   `dressCard` has already disabled outright. */
+.hand__pit .card,
+.hand .card:disabled {
   pointer-events: none;
+}
+
+/* The refusal: one hard shake on the card that was pressed and on nothing
+   else. Steps, not a tween — the whole cabinet moves in frames. */
+.hand .card.is-refusing {
+  animation: card-refuse 260ms linear 1;
+}
+
+@keyframes card-refuse {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-5px); }
+  45% { transform: translateX(5px); }
+  70% { transform: translateX(-3px); }
 }
 
 /* Entry, and only entry. A promotion moves the same node from one rail to the
@@ -2728,7 +3599,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   justify-content: center;
   gap: var(--s3);
-  padding: var(--s4);
+  padding:
+    max(var(--s4), var(--safe-top))
+    max(var(--s4), var(--safe-right))
+    max(var(--s4), var(--safe-bottom))
+    max(var(--s4), var(--safe-left));
   background: var(--void);
 }
 
@@ -2739,8 +3614,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    is 12px of Press Start 2P. */
 .hire__back {
   position: absolute;
-  top: var(--s3);
-  left: var(--s3);
+  top: max(var(--s3), var(--safe-top));
+  left: max(var(--s3), var(--safe-left));
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -3247,7 +4122,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   z-index: 20;
   display: grid;
   place-items: center;
-  padding: var(--s4);
+  padding:
+    max(var(--s4), var(--safe-top))
+    max(var(--s4), var(--safe-right))
+    max(var(--s4), var(--safe-bottom))
+    max(var(--s4), var(--safe-left));
   /* The round-over mock's backdrop: the big slow checker over darkness. */
   background:
     repeating-conic-gradient(rgba(16, 20, 38, .55) 0 25%, rgba(13, 15, 26, .55) 0 50%) 0 0 / 40px 40px,
@@ -3433,7 +4312,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   letter-spacing: .04em;
 }
 
-.receipt__foot--gone { color: #6b7290; font-size: 14px; margin-top: 2px; }
+.receipt__foot--gone { color: #626984; font-size: 14px; margin-top: 2px; }
 
 
 .dialog__actions { display: flex; gap: var(--s2); width: 100%; }
@@ -3466,6 +4345,23 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   font-size: 16px;
   text-align: center;
   text-shadow: 3px 3px 0 var(--sauce);
+}
+
+.rules-head {
+  display: grid;
+  gap: var(--s2);
+}
+
+.rules-clock-note {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border: var(--bd-thin) solid var(--sauce);
+  background: rgba(255, 75, 92, .12);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .rules {
@@ -4086,12 +4982,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    its rule, and the deck still flips — the RULES have to survive with motion
    off, so nothing here may be the only telling of anything.
 
-   Pages 1 and 2 park at rest rather than mid-flight on purpose: a card frozen
+   Pages 2 and 3 park at rest rather than mid-flight on purpose: a card frozen
    on top of the oven card covers the very card the player is meant to compare
    it against. At rest the arrows carry the direction and both faces are
    readable, which is more of the rule than a landing is. The swatch is the
    exception — it parks on the topping the wild named, because that change is
-   the whole of page 2. */
+   the whole of page 3. */
 @media (prefers-reduced-motion: reduce) {
   .deck__fly--r,
   .deck__fly--l {
@@ -4102,15 +4998,15 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .deck__art--was { animation: none; opacity: 0; }
   .deck__art--now { animation: none; opacity: 1; }
 
-  /* Page 3 has nothing to park: the list already says all five cards, and the
+  /* Page 4 has nothing to park: the list already says all five cards, and the
      lean was only ever timekeeping. */
   .deck__row .card { animation: none; transform: none; }
 
-  /* Page 4 parks with the card already dealt and BOTH ways out lit, which is
+  /* Page 5 parks with the card already dealt and BOTH ways out lit, which is
      the frame that carries the rule: one card off the pile, two things you may
      do with it.
 
-     The `!important` is load-bearing, here and on pages 5 and 6, and it is the
+     The `!important` is load-bearing, here and on pages 6 and 7, and it is the
      only one in this block. The cabinet's own reduced-motion rules flatten
      `transform: none !important` onto every `.card` in the game, which parked
      all three of these demos on the frame they START from — a card still
@@ -4126,7 +5022,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .deck__ar--beat-a,
   .deck__ar--beat-b { animation: none; opacity: 1; }
 
-  /* Page 5 parks on the hand already spent down and the button already lit:
+  /* Page 6 parks on the hand already spent down and the button already lit:
      the two facts of the page in one frame. */
   .deck .deck__spent--a,
   .deck .deck__spent--b {
@@ -4137,7 +5033,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
   .deck__za-on { animation: none; opacity: 1; }
 
-  /* Page 6 parks after the call-out: seat in sauce, both cards landed. */
+  /* Page 7 parks after the call-out: seat in sauce, both cards landed. */
   .deck__seat--caught::after { animation: none; opacity: 1; }
 
   .deck .deck__pen {
@@ -4146,12 +5042,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     transform: translate3d(calc(var(--demo-card) * -0.72), 0, 0) !important;
   }
 
-  /* Page 7 parks at the end of the journey, which is the rule: the arrow has
+  /* Page 8 parks at the end of the journey, which is the rule: the arrow has
      already turned and is pointing back at YOU, and YOU is lit. */
   .deck__ar--turn { animation: none; transform: rotate(180deg); }
   .deck__seat--you::after { animation: none; opacity: 1; }
 
-  /* Page 8 parks on the moment the clock runs out: bar down to the last
+  /* Page 9 parks on the moment the clock runs out: bar down to the last
      stretch and in sauce, the card already dealt, the turn already gone on.
      The bar is parked short rather than empty — an empty bar is a bar that
      was never there, and the countdown is half of what this page says. */
@@ -4185,6 +5081,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transition: color var(--d-fast) var(--ease-out), border-color var(--d-fast) var(--ease-out);
 }
 
+button.quiet-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: var(--s2);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .quiet-link:hover { color: var(--text); border-bottom-color: var(--ui-cyan); }
 }
@@ -4193,9 +5096,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: var(--s6);
+  bottom: max(var(--s6), var(--safe-bottom));
   z-index: 30;
-  max-width: min(400px, calc(100vw - var(--s8)));
+  max-width: min(400px, calc(100vw - var(--safe-left) - var(--safe-right) - var(--s8)));
   padding: var(--s3) var(--s4);
   background: var(--ink);
   color: var(--mozzarella);
@@ -4224,8 +5127,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .conn-banner {
   position: fixed;
   left: 50%;
-  top: var(--s3);
+  top: max(var(--s3), var(--safe-top));
   z-index: 40;
+  width: max-content;
+  max-width: calc(100vw - var(--safe-left) - var(--safe-right) - var(--s4));
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -4243,6 +5148,30 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     opacity var(--d-exit) var(--ease-out),
     transform var(--d-exit) var(--ease-out),
     visibility var(--d-exit) linear;
+}
+
+.conn-banner__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.conn-banner__leave {
+  min-height: 44px;
+  padding: 6px var(--s3);
+  background: var(--void);
+  color: var(--text);
+  border: var(--bd-thin) solid currentcolor;
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.conn-banner__leave:focus-visible {
+  outline-color: var(--cheese);
 }
 
 .conn-banner.is-open {
@@ -4272,8 +5201,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    above is already saying why, and a second layer would only hide the table
    the player is waiting to see come back.
 
-   Pointer input dies at the screen; the action buttons are disabled in JS as
-   well, so the keyboard cannot reach round them.
+   The screen is also made inert in JS, so pointer, keyboard and assistive
+   input all stop at the same boundary.
 
    Deliberately NOT a `filter` or a `transform`. `.popover` and `.fly-layer`
    are `position: fixed` and they live INSIDE `.screen` — either property here
@@ -4399,7 +5328,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* --- B - the shout ------------------------------------------------------- */
 /* Three frames, 150ms, no tween: small, huge, settled. The keyframes hold, so
    the steps are real whether or not the easing token is honoured. */
-.btn--za.is-shouting { animation: za-slam var(--d-press) var(--ease-step) both; }
+.btn--za.is-shouting,
+.moment__cta.is-shouting { animation: za-slam var(--d-press) var(--ease-step) both; }
 
 @keyframes za-slam {
   0%, 32% { transform: scale(.86); }
@@ -4438,9 +5368,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   66%, 100% { opacity: 0; transform: scale(1.2); }
 }
 
-/* The timing score floats off the button. Transition, not animation, so the
+/* The response stamp floats off the button. Transition, not animation, so the
    reduced-motion block can pin the transform and still cross-fade it. */
-.shout-score {
+.shout-response {
   position: absolute;
   left: var(--bx, 50%);
   top: var(--by, 50%);
@@ -4458,8 +5388,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
     transform 700ms var(--ease-step-5);
 }
 
-.shout-score--ok { color: var(--ui-cyan); }
-.shout-score.is-on { opacity: 1; transform: translate(-50%, -190%); }
+.shout-response--ok { color: var(--ui-cyan); }
+.shout-response.is-on { opacity: 1; transform: translate(-50%, -190%); }
 
 /* --- C - the catch ------------------------------------------------------- */
 /* A seat inside a call-out window: dashed sauce keyline, buzzing name, and a
@@ -4516,36 +5446,16 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   transform-origin: 0 50%;
 }
 
-/* Your own window has no seat panel to live in, so it sits on the rail above
-   the hand: the same steady bar, plus the instruction that closes it. */
-.callout-self {
-  position: absolute;
-  left: var(--s3);
-  right: var(--s3);
-  bottom: calc(100% + 4px);
-  z-index: 4;
-  display: grid;
-  gap: 2px;
-  padding: var(--s1) var(--s2);
-  background: var(--console);
-  border: var(--bd-thin) solid var(--sauce);
-  pointer-events: none;
-}
-
-.callout-self__label {
-  font-size: var(--fs-label);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--sauce-hi);
-}
-
-.callout-self.is-safe { border-color: var(--basil); }
-.callout-self.is-safe .callout-self__label { color: var(--basil); }
-.callout-self.is-safe .callout-drain { border-color: var(--basil); }
+/* Your own window has no seat panel to live in, so it is one of the moments
+   over the hand (see "the moments" above): the same steady bar, the sentence
+   that says what happened, and the shout that closes it as a real button. */
+.moment--self.is-safe { border-color: var(--basil); }
+.moment--self.is-safe .moment__title { color: var(--basil); }
+.moment--self.is-safe .callout-drain { border-color: var(--basil); }
 /* Safe now: the same steady bar in basil. The `animation: none` and the
    `scaleX(1)` that used to be here existed only to cancel the drain, and the
    drain is gone. */
-.callout-self.is-safe .callout-drain__fill {
+.moment--self.is-safe .callout-drain__fill {
   background: var(--basil);
 }
 
@@ -4584,6 +5494,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
    The rail, not a glyph: the whole chevron group flashes, and because the
    chevrons draw in currentColor the flash reads on all five at once. */
 .marquee__dir.is-flipping { animation: dir-flash 480ms steps(1, end) both; }
+
+/* The chip takes the same flash. It is the carrier that is on screen at every
+   width, so a flip it did not announce is a flip nobody saw. */
+.dir-chip.is-flipping { animation: dir-flash 480ms steps(1, end) both; }
 
 @keyframes dir-flash {
   0%, 24% { color: var(--ui-cyan); }
@@ -4664,59 +5578,121 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .marquee__dir { font-size: 12px; gap: 1px; }
   .screws { gap: var(--s1) var(--s3); }
 
+  /* The centre stack on a small screen. The plaque keeps its whole sentence —
+     it is the sentence that earns its room — and gives up the padding and four
+     points of type around it. Between 520px and 720px the chefs are still
+     around a counter, so the body may wrap: a plaque that grows sideways there
+     grows towards the two seats on the walls. */
+  .table-center { gap: var(--s1); padding-bottom: var(--s2); }
+  .plaque { padding: 4px 10px; gap: 2px; }
+  .plaque__body { flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
+  .plaque__name,
+  .plaque__value { font-size: 22px; }
+  .plaque__or { font-size: 16px; }
+  .plaque__emblem { width: 18px; height: 18px; }
+  .plaque__mark { width: 17px; height: 17px; }
+  .dir-chip { font-size: 15px; padding: 1px 7px; }
+  .dir-chip__glyph { width: 15px; height: 15px; }
+  .narration { font-size: 15px; }
+
+  /* --- pass 6 · on a phone the plaque collapses to a chip ------------------
+     One line: MATCH · <topping> OR <this>. The stacked block was three lines
+     of a felt that does not have three lines to give — the felt is the grid's
+     1fr row and the hand zone grows with the hand, and height is the axis that
+     runs out first on a phone. Laid flat the same sentence costs 25px instead
+     of 62px and reads left to right, which is how it is spoken.
+
+     Width is free here in a way it is not one breakpoint up: below 520px the
+     chefs are a queue in their own grid row, so nothing the chip does
+     sideways can reach a seat. `nowrap` is therefore a promise, not a risk —
+     the chip is one line at every width this client supports, and the type
+     steps down once more at 380px so it stays one line on the narrow phones
+     too. */
+  @media (max-width: 519.98px) {
+    .plaque {
+      flex-direction: row;
+      align-items: center;
+      gap: var(--s2);
+      padding: 3px 10px;
+    }
+
+    .plaque__head {
+      /* Kept, and kept small. It is the only word that says what the numbers
+         under it are FOR, which is the entire complaint this pass answers;
+         eight pixels of Press Start 2P is a cheap price for the sentence
+         still being a sentence. */
+      flex: none;
+      font-size: 7px;
+      letter-spacing: .1em;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .plaque__body {
+      flex-wrap: nowrap;
+      gap: var(--s2);
+    }
+
+    .plaque__name,
+    .plaque__value { font-size: 20px; }
+    .plaque__or { font-size: 15px; }
+
+    /* FOLDED ON A PHONE, THE DIRECTION IS THE GLYPH AND NOTHING ELSE — which
+       is the form the spec prints, `MATCH ↻`, and here it is also the only one
+       that fits. Measured at 390px with the word in: the worst sentence the
+       deck can make (MATCH · COUNTER-CLOCKWISE · PEPPERONI OR DRAW TWO) is
+       434px wide with its right edge at 448, drawn 58px outside a 390px
+       window. The glyph is mirrored for a reverse, the marquee's chevron chase
+       is on screen at exactly these widths, and `#dir-announce` still says the
+       whole word on the banner's live region — so what goes is the third
+       telling, not the fact. */
+    .plaque.is-folded .dir-chip__word { display: none; }
+    .plaque.is-folded .dir-chip { gap: 0; }
+  }
+
+  @media (max-width: 379.98px) {
+    .plaque__head { font-size: 6px; }
+    .plaque__name,
+    .plaque__value { font-size: 17px; }
+    .plaque__or { font-size: 13px; }
+    .plaque__emblem { width: 15px; height: 15px; }
+    .plaque__mark { width: 14px; height: 14px; }
+  }
+
   /* The attract logotype steps down to the mobile plate. */
   .logo__type { font-size: 44px; text-shadow: 5px 5px 0 var(--sauce), 10px 10px 0 rgba(0, 0, 0, .65); }
   .logo__flourish { font-size: 22px; }
 
   .seat__badge { font-size: 12px; }
 
-  /* On a phone the chatter is an attendant calling ONE line, not a board on
-     the felt: the box was taking the exact space the piles needed. Newest
-     entry only, no title, one thin strip — every older line already had its
-     moment when it arrived (and was announced then; the live region only
-     ever speaks additions). And it is a real grid row, not a float: a strip
-     that owns its lane cannot sit on the topping badge, however short the
-     phone. Full bleed to the hand zone's own edges, like everything else
-     that learned that lesson. */
-  .table { grid-template-rows: auto minmax(0, 1fr) auto; }
+  /* One event gets one visible sentence on a phone. The compact narration by
+     the hand is the sighted version; Kitchen chatter remains a polite,
+     offscreen history for assistive technology instead of repeating the same
+     event in a second strip above the table. */
+  .table { grid-template-rows: minmax(0, 1fr); }
 
-  /* Below 520px the queue's conveyor belt is a fourth box between the strip
-     and the felt, and it is 8px of furniture that must not be handed the
-     free row. Declared AFTER the three-row rule above so the queue always
-     wins where the queue exists — the reverse order once gave the belt the
-     1fr and pushed the piles a hundred pixels down the phone. */
+  /* Below 520px the queue, its belt and the felt each own one row. */
   @media (max-width: 519.98px) {
-    .table { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+    .table { grid-template-rows: auto auto minmax(0, 1fr); }
   }
 
-  /* The ticker does not animate its one line: it IS the status readout, and
-     the last thing that should happen to a line telling you what just
-     happened is that it arrives sideways and translucent while you read it.
-     It appears, finished, on the spot. */
-  .log__entry { transition: none; }
+  /* From 520px up the chefs and centre column share the whole felt. */
+  @media (min-width: 520px) {
+    .table > .opponents,
+    .table > .table-center { grid-row: 1 / -1; }
+  }
 
   .log {
-    position: static;
-    width: auto;
-    max-height: none;
-    margin-inline: calc(-1 * var(--s3));
-    padding: 4px 8px;
-    border-inline: none;
-    border-bottom: none;
-  }
-
-  .log__title { display: none; }
-
-  .log__entry { display: none; }
-
-  .log__entry:last-child {
-    display: block;
-    white-space: nowrap;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
-
-  .hand-zone { padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px)); }
 
   /* Receipts stack, one under the other, and yours is already first in the
      markup — so the punchline lands on your own bill without a swipe. */
@@ -4742,8 +5718,36 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   }
 }
 
+/* Height is the scarce axis long before width is, and the centre stack is the
+   thing this pass made taller. Where the felt is short the plaque and the chip
+   give up type and padding — never the words, which are the whole reason they
+   are there. */
+@media (max-height: 720px) {
+  .plaque { padding: 3px 9px; gap: 1px; }
+  .plaque__name,
+  .plaque__value { font-size: 20px; }
+  .plaque__or { font-size: 15px; }
+  .plaque__emblem { width: 16px; height: 16px; }
+  .plaque__mark { width: 15px; height: 15px; }
+  .dir-chip { font-size: 14px; padding: 0 6px; }
+  .dir-chip__glyph { width: 14px; height: 14px; }
+}
+
 @media (max-height: 620px) {
-  .log { display: none; }
+  /* Keep the polite server event stream in the accessibility tree. The visual
+     one-line narration carries the same job in landscape, but is deliberately
+     aria-hidden so the two channels never speak over each other. */
+  .log {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
   .table { padding-top: var(--s2); }
 }
 
@@ -4826,10 +5830,66 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
      and no longer a popover at all. */
   .screen--game > .popover {
     position: fixed;
-    bottom: var(--s3);
-    max-height: calc(100dvh - var(--s6));
+    bottom: max(var(--s3), var(--safe-bottom));
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - var(--s6));
     overflow-y: auto;
   }
+}
+
+/* On ordinary landscape phones the table and the decision surface stay in
+   view together: the oven/draw pile on the left, the player's hand/actions on
+   the right. The narrower 568px and reflow/zoom cases keep the single-column
+   scroll above; squeezing the full 2–8 seat table into half of those windows
+   would trade reachability for collisions. */
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
+  .screen--game {
+    grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .hud {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .table {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .hand-zone {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .screen--game > .popover { left: 76%; }
+}
+
+/* A full eight-seat counter cannot keep readable 44px chefs around the oven
+   inside the table half of a short landscape screen. It hands that one state
+   to the existing ordered queue: opponents scroll across the top, while the
+   piles, match and direction keep their own row below. Smaller tables retain
+   the counter and span the same three tracks as one uninterrupted felt. */
+@media (orientation: landscape) and (min-width: 640px) and (max-width: 1024px) and (max-height: 560px) {
+  .table { grid-template-rows: auto auto minmax(0, 1fr); }
+
+  .table > .opponents[data-mode="queue"] { grid-area: 1 / 1; }
+  .table > .opponents[data-mode="queue"] ~ .counter-belt { grid-area: 2 / 1; }
+  .table > .opponents[data-mode="queue"] ~ .table-center {
+    grid-area: 3 / 1;
+    min-height: 0;
+  }
+
+  .table > .opponents[data-mode="counter"],
+  .table > .opponents[data-mode="counter"] ~ .table-center { grid-row: 1 / -1; }
 }
 
 /* ------------------------------------------------ table — desktop (kit 03) */
@@ -4967,9 +6027,11 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .screen--game.is-shoved > .table,
   .screen--game.is-shoved > .hand-zone,
   .btn--za.is-shouting,
+  .moment__cta.is-shouting,
   .discard-holder.is-chain .card,
   .seat.is-callout .seat__name,
   .marquee__dir.is-flipping,
+  .dir-chip.is-flipping,
   .overlay.is-celebrating::before {
     animation: none !important;
     transform: none !important;
@@ -5018,10 +6080,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .cab-chain,
   .cab-chain.is-on { transform: none !important; }
 
-  /* The score and the stamps still cross-fade in place: they are the visual
+  /* The response and the stamps still cross-fade in place: they are the visual
      half of cues that must never be sound-only. */
-  .shout-score,
-  .shout-score.is-on { transform: translate(-50%, -50%) !important; }
+  .shout-response,
+  .shout-response.is-on { transform: translate(-50%, -50%) !important; }
   .combo-stamp,
   .combo-stamp.is-on { transform: rotate(-8deg) !important; }
   .anchovy-stamp,
@@ -5611,6 +6673,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .nickname--basil { color: var(--basil); }
 .nickname--anchovy { color: var(--anchovy); }
 .nickname--sauce { color: var(--sauce-hi); }
+/* Deliberately unused by the seat titles: see NICK_CATEGORIES. Cheese is the
+   turn colour on the felt, and a title wearing it competes with the one signal
+   that has to be unambiguous. Kept for the receipts, where nothing is taking
+   a turn and nothing can be confused with one. */
 .nickname--cheese { color: var(--cheese); }
 .nickname--cyan { color: var(--ui-cyan); }
 

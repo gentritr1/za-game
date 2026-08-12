@@ -634,23 +634,195 @@ test('a player inside the reconnect grace period stays in the next round', () =>
   assert.strictEqual(bo.connected, false);
 });
 
-test('a bot makes one call-out decision per window, not one per tick', () => {
+test('a bot call-out waits for the room-level human reaction window', () => {
   const manager = new RoomManager();
   const { room } = table(['Ana', 'Chef Mario']);
   manager.rooms.set(room.code, room);
   assert.ok(room.startRound().ok);
-  // Ana is down to one card and kept quiet. It is her turn, so no timer fires.
+  // Ana is down to one card and kept quiet. It is her turn, so no turn timer fires.
+  room.game.turnIndex = 0;
+  room.game.players[0].hand = [num('basil', 4)];
+  room.game.players[0].vulnerable = true;
+
+  const rolls = [0, 0]; // observer notices, then gets the minimum delay
+  room.game.rng = () => rolls.shift() ?? 0;
+  const startedAt = Date.now();
+  manager.tickRoom(room, startedAt);
+
+  const pending = room.botCalloutWindow;
+  assert.ok(pending && pending.observerId, 'one bot was appointed for the room');
+  assert.ok(
+    pending.dueAt - startedAt >= TIMINGS.botCalloutMin
+      && pending.dueAt - startedAt <= TIMINGS.botCalloutMax,
+    `the observer was due after ${pending.dueAt - startedAt}ms`
+  );
+  manager.tickRoom(room, pending.dueAt - 1);
+  assert.strictEqual(room.game.players[0].hand.length, 1, 'the bot never calls out early');
+  manager.tickRoom(room, pending.dueAt);
+  manager.stop();
+
+  assert.strictEqual(room.game.players[0].hand.length, 3, 'the due observer applies one penalty');
+  assert.strictEqual(room.botCalloutWindow, null, 'the resolved window is gone');
+});
+
+test('one weighted lottery selects one observer for a table of bots', () => {
+  const manager = new RoomManager();
+  const room = new Room('TEST-ZA-WEIGHTS');
+  room.emptySince = 0;
+  const ana = room.addSeat({ name: 'Ana' });
+  ana.connected = true;
+  room.addSeat({ name: 'Carmela', isBot: true, regularId: 'carmela' });
+  const pina = room.addSeat({ name: 'Nonna Pina', isBot: true, regularId: 'pina' });
+  manager.rooms.set(room.code, room);
+  assert.ok(room.startRound().ok);
+  room.game.turnIndex = room.game.players.findIndex((player) => player.id === ana.id);
+  room.scheduleTimers(true);
+  const target = game.findPlayer(room.game, ana.id);
+  target.hand = [num('basil', 4)];
+  target.vulnerable = true;
+
+  // Two tickets: Carmela owns 0–.95, Pina .95–1.35, and 1.35–2 means
+  // nobody notices. A .5 roll lands at ticket 1, inside Pina's interval.
+  const rolls = [0.5, 0];
+  room.game.rng = () => rolls.shift() ?? 0;
+  const startedAt = Date.now();
+  manager.tickRoom(room, startedAt);
+
+  assert.strictEqual(room.botCalloutWindow.observerId, pina.id);
+  manager.tickRoom(room, room.botCalloutWindow.dueAt);
+  manager.stop();
+  assert.strictEqual(target.hand.length, 3);
+  assert.match(room.game.log[room.game.log.length - 1].text, /Nonna Pina caught Ana/);
+});
+
+test('another missed ZA does not reset the observer already watching the table', () => {
+  const manager = new RoomManager();
+  const { room, seats } = table(['Ana', 'Bo', 'Chef Mario']);
+  manager.rooms.set(room.code, room);
+  assert.ok(room.startRound().ok);
+  const ana = game.findPlayer(room.game, seats[0].id);
+  const bo = game.findPlayer(room.game, seats[1].id);
+  ana.hand = [num('basil', 4)];
+  ana.vulnerable = true;
+
+  const rolls = [0, 0, 0, 0, 0];
+  room.game.rng = () => rolls.shift() ?? 0;
+  const startedAt = Date.now();
+  manager.tickRoom(room, startedAt);
+  const firstWindow = room.botCalloutWindow;
+
+  bo.hand = [num('cheese', 6)];
+  bo.vulnerable = true;
+  room.reconcileBotCalloutWindow(startedAt + 100);
+  assert.strictEqual(room.botCalloutWindow, firstWindow, 'Ana keeps the original observer and due time');
+
+  assert.ok(manager.applyAction(room, ana.id, { type: 'za' }, startedAt + 200).ok);
+  manager.stop();
+  assert.strictEqual(room.botCalloutWindow.targetId, bo.id, 'Bo receives the next single window');
+  assert.ok(room.botCalloutWindow.dueAt >= startedAt + 200 + TIMINGS.botCalloutMin);
+});
+
+test('a room does not reroll when its single bot observer lottery misses', () => {
+  const manager = new RoomManager();
+  const { room } = table(['Ana', 'Chef Mario']);
+  manager.rooms.set(room.code, room);
+  assert.ok(room.startRound().ok);
   room.game.turnIndex = 0;
   room.game.players[0].hand = [num('basil', 4)];
   room.game.players[0].vulnerable = true;
 
   let rolls = 0;
-  room.game.rng = () => { rolls++; return 0.99; }; // this chef always looks away
+  room.game.rng = () => { rolls++; return 0.99; }; // the 70% chef looks away
   for (let i = 0; i < 6; i++) manager.tickRoom(room, Date.now());
   manager.stop();
 
-  assert.strictEqual(rolls, 1, 'the bot made up its mind once');
+  assert.strictEqual(rolls, 1, 'the room made up its mind once');
+  assert.strictEqual(room.botCalloutWindow.observerId, null, 'nobody was appointed');
   assert.strictEqual(room.game.players[0].hand.length, 1, 'so Ana got away with it');
+});
+
+test('calling ZA cancels a pending bot observer immediately', () => {
+  const manager = new RoomManager();
+  const { room, seats } = table(['Ana', 'Chef Mario']);
+  manager.rooms.set(room.code, room);
+  assert.ok(room.startRound().ok);
+  const target = game.findPlayer(room.game, seats[0].id);
+  target.hand = [num('basil', 4)];
+  target.vulnerable = true;
+  const rolls = [0, 0, 0];
+  room.game.rng = () => rolls.shift() ?? 0;
+  const startedAt = Date.now();
+  manager.tickRoom(room, startedAt);
+  const oldDueAt = room.botCalloutWindow.dueAt;
+
+  assert.ok(manager.applyAction(room, seats[0].id, { type: 'za' }, startedAt + 100).ok);
+  assert.strictEqual(room.botCalloutWindow, null, 'the pending observer is canceled at the action');
+  manager.tickRoom(room, oldDueAt + 1);
+  manager.stop();
+  assert.strictEqual(target.hand.length, 1, 'no late penalty lands after ZA');
+  assert.strictEqual(target.declaredZa, true);
+});
+
+test('a due bot turn cannot bypass the delay and closes a stale ZA window normally', () => {
+  const manager = new RoomManager();
+  const { room, seats } = table(['Ana', 'Chef Mario']);
+  manager.rooms.set(room.code, room);
+  assert.ok(room.startRound().ok);
+  const ana = game.findPlayer(room.game, seats[0].id);
+  const chef = game.findPlayer(room.game, seats[1].id);
+  ana.hand = [num('basil', 4)];
+  ana.vulnerable = true;
+  const reply = num('pepperoni', 4);
+  chef.hand = [reply, num('basil', 2), num('cheese', 3)];
+  room.game.discardPile = [num('pepperoni', 5)];
+  room.game.currentTopping = 'pepperoni';
+  room.game.turnIndex = room.game.players.indexOf(chef);
+
+  const rolls = [0, 0, 0]; // appoint observer, minimum delay, log wording
+  room.game.rng = () => rolls.shift() ?? 0;
+  const now = Date.now();
+  room.scheduleTimers(true);
+  room.botDueAt = now;
+  manager.tickRoom(room, now);
+  manager.stop();
+
+  assert.strictEqual(ana.hand.length, 1, 'the current bot did not call out immediately');
+  assert.strictEqual(ana.vulnerable, false, 'the window closed when play returned to Ana');
+  assert.strictEqual(room.botCalloutWindow, null, 'the delayed observer was canceled');
+  assert.strictEqual(game.currentPlayer(room.game).id, ana.id);
+});
+
+test('coalesced timers resolve an earlier bot turn before a later ZA observer', () => {
+  const manager = new RoomManager();
+  const { room, seats } = table(['Ana', 'Chef Mario']);
+  manager.rooms.set(room.code, room);
+  assert.ok(room.startRound().ok);
+  const ana = game.findPlayer(room.game, seats[0].id);
+  const chef = game.findPlayer(room.game, seats[1].id);
+  ana.hand = [num('basil', 4)];
+  ana.vulnerable = true;
+  const reply = num('pepperoni', 4);
+  chef.hand = [reply, num('basil', 2), num('cheese', 3)];
+  room.game.discardPile = [num('pepperoni', 5)];
+  room.game.currentTopping = 'pepperoni';
+  room.game.turnIndex = room.game.players.indexOf(chef);
+
+  const rolls = [0, 0, 0];
+  room.game.rng = () => rolls.shift() ?? 0;
+  const startedAt = Date.now();
+  room.reconcileBotCalloutWindow(startedAt);
+  room.botDueAt = startedAt + 800;
+  assert.strictEqual(room.botCalloutWindow.dueAt, startedAt + TIMINGS.botCalloutMin);
+
+  // One delayed timer pass sees both events overdue. The turn was scheduled
+  // first, so it plays first and closes Ana's window without a penalty.
+  manager.tickRoom(room, startedAt + 1000);
+  manager.stop();
+
+  assert.strictEqual(ana.hand.length, 1);
+  assert.strictEqual(ana.vulnerable, false);
+  assert.strictEqual(room.botCalloutWindow, null);
+  assert.strictEqual(game.currentPlayer(room.game).id, ana.id);
 });
 
 test('cleaning up a stale room leaves a live room with the same code alone', () => {
@@ -1009,6 +1181,32 @@ test('every control the desync freeze disables has an owner that turns it back o
       + `.disabled — this is exactly how PASS and CALL OUT died on every boot`
     );
   }
+});
+
+test('the ZA client exposes one canonical action with honest feedback', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+
+  assert.strictEqual(
+    (html.match(/id="btn-za"/g) || []).length,
+    1,
+    'ZA has one permanent action in the document'
+  );
+  assert.doesNotMatch(src, /syncMoment\(['"]za['"]/, 'two-card teaching must not clone the action');
+
+  const openAt = src.indexOf('function openCalloutWindow(');
+  const closeAt = src.indexOf('\nfunction closeCalloutWindow(', openAt);
+  assert.ok(openAt > 0 && closeAt > openAt, 'the recovery window remains explicit');
+  const recovery = src.slice(openAt, closeAt);
+  assert.doesNotMatch(recovery, /createElement\(['"]button['"]\)/, 'recovery points to the canonical button');
+  assert.match(recovery, /btnZa\.setAttribute\(['"]aria-describedby['"]/, 'the warning describes that button');
+
+  assert.match(src, /el\.btnZa\.hidden\s*=\s*!canShoutZa/, 'the action is absent until it is legal');
+  assert.match(src, /Two cards\. Shout ZA before playing again\./, 'eligibility is announced once');
+  assert.match(src, /announce\(['"]ZA called\.['"]\)/, 'authoritative success is announced');
+  assert.match(src, /PERFECT ZA!/, 'fast feedback stays playful');
+  assert.doesNotMatch(src, /PERFECT! \+500|OK \+100/, 'feedback does not invent a score');
+  assert.doesNotMatch(src, /CALLED ZA — ONE CARD LEFT/, 'narration does not invent the hand count');
 });
 
 // ------------------------------------------------------- the file server -----

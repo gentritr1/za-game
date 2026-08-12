@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZA! Table Playtest</title>
+<script src="fdb4d1a2-c275-424a-b12e-c7f011abfafe"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("7348960c-45fa-475c-8b96-ef1951ac8d6e") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("5217b0ae-b48d-49b1-9f61-34081c089c82") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("0ae3b683-df7d-4358-9101-401fb3c53d34") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("46d439a6-9820-44c5-b904-394cbd915b9e") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("c7beeb96-cb5d-4db6-9700-f136c4a583c3") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("5814636b-56a3-46a5-bf55-a73e1b1112ac") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("3567ce11-f438-4f2e-a189-0d09fa29a0fe") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("36ca0702-e310-4890-b36b-0ea832899fa2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+  :root{
+    --za-bg:#0d0f1a;
+    --za-panel:#080a12;
+    --za-surface:#101426;
+    --za-surface-active:#151b33;
+    --za-surface-raised:#1b2340;
+    --za-border:#5265a7;
+    --za-border-muted:#39466f;
+    --za-text:#e8ecff;
+    --za-text-strong:#f4f7ff;
+    --za-text-soft:#c3cbe6;
+    --za-text-muted:#8f9bc4;
+    --za-info:#7de2ff;
+    --za-suit-pepperoni:#ff2e6b;
+    --za-suit-cheese:#ffc93d;
+    --za-suit-basil:#3ddc7f;
+    --za-suit-anchovy:#4d9dff;
+    --za-danger:#ff2e6b;
+    --za-danger-text:#ff6f9a;
+    --za-success:#3ddc7f;
+    --za-warning:#ffe14d;
+    --za-ink:#0d0f1a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--za-bg);overflow:hidden}
+  x-dc{display:block;height:100%}
+  @supports (height:100dvh){html,body,x-dc{height:100dvh}}
+  @keyframes za-refuse{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}50%{transform:translateX(3px)}75%{transform:translateX(-2px)}}
+  @keyframes za-slam{0%{transform:translate(-50%,-50%) scale(.5);opacity:0}55%{transform:translate(-50%,-50%) scale(1.1);opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
+  @keyframes za-appear{0%{opacity:0}100%{opacity:1}}
+  @keyframes za-bulb{0%,49%{opacity:1}50%,100%{opacity:.22}}
+  @keyframes za-flash{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}30%{box-shadow:0 0 0 7px rgba(255,255,255,.5)}}
+  @keyframes za-sweep{0%{transform:translate(-50%,-50%) scale(.6) rotate(0deg);opacity:0}25%{opacity:1}100%{transform:translate(-50%,-50%) scale(1.9) rotate(-320deg);opacity:0}}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:1ms !important;transition-duration:1ms !important}}
+</style>
+</helmet>
+
+<main ref="{{ setRoot }}" aria-label="ZA table game" aria-hidden="{{ gameHidden }}" style="{{ rootStyle }}">
+  <h1 style="{{ srOnly }}">ZA! Table game</h1>
+
+  <div ref="{{ setArt }}" style="position:absolute;left:0;top:0;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none">
+    <img alt="" src="babc6d97-2d4b-455e-a9e5-d0b8bb970286">
+    <img alt="" src="d61683ee-ece3-4567-808d-5598daa96c38">
+    <img alt="" src="f3bdfad3-ea8e-42d4-92d3-6c9e1c1dbb17">
+    <img alt="" src="bdde12a0-6e5f-4436-9219-e59759a8eeaf">
+  </div>
+
+  <div style="grid-column:1 / -1;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(6px + env(safe-area-inset-top,0px)) 12px 6px;background:var(--za-panel);border-bottom:4px solid var(--za-border)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:var(--za-warning);letter-spacing:.04em">ZA!</div>
+      <div style="display:flex;gap:4px">
+        <sc-for list="{{ bulbs }}" as="b" hint-placeholder-count="3">
+          <div style="{{ b.style }}"></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="font-size:16px;letter-spacing:.1em;color:var(--za-info)">{{ quietLabel }}</div>
+  </div>
+
+  <section ref="{{ setStage }}" aria-label="Table and turn order" style="{{ stageStyle }}">
+
+    <div style="{{ centerStyle }}">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+        <div role="group" aria-label="{{ matchAria }}" style="{{ plaqueStyle }}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-family:'Press Start 2P',monospace;font-size:9px;letter-spacing:.12em;color:var(--za-text-muted)">{{ matchLabel }}</span>
+            <span aria-label="{{ dirLabel }}" style="{{ dirBadgeStyle }}">{{ dirGlyph }} {{ dirCompactLabel }}</span>
+          </div>
+          <div style="{{ matchRowStyle }}">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span style="{{ matchGlyphStyle }}">{{ matchGlyph }}</span>
+              <span style="{{ matchSuitStyle }}">{{ matchSuit }}</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span style="{{ matchOrStyle }}">{{ matchOr }}</span>
+              <span style="{{ matchValueStyle }}">{{ matchValue }}</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:10px">
+          <div style="{{ deckStyle }}">
+            <div style="{{ deckTextStyle }}">DECK<br>{{ deckCount }}</div>
+          </div>
+          <div role="img" aria-label="{{ topCardAria }}" style="{{ topCardStyle }}">
+            <div style="{{ topIndexStyle }}">{{ topIndex }}</div>
+            <div style="{{ topGlyphStyle }}">{{ topGlyph }}</div>
+            <div style="{{ topSuitStyle }}">{{ topSuit }}</div>
+          </div>
+        </div>
+        <div style="{{ dirStyle }}">
+          <span style="{{ dirGlyphStyle }}">{{ dirGlyph }}</span>
+          <span style="{{ dirLabelStyle }}">{{ dirLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <sc-for list="{{ seats }}" as="s" hint-placeholder-count="4">
+      <div role="group" aria-label="{{ s.aria }}" style="{{ s.wrapStyle }}">
+        <div style="{{ s.plateStyle }}">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="{{ s.portraitStyle }}"></div>
+            <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+              <div style="{{ s.nameStyle }}">{{ s.name }}</div>
+              <div style="display:flex;gap:3px;align-items:center">
+                <sc-for list="{{ s.pips }}" as="pip" hint-placeholder-count="5">
+                  <div style="{{ pip.style }}"></div>
+                </sc-for>
+                <div style="{{ s.countStyle }}">{{ s.countText }}</div>
+              </div>
+            </div>
+          </div>
+          <div style="{{ s.statusStyle }}">{{ s.status }}</div>
+        </div>
+      </div>
+    </sc-for>
+
+    <div style="{{ tokenStyle }}">
+      <div style="{{ tokenLineA }}"></div>
+      <div style="{{ tokenLineB }}"></div>
+      <div style="{{ tokenLineC }}"></div>
+    </div>
+
+    <sc-if value="{{ flight }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ flightStyle }}">
+        <div style="{{ flightIndexStyle }}">{{ flightIndex }}</div>
+      </div>
+    </sc-if>
+
+    <sc-for list="{{ dealt }}" as="d" hint-placeholder-count="0">
+      <div style="{{ d.style }}"></div>
+    </sc-for>
+
+    <sc-if value="{{ effect }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ effectStyle }}">{{ effectLabel }}</div>
+    </sc-if>
+
+    <sc-if value="{{ sweep }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ sweepStyle }}">{{ sweepGlyph }}</div>
+    </sc-if>
+
+    <div style="{{ ribbonStyle }}">{{ eventText }}</div>
+
+    <sc-if value="{{ banner }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ bannerStyle }}">{{ bannerText }}</div>
+    </sc-if>
+  </section>
+
+  <section aria-label="Your hand and actions" style="{{ trayStyle }}">
+    <p role="status" aria-live="polite" aria-atomic="true" style="{{ srOnly }}">{{ politeText }}</p>
+    <p role="alert" aria-live="assertive" aria-atomic="true" style="{{ srOnly }}">{{ alertText }}</p>
+    <sc-if value="{{ trayRibbon }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ trayRibbonStyle }}">{{ eventText }}</div>
+    </sc-if>
+    <sc-if value="{{ youStrip }}" hint-placeholder-val="{{ false }}">
+      <div role="group" aria-label="{{ youAria }}" style="{{ youStripStyle }}">
+        <div style="{{ youTicketStyle }}"></div>
+        <div style="{{ youPortraitStyle }}"></div>
+        <div style="font-size:18px;letter-spacing:.1em;color:#f4f7ff">YOU</div>
+        <div style="display:flex;gap:3px;align-items:center;flex:1 1 auto">
+          <sc-for list="{{ youPips }}" as="pip" hint-placeholder-count="6">
+            <div style="{{ pip.style }}"></div>
+          </sc-for>
+          <div style="font-size:16px;color:var(--za-text-muted);margin-left:5px">{{ youCount }}</div>
+        </div>
+        <div style="{{ youStatusStyle }}">{{ youStatus }}</div>
+      </div>
+    </sc-if>
+    <div style="{{ labelRowStyle }}">
+      <div style="{{ handLabelStyle }}">{{ handLabel }}</div>
+      <div style="{{ countLabelStyle }}">{{ playableLabel }}</div>
+    </div>
+
+    <sc-if value="{{ zaNeeded }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ zaBarStyle }}">
+        <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:2px;min-width:0">
+          <div style="{{ zaHeadStyle }}">{{ zaHeadText }}</div>
+          <div style="{{ zaTeachStyle }}">{{ zaTeachText }}</div>
+        </div>
+        <button type="button" sc-camel-on-click="{{ callZa }}" style="{{ zaCtaStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">CALL ZA</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ recoverOpen }}" hint-placeholder-val="{{ false }}">
+      <div role="group" aria-labelledby="za-window-title" style="{{ recoverBarStyle }}">
+        <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:2px;min-width:0">
+          <div id="za-window-title" style="font-family:'Press Start 2P',monospace;font-size:9px;color:#ff2e6b;line-height:1.7">FORGOT ZA — CALL ZA NOW</div>
+          <div id="za-reason" style="font-size:16px;line-height:1.3;color:#c98a9c">{{ recoverSub }}</div>
+        </div>
+        <button type="button" ref="{{ focusCta }}" aria-describedby="za-reason" sc-camel-on-click="{{ recoverZa }}" style="{{ ctaStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">CALL ZA NOW</button>
+        <button type="button" sc-camel-on-click="{{ declineZa }}" style="{{ declineStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:2px">SAY NOTHING</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ calloutOpen }}" hint-placeholder-val="{{ false }}">
+      <div role="group" aria-labelledby="callout-window-title" style="{{ calloutBarStyle }}">
+        <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:2px;min-width:0">
+          <div id="callout-window-title" style="font-family:'Press Start 2P',monospace;font-size:9px;color:#ff2e6b;line-height:1.7">{{ calloutText }}</div>
+          <div id="callout-reason" style="font-size:16px;line-height:1.3;color:#c98a9c">{{ calloutSub }}</div>
+        </div>
+        <button type="button" ref="{{ focusCta }}" aria-describedby="callout-reason" sc-camel-on-click="{{ doCallout }}" style="{{ ctaStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">CALL OUT NOW</button>
+        <button type="button" sc-camel-on-click="{{ declineCallout }}" style="{{ declineStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:2px">LET IT PASS</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ drawnOpen }}" hint-placeholder-val="{{ false }}">
+      <div role="group" aria-labelledby="drawn-reason" style="{{ drawnBarStyle }}">
+        <div style="{{ drawnCardStyle }}">
+          <div style="{{ drawnIndexStyle }}">{{ drawnIndex }}</div>
+          <div style="{{ drawnGlyphStyle }}">{{ drawnGlyph }}</div>
+          <div style="{{ drawnSuitStyle }}">{{ drawnSuit }}</div>
+        </div>
+        <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:8px;min-width:0">
+          <div id="drawn-reason" style="{{ drawnMsgStyle }}">{{ drawnMsg }}</div>
+          <sc-if value="{{ drawnDecision }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" ref="{{ focusCta }}" aria-describedby="drawn-reason" sc-camel-on-click="{{ playDrawn }}" style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--za-ink);background:var(--za-success);border:0;padding:12px 14px;min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5)" style-focus="outline:3px solid #7de2ff;outline-offset:3px">PLAY IT</button>
+              <button type="button" sc-camel-on-click="{{ keepDrawn }}" style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--za-text-soft);background:transparent;border:2px solid var(--za-border);padding:12px 14px;min-height:44px;cursor:pointer">KEEP &amp; PASS</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="{{ handWrapStyle }}">
+      <div ref="{{ setHandRow }}" sc-camel-on-scroll="{{ onHandScroll }}" style="{{ handRowStyle }}">
+      <sc-for list="{{ hand }}" as="c" hint-placeholder-count="6">
+        <button type="button" aria-label="{{ c.aria }}" disabled="{{ c.disabled }}" sc-camel-tab-index="{{ c.tab }}" sc-camel-on-pointer-down="{{ onCardDown }}" sc-camel-on-pointer-up="{{ onCardUp }}" sc-camel-on-click="{{ c.onTap }}" sc-camel-on-mouse-enter="{{ c.onHover }}" sc-camel-on-mouse-leave="{{ clearPreview }}" sc-camel-on-focus="{{ c.onHover }}" sc-camel-on-blur="{{ clearPreview }}" style="{{ c.style }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">
+          <div style="{{ c.indexStyle }}">{{ c.index }}</div>
+          <div style="{{ c.glyphStyle }}">{{ c.glyph }}</div>
+          <div style="{{ c.suitStyle }}">{{ c.suitLabel }}</div>
+          <div style="{{ c.markStyle }}">{{ c.mark }}</div>
+        </button>
+      </sc-for>
+      </div>
+      <div style="{{ fadeLeftStyle }}"></div>
+      <div style="{{ fadeStyle }}"></div>
+    </div>
+
+    <sc-if value="{{ pendingWild }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ wildBarStyle }}">
+        <div style="{{ wildRowStyle }}">
+          <div style="{{ wildCardStyle }}">
+            <div style="{{ wildCornerStyle }}">★</div>
+            <div style="{{ wildCentreStyle }}">★</div>
+            <div style="font-size:13px;color:var(--za-text)">WILD</div>
+          </div>
+          <div id="wild-title" style="font-family:'Press Start 2P',monospace;font-size:9px;line-height:1.7;color:#f4f7ff">PICK THE NEXT TOPPING</div>
+        </div>
+        <div role="group" aria-labelledby="wild-title" style="{{ wildGridStyle }}">
+          <sc-for list="{{ suitChoices }}" as="sc" hint-placeholder-count="4">
+            <button type="button" ref="{{ sc.focus }}" aria-label="{{ sc.aria }}" sc-camel-on-click="{{ sc.onPick }}" style="{{ sc.style }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">{{ sc.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="{{ actionRowStyle }}">
+      <button type="button" sc-camel-on-click="{{ drawCard }}" disabled="{{ drawDisabled }}" sc-camel-tab-index="{{ drawTab }}" style="{{ drawStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:2px">DRAW A CARD</button>
+      <div style="{{ messageStyle }}">{{ message }}</div>
+    </div>
+
+    <sc-if value="{{ gateOpen }}" hint-placeholder-val="{{ false }}">
+      <div role="group" aria-labelledby="pause-title" style="{{ gateBarStyle }}">
+        <div id="pause-title" style="flex:1 1 auto;font-size:17px;line-height:1.3;color:#7de2ff;min-width:0">{{ gateText }}</div>
+        <sc-if value="{{ gateShowCta }}" hint-placeholder-val="{{ true }}">
+          <button type="button" ref="{{ focusCta }}" sc-camel-on-click="{{ release }}" style="{{ gateCtaStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">{{ gateCtaLabel }}</button>
+        </sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ roundOver }}" hint-placeholder-val="{{ false }}">
+      <div role="group" aria-labelledby="round-title" style="{{ roundBarStyle }}">
+        <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:3px;min-width:0">
+          <div id="round-title" style="font-family:'Press Start 2P',monospace;font-size:10px;line-height:1.6;color:#3ddc7f">{{ roundTitle }}</div>
+          <div style="font-size:17px;line-height:1.3;color:#c3cbe6">{{ roundSummary }}</div>
+        </div>
+        <button type="button" ref="{{ focusCta }}" sc-camel-on-click="{{ playAgain }}" style="{{ playAgainStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">PLAY AGAIN</button>
+      </div>
+    </sc-if>
+    <div style="{{ footerStyle }}">
+      <sc-if value="{{ researcher }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" sc-camel-on-click="{{ reset }}" style="font-size:15px;letter-spacing:.08em;color:var(--za-text-muted);background:transparent;border:2px solid var(--za-border);padding:9px 10px;min-height:44px;cursor:pointer" style-focus="outline:3px solid #7de2ff;outline-offset:2px">RESET TABLE</button>
+          <sc-raw-select aria-label="Test scenario" value="{{ scenarioId }}" sc-camel-on-change="{{ pickScenario }}" style="{{ scenarioStyle }}">
+            <sc-for list="{{ scenarios }}" as="sc" hint-placeholder-count="12">
+              <option value="{{ sc.id }}">{{ sc.name }}</option>
+            </sc-for>
+          </sc-raw-select>
+          <sc-if value="{{ showFreeze }}" hint-placeholder-val="{{ true }}">
+            <button type="button" sc-camel-on-click="{{ toggleFreeze }}" style="{{ freezeStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:2px">{{ freezeLabel }}</button>
+          </sc-if>
+        </div>
+      </sc-if>
+      <button type="button" sc-camel-on-click="{{ openHelp }}" style="{{ helpButtonStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:2px">HOW TO PLAY</button>
+      <div style="{{ hintStyle }}">{{ turnHint }}</div>
+    </div>
+  </section>
+</main>
+
+<sc-if value="{{ helpOpen }}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-modal="true" aria-labelledby="help-title" aria-describedby="help-summary" sc-camel-on-key-down="{{ onHelpKey }}" style="{{ helpOverlayStyle }}">
+    <div style="{{ helpDialogStyle }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h2 id="help-title" style="margin:0;font-family:'Press Start 2P',monospace;font-size:14px;line-height:1.5;color:var(--za-warning)">HOW TO PLAY</h2>
+        <button type="button" ref="{{ focusHelpClose }}" sc-camel-on-click="{{ closeHelp }}" style="{{ helpCloseStyle }}" style-focus="outline:3px solid #7de2ff;outline-offset:3px">BACK TO GAME</button>
+      </div>
+      <div id="help-summary" style="font-size:19px;line-height:1.3;color:var(--za-text)">On your turn, match the topping or the number/action on the pie. A Wild always works.</div>
+      <ol style="{{ helpListStyle }}">
+        <li><strong>Find your turn.</strong> Your seat says YOUR TURN; one seat says NEXT. CW or CCW shows play direction.</li>
+        <li><strong>Choose a card.</strong> Raised cards with ✓ are playable. Activate a lower card to hear exactly what must match.</li>
+        <li><strong>Or draw one.</strong> If it matches, play it or keep it and pass. If it does not, your turn ends.</li>
+        <li><strong>Read the effect.</strong> Skip misses the next player; +2 makes them draw two and miss; Reverse flips direction; Wild lets you choose the topping.</li>
+        <li><strong>Call ZA.</strong> When you have two cards, call ZA before playing down to one. Forgetting can cost two cards.</li>
+      </ol>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:780},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:null,&quot;tsType&quot;:&quot;boolean | null&quot;,&quot;section&quot;:&quot;Accessibility&quot;},&quot;stepDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:900,&quot;min&quot;:180,&quot;max&quot;:2000,&quot;step&quot;:60,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Pacing&quot;}}">
+const SUITS = {
+  pepperoni: { label: 'PEPPERONI', c: 'var(--za-suit-pepperoni)', glyph: '●' },
+  cheese:    { label: 'CHEESE',    c: 'var(--za-suit-cheese)', glyph: '◆' },
+  basil:     { label: 'BASIL',     c: 'var(--za-suit-basil)', glyph: '❧' },
+  anchovy:   { label: 'ANCHOVY',   c: 'var(--za-suit-anchovy)', glyph: '≈' }
+};
+const SUIT_KEYS = ['pepperoni', 'cheese', 'basil', 'anchovy'];
+const BONE = 'var(--za-text-strong)';
+const PLAYERS = [
+  { name: 'YOU',     color: 'var(--za-text-strong)', clip: 'polygon(0 0,100% 0,100% 68%,50% 100%,0 68%)', pos: { x: 50, y: 80 } },
+  { name: 'CARMELA', color: '#ff8f2e', clip: 'polygon(28% 0,100% 0,100% 72%,72% 100%,0 100%,0 28%)', pos: { x: 14, y: 45 } },
+  { name: 'DOMINIC', color: '#b06bff', clip: 'polygon(0 14%,14% 14%,14% 0,86% 0,86% 14%,100% 14%,100% 86%,86% 86%,86% 100%,14% 100%,14% 86%,0 86%)', pos: { x: 50, y: 12 } },
+  { name: 'PINA',    color: '#2fe0d0', clip: 'polygon(0 0,72% 0,100% 28%,100% 100%,28% 100%,0 72%)', pos: { x: 86, y: 45 } }
+];
+const CENTER = { x: 50, y: 43 };
+const NUMS = ['0','1','2','3','4','5','6','7','8','9'];
+const ACTIONS = { SKIP: '⊘ SKIP', PLUS2: '+2 CARDS', REVERSE: '↻ REVERSE' };
+
+// Phases. Game intents are accepted in AWAIT only.
+const AWAIT = 'awaitingAction', WILD = 'choosingWild', DRAWD = 'drawDecision',
+      RESOLVE = 'resolving', MOVING = 'movingTurn', THINK = 'opponentThinking', OVER = 'roundOver';
+
+function card(s, v) { return { suit: s, value: v }; }
+function wild() { return { suit: null, value: 'WILD', isWild: true }; }
+function label(c) {
+  if (c.isWild) return 'WILD';
+  if (c.value === 'SKIP') return 'SKIP ' + SUITS[c.suit].label;
+  if (c.value === 'PLUS2') return '+2 ' + SUITS[c.suit].label;
+  if (c.value === 'REVERSE') return 'REVERSE ' + SUITS[c.suit].label;
+  return SUITS[c.suit].label + ' ' + c.value;
+}
+function shortIndex(c) {
+  if (c.isWild) return '★';
+  if (c.value === 'SKIP') return '⊘';
+  if (c.value === 'PLUS2') return '+2';
+  if (c.value === 'REVERSE') return '↻';
+  return c.value;
+}
+const ABBR = { pepperoni: 'PEP', cheese: 'CHZ', basil: 'BAS', anchovy: 'ANC' };
+// Action cards keep both the effect and topping visible at every size.
+function face(c, narrow) {
+  if (c.isWild) return { corner: '★', centre: '★', label: 'WILD', action: true };
+  const g = SUITS[c.suit].glyph;
+  const topping = narrow ? ABBR[c.suit] : SUITS[c.suit].label;
+  if (c.value === 'REVERSE') return { corner: g, centre: '↻', label: (narrow ? 'REV' : 'REVERSE') + '\n' + topping, action: true };
+  if (c.value === 'SKIP') return { corner: g, centre: '⊘', label: 'SKIP\n' + topping, action: true };
+  if (c.value === 'PLUS2') return { corner: g, centre: '+2', label: (narrow ? 'DRAW 2' : 'DRAW TWO') + '\n' + topping, action: true };
+  return { corner: c.value, centre: g, label: narrow ? ABBR[c.suit] : SUITS[c.suit].label, action: false };
+}
+const SCENARIOS = [
+  ['default', 'OPENING HAND'],
+  ['skip', 'SKIP'],
+  ['draw2', 'PLAY +2'],
+  ['incoming2', 'RECEIVE +2'],
+  ['wild', 'WILD'],
+  ['draw-playable', 'DRAW — PLAYABLE'],
+  ['draw-nomatch', 'DRAW — NO MATCH'],
+  ['za', 'YOU AT TWO CARDS'],
+  ['callout', 'OPPONENT FORGETS ZA'],
+  ['bighand', 'TEN-CARD HAND'],
+  ['last-card', 'LAST CARD WIN'],
+  ['empty-deck', 'EMPTY DECK']
+];
+function isSpecial(c) { return !!(c.isWild || c.value === 'SKIP' || c.value === 'PLUS2' || c.value === 'REVERSE'); }
+function mech(c) { return c.isWild ? 'WILD' : c.value; }
+
+class Component extends DCLogic {
+  state = this.freshState();
+  urlParam(k) { try { return new URLSearchParams(window.location.search).get(k); } catch (e) { return null; } }
+
+  announce(text, urgent) {
+    const tick = (this.state.liveTick || 0) + 1;
+    const spoken = text + (tick % 2 ? ' ' : '');
+    this.setState(urgent
+      ? { politeText: '', alertText: spoken, liveTick: tick }
+      : { politeText: spoken, alertText: '', liveTick: tick });
+  }
+  setEvent(text, changes, urgent) {
+    const tick = (this.state.liveTick || 0) + 1;
+    const spoken = text + (tick % 2 ? ' ' : '');
+    const next = Object.assign({}, changes || {}, { eventText: text, liveTick: tick });
+    if (urgent) { next.politeText = ''; next.alertText = spoken; }
+    else { next.politeText = spoken; next.alertText = ''; }
+    this.setState(next);
+  }
+
+  // One visual banner channel; spoken state lives in the dedicated live regions.
+  showBanner(text, ms, tone) {
+    clearTimeout(this.bannerTimer);
+    this.setState({ banner: true, bannerText: text, bannerTone: tone || 'you' });
+    this.bannerTimer = this.t(ms, () => this.setState({ banner: false }));
+  }
+  clearBanner() { clearTimeout(this.bannerTimer); if (this.state.banner) this.setState({ banner: false }); }
+
+  // freeze after a teaching beat so the facilitator can ask the question
+  gate(fn) {
+    if (!this.state.freeze) { fn(); return; }
+    this.gated = fn;
+    this.setState({ gateOpen: true });
+    this.announce('Table paused on this play. Activate Resume table to continue.');
+  }
+  release() {
+    const f = this.gated; this.gated = null;
+    this.setState({ gateOpen: false });
+    this.announce('Table resumed.');
+    if (f) f();
+  }
+
+  openHelp(e) {
+    if (this.state.helpOpen) return;
+    this.helpReturn = e && e.currentTarget;
+    this.setState({ helpOpen: true });
+  }
+  closeHelp() {
+    if (!this.state.helpOpen) return;
+    const back = this.helpReturn;
+    this.setState({ helpOpen: false });
+    this.t(0, () => {
+      if (back && back.isConnected && typeof back.focus === 'function') back.focus();
+    });
+  }
+  setHelpClose = el => {
+    if (!el || el === this.helpCloseEl) return;
+    this.helpCloseEl = el;
+    try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+  };
+  helpKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); this.closeHelp(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (this.helpCloseEl) this.helpCloseEl.focus();
+    }
+  }
+
+  freshState(scen) {
+    const sc = scen || this.scenarioFromUrl();
+    const deck = [];
+    for (let i = 0; i < SUIT_KEYS.length; i++) {
+      for (let v = 0; v < 10; v++) deck.push(card(SUIT_KEYS[i], NUMS[v]));
+      deck.push(card(SUIT_KEYS[i], 'SKIP'), card(SUIT_KEYS[i], 'PLUS2'), card(SUIT_KEYS[i], 'REVERSE'), card(SUIT_KEYS[i], 'REVERSE'));
+    }
+    deck.push(wild(), wild(), wild());
+    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
+    const you = [card('basil', '4'), card('cheese', '2'), card('pepperoni', '7'), card('anchovy', '9'), card('basil', 'REVERSE'), wild()];
+    const hands = [you, deck.splice(0, 5), deck.splice(0, 5), deck.splice(0, 5)];
+    const st = {
+      vw: 1280, vh: 780, stageH: 0, art: null, rm: false, scenario: sc,
+      mode: this.urlParam('mode') === 'participant' ? 'participant' : 'researcher',
+      hScroll: 0, hMax: 0, hMoved: false, helpOpen: false,
+      freeze: this.urlParam('freeze') === '1', gateOpen: false,
+      deck: deck, hands: hands, top: card('basil', '7'), wildSuit: null,
+      dir: 1, turn: 0, tokenAt: 0, quiet: false, phase: AWAIT, yourTurns: 1,
+      eventText: 'YOUR TURN — THE PIE STARTS ON BASIL 7',
+      politeText: 'Your turn. Match basil or 7, or draw a card.', alertText: '', liveTick: 0,
+      message: '', messageTone: 'info',
+      banner: true, bannerText: 'YOUR TURN', bannerTone: 'you',
+      flight: null, flightAt: 'start', effect: null, effectAt: 'start',
+      dealt: null, dealtAt: 'start', sweep: false, arrival: null,
+      armed: null, pendingWild: null, wildCard: null, drawn: null,
+      zaCalled: false, zaTaught: false,
+      recoverOpen: false, recoverSub: '', calloutOpen: false, calloutText: '', calloutSub: '', calloutTarget: null,
+      learned: {}, scriptedForgetUsed: false, skipped: null, forcedNext: null,
+      refuseIdx: null, matchFlash: 0, winner: null
+    };
+    this.applyScenario(sc, st);
+    return st;
+  }
+
+  scenarioFromUrl() {
+    try { return new URLSearchParams(window.location.search).get('scenario') || 'default'; } catch (e) { return 'default'; }
+  }
+  // Each scenario guarantees one of the README's questions can actually be asked.
+  applyScenario(sc, st) {
+    const h = st.hands;
+    if (sc === 'skip') h[0] = [card('basil', 'SKIP'), card('cheese', '2'), card('pepperoni', '7'), card('anchovy', '9'), card('basil', '4')];
+    else if (sc === 'draw2') h[0] = [card('basil', 'PLUS2'), card('cheese', '2'), card('pepperoni', '7'), card('anchovy', '9'), card('basil', '4')];
+    else if (sc === 'wild') h[0] = [wild(), card('cheese', '2'), card('pepperoni', '3'), card('anchovy', '9')];
+    else if (sc === 'draw-playable') { h[0] = [card('cheese', '2'), card('pepperoni', '3'), card('anchovy', '9')]; st.deck.push(card('basil', '5')); }
+    else if (sc === 'draw-nomatch') { h[0] = [card('cheese', '2'), card('pepperoni', '3'), card('anchovy', '9')]; st.deck.push(card('cheese', '5')); }
+    else if (sc === 'za') h[0] = [card('basil', '4'), card('cheese', '2')];
+    else if (sc === 'callout') h[1] = [card('basil', '5'), card('cheese', '3')];
+    else if (sc === 'bighand') h[0] = [card('basil', '4'), card('cheese', '2'), card('pepperoni', '7'), card('anchovy', '9'), card('basil', 'REVERSE'), wild(), card('cheese', '5'), card('pepperoni', '1'), card('anchovy', '3'), card('cheese', '8')];
+    else if (sc === 'last-card') h[0] = [card('basil', '4')];
+    else if (sc === 'empty-deck') st.deck = [];
+    else if (sc === 'incoming2') {
+      h[3] = [card('basil', 'PLUS2'), card('cheese', '3'), card('anchovy', '6')];
+      st.turn = 3; st.tokenAt = 3; st.phase = THINK; st.banner = false; st.quiet = true;
+      st.eventText = 'PINA IS PLAYING — YOU ARE NEXT';
+      st.politeText = 'Pina is playing. You are next.';
+    }
+  }
+  startScenario(id) {
+    (this.timers || []).forEach(clearTimeout);
+    this.timers = []; this.lock = false;
+    const fresh = this.freshState(id);
+    fresh.vw = this.state.vw; fresh.vh = this.state.vh; fresh.stageH = this.state.stageH;
+    fresh.art = this.state.art; fresh.rm = this.state.rm;
+    fresh.mode = this.state.mode; fresh.freeze = this.state.freeze;
+    this.setState(fresh);
+    this.t(60, () => this.measure());
+    if (fresh.phase === THINK) this.t(800, () => this.aiTurn(fresh.turn));
+    else this.bannerTimer = this.t(1000, () => this.setState({ banner: false }));
+  }
+
+  setRoot = el => {
+    if (!el || el === this.rootEl) return;
+    this.rootEl = el;
+    if (this.ro) { this.ro.disconnect(); this.ro.observe(el); }
+    this.measure();
+  };
+  setArt = el => {
+    if (!el || this.artDone) return;
+    this.artDone = true;
+    const imgs = el.querySelectorAll('img');
+    if (imgs.length === 4) this.setState({ art: [imgs[0].src, imgs[1].src, imgs[2].src, imgs[3].src] });
+  };
+
+  onCardDown = e => { this.ptr = { x: e.clientX, y: e.clientY, type: e.pointerType, time: Date.now() }; this.suppress = false; };
+  onCardUp = e => {
+    const p = this.ptr;
+    if (p && (Math.abs(e.clientX - p.x) > 10 || Math.abs(e.clientY - p.y) > 10)) this.suppress = true;
+  };
+  // click fires for mouse, touch AND Enter/Space; a drag never counts as a tap
+  activate(i) {
+    if (this.suppress) { this.suppress = false; return; }
+    const p = this.ptr;
+    this.tapCard(i, p && Date.now() - p.time < 1200 ? p.type : 'mouse');
+  }
+
+  setHandRow = el => {
+    if (!el || el === this.handEl) return;
+    this.handEl = el;
+    this.readHandScroll();
+  };
+  readHandScroll() {
+    const el = this.handEl;
+    if (!el) return;
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    if (Math.abs((this.state.hScroll || 0) - el.scrollLeft) > 2 || Math.abs((this.state.hMax || 0) - max) > 2) {
+      this.setState({ hScroll: el.scrollLeft, hMax: max, hMoved: this.state.hMoved || el.scrollLeft > 4 });
+    }
+  }
+  onHandScroll = () => {
+    if (this.scrollFrame) return;
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = null;
+      this.readHandScroll();
+    });
+  };
+
+  setStage = el => { if (!el || el === this.stageEl) return; this.stageEl = el; if (this.ro) this.ro.observe(el); this.measure(); };
+
+  // We fill our container. If the container has no height of its own the stage
+  // collapses — then, and only then, we fall back to the viewport height.
+  measure() {
+    if (!this.rootEl) return;
+    // Ancestors whose height matches ours are auto-sized BY us — ignore them and
+    // take the smallest genuinely-sized box we sit inside.
+    const root = this.rootEl;
+    if (this.probing) return;
+    // Find the container ONCE: collapse ourselves for a single synchronous read so
+    // auto-height wrappers collapse too, and the nearest box that still has a
+    // height is the real container. Afterwards we just read that element.
+    if (!this.hostEl) {
+      this.probing = true;
+      const prev = root.style.height;
+      root.style.height = '8px';
+      let el = root.parentElement, n = 0;
+      while (el && n < 6) {
+        if (el.offsetHeight > 220) { this.hostEl = el; break; }
+        el = el.parentElement; n++;
+      }
+      root.style.height = prev;
+      this.probing = false;
+    }
+    const visible = window.visualViewport;
+    const visibleH = visible ? visible.height : window.innerHeight;
+    const visibleW = visible ? visible.width : window.innerWidth;
+    const hostH = (this.hostEl && this.hostEl.offsetHeight > 220) ? this.hostEl.offsetHeight : visibleH;
+    const vh = Math.min(hostH, visibleH);
+    const vw = Math.min(root.offsetWidth > 40 ? root.offsetWidth : visibleW, visibleW);
+    const sh = this.stageEl ? this.stageEl.offsetHeight : 0;
+    if (Math.abs(vw - this.state.vw) > 1 || Math.abs(vh - this.state.vh) > 1 || Math.abs(sh - this.state.stageH) > 1) this.setState({ vw: vw, vh: vh, stageH: sh });
+  }
+
+  componentDidMount() {
+    this.timers = [];
+    if (typeof ResizeObserver !== 'undefined') {
+      this.ro = new ResizeObserver(() => { if (!this.probing) this.measure(); });
+      if (this.rootEl) this.ro.observe(this.rootEl);
+      if (this.stageEl) this.ro.observe(this.stageEl);
+    }
+    this.t(50, () => this.measure());
+    this.onWin = () => this.measure();
+    window.addEventListener('resize', this.onWin);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.onWin);
+      window.visualViewport.addEventListener('scroll', this.onWin);
+    }
+    // Facilitator convenience; participants always receive a visible Resume button.
+    this.onKey = e => {
+      if (this.state.helpOpen && e.key === 'Escape') { this.closeHelp(); return; }
+      if (this.state.mode !== 'participant' && (e.key === 'c' || e.key === 'C') && this.state.gateOpen) this.release();
+    };
+    window.addEventListener('keydown', this.onKey);
+    this.onButtonKey = e => {
+      const button = e.target && e.target.closest ? e.target.closest('button') : null;
+      if (!button || button.disabled || e.repeat || (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar')) return;
+      e.preventDefault();
+      button.click();
+    };
+    window.addEventListener('keydown', this.onButtonKey);
+    this.measure();
+    this.mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.onMq = () => this.setState({ rm: this.mq.matches });
+    this.mq.addEventListener ? this.mq.addEventListener('change', this.onMq) : this.mq.addListener(this.onMq);
+    this.setState({ rm: this.mq.matches });
+    if (this.state.phase === THINK) this.t(900, () => this.aiTurn(this.state.turn));
+    else this.bannerTimer = this.t(1000, () => this.setState({ banner: false }));
+  }
+  componentWillUnmount() {
+    (this.timers || []).forEach(clearTimeout);
+    if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
+    if (this.ro) this.ro.disconnect();
+    window.removeEventListener('resize', this.onWin);
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.onWin);
+      window.visualViewport.removeEventListener('scroll', this.onWin);
+    }
+    window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('keydown', this.onButtonKey);
+    if (this.mq) { this.mq.removeEventListener ? this.mq.removeEventListener('change', this.onMq) : this.mq.removeListener(this.onMq); }
+  }
+  t(ms, fn) { const id = setTimeout(fn, ms); (this.timers || (this.timers = [])).push(id); return id; }
+  reduced() { return this.props.reduceMotion === true || (this.props.reduceMotion !== false && this.state.rm); }
+
+  // ---------------------------------------------------------------- rules
+  activeSuit(st) { return st.wildSuit || st.top.suit || 'cheese'; }
+  legal(c, st) { return c.isWild || c.suit === this.activeSuit(st) || c.value === st.top.value; }
+  matchValueText(st) { const v = st.top.value; return ACTIONS[v] || (v === 'WILD' ? '' : v); }
+  reasonFor(st) {
+    const s = SUITS[this.activeSuit(st)].label;
+    const v = this.matchValueText(st).replace('⊘ ', '').replace('↻ ', '');
+    return 'DOESN\u2019T MATCH — need ' + (v ? s + ', ' + v : s) + ', or a Wild';
+  }
+  stepIdx(from, dir) { const d = dir || this.state.dir; return (((from + d) % 4) + 4) % 4; }
+  canAct() { return this.state.phase === AWAIT && !this.lock && this.state.winner === null; }
+
+  // ------------------------------------------------------------ your turn
+  beginYourTurn() {
+    this.lock = false;
+    const short = this.state.yourTurns > 2;
+    const suit = SUITS[this.activeSuit(this.state)].label;
+    const value = this.matchValueText(this.state);
+    const instruction = 'Your turn. Match ' + suit.toLowerCase() + (value ? ' or ' + value.toLowerCase() : '') + ', or draw a card.';
+    this.setEvent('YOUR TURN — MATCH ' + suit + (value ? ' OR ' + value : '') + ', OR DRAW', {
+      turn: 0, tokenAt: 0, phase: AWAIT, quiet: false, armed: null, drawn: null, refuseIdx: null,
+      skipped: null, forcedNext: null,
+      yourTurns: this.state.yourTurns + 1,
+      banner: true, bannerText: 'YOUR TURN', bannerTone: 'you',
+      zaCalled: this.state.hands[0].length === 2 ? false : this.state.zaCalled,
+      message: ''
+    });
+    this.announce(instruction);
+    this.showBanner('YOUR TURN', short ? 600 : 1000);
+  }
+
+  tapCard(i, pointerType) {
+    if (!this.canAct()) return;
+    const st = this.state;
+    const c = st.hands[0][i];
+    if (!c) return;
+    if (!this.legal(c, st)) {
+      const reason = this.reasonFor(st);
+      this.setState({ message: reason, messageTone: 'bad', refuseIdx: i, matchFlash: st.matchFlash + 1, armed: null });
+      this.announce(reason);
+      return;
+    }
+    const touch = pointerType && pointerType !== 'mouse';
+    if (touch && isSpecial(c) && !st.learned[mech(c)] && st.armed !== i) {
+      const consequence = this.consequence(c) + ' TAP AGAIN TO PLAY.';
+      this.setState({ armed: i, message: consequence, messageTone: 'good', refuseIdx: null });
+      this.announce(consequence);
+      return;
+    }
+    this.lock = true;
+    if (isSpecial(c)) { const learned = Object.assign({}, st.learned); learned[mech(c)] = true; this.setState({ learned: learned }); }
+    if (c.isWild) { this.clearBanner(); this.setState({ phase: WILD, pendingWild: i, wildCard: c, armed: null, message: '', refuseIdx: null }); return; }
+    this.commit(0, c, i, c.suit);
+  }
+
+  consequence(c) {
+    const nx = this.stepIdx(0);
+    if (c.isWild) return 'PLAYABLE — WILD. YOU PICK THE NEXT TOPPING.';
+    if (c.value === 'SKIP') return 'PLAYABLE — ' + PLAYERS[nx].name + ' LOSES THEIR TURN';
+    if (c.value === 'PLUS2') return 'PLAYABLE — ' + PLAYERS[nx].name + ' DRAWS +2 CARDS AND LOSES THEIR TURN';
+    if (c.value === 'REVERSE') return 'PLAYABLE — PLAY ORDER FLIPS, ' + PLAYERS[this.stepIdx(0, -this.state.dir)].name + ' GOES NEXT';
+    return 'PLAYABLE — ' + label(c);
+  }
+
+  pickWildSuit(suit) {
+    const st = this.state;
+    if (st.phase !== WILD) return;
+    const i = st.pendingWild;
+    const fromDrawn = i === 'drawn';
+    const c = fromDrawn ? st.wildCard : st.hands[0][i];
+    if (!c) return;
+    this.setState({ pendingWild: null, wildCard: null, drawn: null });
+    this.commit(0, c, fromDrawn ? null : i, suit);
+  }
+
+  callZa() {
+    if (!this.canAct()) return;
+    this.setEvent('YOU CALLED ZA', { zaCalled: true, zaTaught: true, message: 'ZA CALLED — SAFE TO PLAY', messageTone: 'good' });
+  }
+
+  // ---------------------------------------------------------- draw-one rule
+  drawCard() {
+    if (!this.canAct()) return;
+    this.clearBanner();
+    this.lock = true;
+    const st = this.state;
+    if (!st.deck.length) { this.finishStalemate(); return; }
+    const deck = st.deck.slice();
+    const c = deck.pop();
+    const playable = this.legal(c, st);
+    this.setEvent('YOU DREW ' + label(c), {
+      deck: deck, armed: null, refuseIdx: null, message: '',
+      drawn: { card: c, playable: playable },
+      phase: playable ? DRAWD : RESOLVE
+    });
+    if (!playable) {
+      this.t(1600, () => {
+        const hands = this.state.hands.map(h => h.slice());
+        hands[0].push(c);
+        this.setEvent('YOU DREW — NO MATCH, TURN ENDS', { hands: hands, drawn: null });
+        this.advance(0, false);
+      });
+    }
+  }
+  playDrawn() {
+    const st = this.state;
+    if (st.phase !== DRAWD || !st.drawn || !st.drawn.playable) return;
+    const c = st.drawn.card;
+    if (c.isWild) { this.clearBanner(); this.setState({ phase: WILD, pendingWild: 'drawn', wildCard: c, drawn: null }); return; }
+    this.setState({ drawn: null });
+    this.commit(0, c, null, c.suit);
+  }
+  keepDrawn() {
+    const st = this.state;
+    if (st.phase !== DRAWD || !st.drawn) return;
+    const hands = st.hands.map(h => h.slice());
+    hands[0].push(st.drawn.card);
+    this.setEvent('YOU KEPT THE CARD AND PASSED', { hands: hands, drawn: null, message: '' });
+    this.advance(0, false);
+  }
+
+  // -------------------------------------------------------------- commit
+  // handIdx null = the card came from the draw pile, not the hand
+  commit(pi, rawCard, handIdx, wildSuit) {
+    const st = this.state;
+    const hands = st.hands.map(h => h.slice());
+    if (handIdx !== null && handIdx !== undefined) hands[pi].splice(handIdx, 1);
+    const played = rawCard.isWild ? { suit: null, value: 'WILD', isWild: true } : rawCard;
+    const forgotZa = pi === 0 && handIdx !== null && handIdx !== undefined && st.hands[0].length === 2 && !st.zaCalled;
+    const rm = this.reduced();
+
+    this.clearBanner();
+    this.setState({
+      hands: hands, armed: null, message: '', quiet: true, phase: RESOLVE, drawn: null,
+      flight: rm ? null : { card: played, from: pi, suit: wildSuit }, flightAt: 'start'
+    });
+    if (!rm) this.t(20, () => this.setState({ flightAt: 'center' }));
+
+    this.t(rm ? 60 : 320, () => {
+      const playedText = (pi === 0 ? 'YOU' : PLAYERS[pi].name) + ' PLAYED ' + label(played) + (played.isWild ? ' → ' + SUITS[wildSuit].label : '');
+      this.setEvent(playedText, {
+        top: played, wildSuit: played.isWild ? wildSuit : null, flight: null,
+      });
+
+      if (hands[pi].length === 0) {
+        const winText = pi === 0 ? 'YOU WIN' : PLAYERS[pi].name + ' WINS';
+        this.setEvent(winText, { winner: pi, phase: OVER, banner: true, bannerText: winText, bannerTone: 'win', quiet: false }, true);
+        return;
+      }
+      const after = () => this.resolveEffect(pi, played);
+      if (forgotZa) this.openRecovery(after);
+      else if (pi !== 0 && hands[pi].length === 1) this.opponentAtOne(pi, after);
+      else after();
+    });
+  }
+
+  resolveEffect(pi, played) {
+    const st = this.state;
+    const rm = this.reduced();
+    if (played.value === 'REVERSE') {
+      const nd = -st.dir;
+      const next = this.stepIdx(pi, nd);
+      this.setEvent('PLAY ORDER REVERSED — ' + (next === 0 ? 'YOU ARE' : PLAYERS[next].name + ' IS') + ' NEXT', { dir: nd, sweep: !rm, forcedNext: next });
+      if (rm) this.showBanner('PLAY ORDER REVERSED', 1100);
+      else this.t(760, () => this.setState({ sweep: false }));
+      this.t(rm ? 1150 : 820, () => this.gate(() => this.advance(pi, false, nd)));
+      return;
+    }
+    const victim = this.stepIdx(pi);
+    if (played.value === 'SKIP') {
+      const dest = this.stepIdx(victim);
+      this.setState({ effect: { color: PLAYERS[pi].color, target: victim, label: 'SKIPPED' }, effectAt: 'start', forcedNext: dest });
+      this.flyEffect(() => {
+        this.setEvent((victim === 0 ? 'YOU ARE' : PLAYERS[victim].name + ' IS') + ' SKIPPED — ' + (dest === 0 ? 'YOU ARE' : PLAYERS[dest].name + ' IS') + ' NEXT', { arrival: { target: victim, label: 'SKIPPED' }, skipped: victim, forcedNext: dest });
+        this.t(600, () => { this.setState({ arrival: null }); this.gate(() => this.hopOver(pi, victim)); });
+      });
+      return;
+    }
+    if (played.value === 'PLUS2') {
+      const dest = this.stepIdx(victim);
+      this.setState({ effect: { color: PLAYERS[pi].color, target: victim, label: '+2 CARDS' }, effectAt: 'start', forcedNext: dest });
+      this.flyEffect(() => this.dealTo(victim, 2, () => {
+        this.setEvent((victim === 0 ? 'YOU DRAW' : PLAYERS[victim].name + ' DRAWS') + ' 2 — SKIPPED; ' + (dest === 0 ? 'YOU ARE' : PLAYERS[dest].name + ' IS') + ' NEXT', { skipped: victim, forcedNext: dest });
+        this.t(700, () => { this.setState({ arrival: null }); this.gate(() => this.hopOver(pi, victim)); });
+      }));
+      return;
+    }
+    this.t(240, () => this.advance(pi, false));
+  }
+
+  // --- ZA decisions stay open until a player acts; the prototype never invents a deadline.
+  openRecovery(done) {
+    this.clearBanner();
+    this.setEvent('YOU PLAYED TO 1 WITHOUT ZA', {
+      recoverOpen: true,
+      recoverSub: 'CALL ZA, OR CHOOSE SAY NOTHING — THIS WINDOW WAITS FOR YOU'
+    }, true);
+    this.recoverDone = done;
+  }
+  missZa() {
+    if (!this.state.recoverOpen) return;
+    const done = this.recoverDone; this.recoverDone = null;
+    this.setEvent('CARMELA CALLED YOU OUT — +2 CARDS', { recoverOpen: false, effect: { color: PLAYERS[1].color, target: 0, label: '+2 CARDS' }, effectAt: 'start' }, true);
+    this.flyEffect(() => this.dealTo(0, 2, () => this.t(700, () => { this.setState({ arrival: null }); this.gate(() => { if (done) done(); }); })));
+  }
+  recoverZa() {
+    if (!this.state.recoverOpen) return;
+    this.setEvent('ZA! — CALL ACCEPTED', { recoverOpen: false, zaCalled: true, zaTaught: true });
+    const d = this.recoverDone; this.recoverDone = null;
+    this.t(700, () => { if (d) d(); });
+  }
+
+  // --- scripted: the first opponent to reach one card forgets ZA, so you can call it
+  opponentAtOne(pi, done) {
+    if (this.state.scriptedForgetUsed) {
+      this.setEvent(PLAYERS[pi].name + ' CALLED ZA — ONE CARD LEFT');
+      this.t(600, done);
+      return;
+    }
+    this.clearBanner();
+    this.setEvent(PLAYERS[pi].name + ' FORGOT ZA', {
+      scriptedForgetUsed: true, calloutOpen: true, calloutTarget: pi,
+      calloutText: 'FORGOT ZA — CALL THEM OUT',
+      calloutSub: 'ON ONE CARD, NEVER SAID IT — THIS WINDOW WAITS FOR YOU'
+    }, true);
+    this.calloutDone = done;
+  }
+  missCallout() {
+    if (!this.state.calloutOpen) return;
+    const done = this.calloutDone; this.calloutDone = null;
+    this.setEvent('YOU LET THE ZA CALLOUT PASS', { calloutOpen: false, calloutTarget: null });
+    this.t(600, () => { if (done) done(); });
+  }
+  doCallout() {
+    const st = this.state;
+    if (!st.calloutOpen || st.calloutTarget === null) return;
+    const v = st.calloutTarget;
+    const done = this.calloutDone; this.calloutDone = null;
+    this.setEvent('YOU CAUGHT ' + PLAYERS[v].name + ' — +2 CARDS', { calloutOpen: false, calloutTarget: null, effect: { color: PLAYERS[0].color, target: v, label: '+2 CARDS' }, effectAt: 'start' }, true);
+    this.flyEffect(() => this.dealTo(v, 2, () => this.t(700, () => { this.setState({ arrival: null }); this.gate(() => { if (done) done(); }); })));
+  }
+
+  hopOver(from, victim) {
+    const dest = this.stepIdx(victim);
+    this.setState({ phase: MOVING, tokenAt: victim, skipped: victim, forcedNext: dest });
+    this.t(this.reduced() ? 120 : 320, () => {
+      this.setState({ tokenAt: dest, skipped: null, forcedNext: null });
+      this.landOn(dest);
+    });
+  }
+  advance(from, skip, dirOverride) {
+    if (this.state.winner !== null) return;
+    const d = dirOverride || this.state.dir;
+    const nxt = skip ? this.stepIdx(this.stepIdx(from, d), d) : this.stepIdx(from, d);
+    this.setState({ phase: MOVING, tokenAt: nxt, skipped: null, forcedNext: null });
+    this.landOn(nxt);
+  }
+  landOn(nxt) {
+    this.setState({ turn: nxt, quiet: false, zaCalled: nxt === 0 ? false : this.state.zaCalled });
+    this.t(this.reduced() ? 200 : 420, () => { nxt === 0 ? this.beginYourTurn() : this.aiTurn(nxt); });
+  }
+
+  flyEffect(done) {
+    const rm = this.reduced();
+    if (rm) { this.t(20, () => this.setState({ effectAt: 'target' })); this.t(700, () => { this.setState({ effect: null, effectAt: 'start' }); done && done(); }); return; }
+    this.t(20, () => this.setState({ effectAt: 'target' }));
+    this.t(560, () => { this.setState({ effect: null, effectAt: 'start' }); done && done(); });
+  }
+
+  dealTo(target, n, done) {
+    if (this.state.deck.length < n) { this.finishStalemate(); return; }
+    const rm = this.reduced();
+    const land = () => {
+      const hands = this.state.hands.map(h => h.slice());
+      const deck = this.state.deck.slice();
+      for (let k = 0; k < n; k++) hands[target].push(deck.pop());
+      this.setState({ hands: hands, deck: deck, dealt: null, dealtAt: 'start', arrival: { target: target, label: '+2 CARDS' }, zaCalled: target === 0 && hands[0].length > 1 ? false : this.state.zaCalled });
+      done && done();
+    };
+    if (rm) { this.t(120, land); return; }
+    this.setState({ dealt: { target: target, n: n }, dealtAt: 'start' });
+    this.t(30, () => this.setState({ dealtAt: 'target' }));
+    this.t(560, land);
+  }
+
+  aiTurn(pi) {
+    if (this.state.winner !== null) return;
+    this.setState({ phase: THINK, quiet: true, banner: false });
+    this.t(this.delay(), () => {
+      const st = this.state;
+      const hand = st.hands[pi];
+      let idx = -1;
+      for (let i = 0; i < hand.length; i++) { if (!hand[i].isWild && this.legal(hand[i], st)) { idx = i; break; } }
+      if (idx === -1) for (let i = 0; i < hand.length; i++) { if (hand[i].isWild) { idx = i; break; } }
+      if (idx === -1) {
+        if (!st.deck.length) { this.finishStalemate(); return; }
+        const deck = st.deck.slice();
+        const c = deck.pop();
+        this.setEvent(PLAYERS[pi].name + ' DREW A CARD', { deck: deck });
+        if (this.legal(c, st)) {
+          const suit = c.isWild ? this.aiSuit(hand) : c.suit;
+          this.t(600, () => this.commit(pi, c, null, suit));
+        } else {
+          const hands = st.hands.map(h => h.slice());
+          hands[pi].push(c);
+          this.setEvent(PLAYERS[pi].name + ' DREW — NO MATCH, TURN ENDS', { hands: hands });
+          this.t(800, () => this.advance(pi, false));
+        }
+        return;
+      }
+      const c = hand[idx];
+      this.commit(pi, c, idx, c.isWild ? this.aiSuit(hand) : c.suit);
+    });
+  }
+  aiSuit(hand) {
+    const tally = {};
+    hand.forEach(x => { if (x.suit) tally[x.suit] = (tally[x.suit] || 0) + 1; });
+    return SUIT_KEYS.slice().sort((a, b) => (tally[b] || 0) - (tally[a] || 0))[0] || 'cheese';
+  }
+  delay() { return Math.max(180, +this.props.stepDelay || 900); }
+  finishStalemate() {
+    this.lock = true;
+    this.setEvent('DECK EMPTY — ROUND ENDS', {
+      winner: -1, phase: OVER, quiet: false, banner: true,
+      bannerText: 'ROUND ENDS', bannerTone: 'win', drawn: null,
+      recoverOpen: false, calloutOpen: false, gateOpen: false,
+      skipped: null, forcedNext: null
+    }, true);
+  }
+  reset() { this.startScenario(this.state.scenario); }
+
+  // ------------------------------------------------------------- render
+  renderVals() {
+    const st = this.state;
+    const W = st.vw, H = st.vh;
+    const shortLandscape = H <= 560 && W > H && W >= 560;
+    const stageW = shortLandscape ? Math.round(W * 0.46) : W;
+    const trayW = shortLandscape ? W - stageW : W;
+    const phone = W <= 720 || shortLandscape;
+    const scrollLayout = !shortLandscape && (H <= 560 || W <= 320);
+    const rm = this.reduced();
+    const tr = (props, ms, extra) => rm ? 'transition:none;' : 'transition:' + props.split(',').map(k => k.trim() + ' ' + ms + 'ms steps(4, end)' + (extra || '')).join(', ') + ';';
+
+    const handCount = Math.max(1, st.hands[0].length + (st.drawn ? 1 : 0));
+    const gap = phone ? 6 : 10;
+    const hCap = Math.max(62, Math.min(phone ? 92 : 120, Math.round(H * 0.155)));
+    const wAvail = trayW - (phone ? 28 : 44) - (handCount - 1) * gap;
+    const cardW = Math.max(phone ? 54 : 62, Math.min(Math.round(hCap / 1.4), Math.floor(wAvail / handCount), phone ? 70 : 92));
+    const cardH = Math.min(hCap, Math.round(cardW * 1.4));
+    const wildOpenEarly = st.phase === WILD;
+    const roundOpenEarly = st.phase === OVER;
+    const zaTeachEarly = st.phase === AWAIT && st.hands[0].length === 2 && !st.zaCalled;
+    const panelEarly = st.recoverOpen || st.calloutOpen || st.gateOpen || !!st.drawn || wildOpenEarly || roundOpenEarly || zaTeachEarly;
+    const replacesHand = panelEarly && !zaTeachEarly &&
+      (phone || wildOpenEarly || roundOpenEarly || !!st.drawn || st.recoverOpen || st.calloutOpen);
+    const panelCardH = Math.min(cardH, 70);
+    let panelH = 0;
+    if (wildOpenEarly) panelH = panelCardH + 118;
+    else if (st.drawn) panelH = panelCardH + 30;
+    else if (st.recoverOpen || st.calloutOpen) panelH = 104;
+    else if (roundOpenEarly) panelH = 76;
+    else if (st.gateOpen) panelH = 62;
+    else if (zaTeachEarly) panelH = 58;
+    const trayEst = 78 + panelH + (replacesHand ? 0 : cardH + 66);
+    const SHbase = shortLandscape ? H - 38 : H - 38 - trayEst;
+    const SH = st.stageH || SHbase;
+    const tight = SH < 350 || (panelEarly && SH < 430);
+    const vtight = SH < 320;
+    const pileH = Math.round(cardH * (tight ? 0.5 : (phone ? 0.86 : 1)));
+    const pileW = Math.round(pileH / 1.4);
+    const plateW = shortLandscape ? Math.min(104, Math.round(stageW * 0.34)) : (phone ? Math.min(118, Math.round(stageW * 0.38)) : 178);
+    const portrait = tight ? 30 : (phone ? 34 : 50);
+    const small = H < 700;
+
+    const active = st.turn;
+    const nextUp = st.forcedNext !== null ? st.forcedNext : this.stepIdx(active);
+    const yourHand = st.hands[0];
+    const acting = st.phase === AWAIT;
+    const playableCount = yourHand.filter(c => this.legal(c, st)).length;
+    const guided = st.yourTurns <= 3;
+
+    // side seats tuck inward on narrow screens so no plate is clipped
+    const sideX = shortLandscape ? Math.max(14, Math.round(100 * (plateW / 2) / stageW)) : (phone ? 20 : 14);
+    const plateH = tight ? 78 : (phone ? 78 : 100);
+    const bottomPad = tight ? 4 : 34;
+    const pct = px => Math.max(4, Math.min(96, Math.round(1000 * px / Math.max(120, SH)) / 10));
+    const yTop = pct(plateH / 2 + 6), yBottom = pct(SH - plateH / 2 - bottomPad);
+    const ySidePx = vtight ? ((plateH + 20) + (SH - 8)) / 2 : (plateH / 2 + 6 + SH - plateH / 2 - bottomPad) / 2;
+    const ySide = pct(ySidePx);
+    const ySeat = ySide;
+    const C = { x: CENTER.x, y: ySide };
+    const pos = i => {
+      const p = PLAYERS[i].pos;
+      if (i === 0) return { x: p.x, y: yBottom };
+      if (i === 1) return { x: sideX, y: ySeat };
+      if (i === 2) return { x: p.x, y: yTop };
+      return { x: 100 - sideX, y: ySeat };
+    };
+    const at = (x, y, z) => 'position:absolute;left:' + x + '%;top:' + y + '%;transform:translate(-50%,-50%);z-index:' + z + ';';
+    const art = st.art || [];
+
+    const seats = PLAYERS.map((pl0, i) => {
+      const pl = { name: pl0.name, color: pl0.color, clip: pl0.clip, pos: pos(i) };
+      const arrived = st.arrival && st.arrival.target === i;
+      const isActive = i === active && st.phase !== OVER && st.skipped === null && !arrived;
+      const isNext = i === nextUp && !isActive && st.phase !== OVER;
+      const count = st.hands[i].length;
+      const one = count === 1;
+      const pips = [];
+      for (let k = 0; k < Math.min(count, 7); k++) {
+        pips.push({ style: 'width:' + (one ? (phone ? 9 : 12) : (phone ? 4 : 5)) + 'px;height:' + (one ? (phone ? 14 : 18) : (phone ? 9 : 11)) + 'px;background:' + (isActive || one ? pl.color : 'var(--za-text-muted)') + ';' + (one ? 'border:2px solid var(--za-bg);box-shadow:2px 2px 0 rgba(0,0,0,.6);' : '') });
+      }
+      let status = '', stColor = 'var(--za-text-muted)', stBg = 'transparent';
+      if (st.winner === i) { status = 'WINNER'; stColor = 'var(--za-ink)'; stBg = pl.color; }
+      else if (arrived) { status = st.arrival.label; stColor = 'var(--za-ink)'; stBg = 'var(--za-danger)'; }
+      else if (st.skipped === i) { status = 'SKIPPED'; stColor = 'var(--za-ink)'; stBg = 'var(--za-danger)'; }
+      else if (st.calloutTarget === i) { status = 'FORGOT ZA'; stColor = 'var(--za-ink)'; stBg = 'var(--za-danger)'; }
+      else if (i === 0 && st.recoverOpen) { status = 'FORGOT ZA'; stColor = 'var(--za-ink)'; stBg = 'var(--za-danger)'; }
+      else if (isActive) { status = st.phase === RESOLVE ? 'RESOLVING' : (st.phase === MOVING ? 'TURN MOVING' : (i === 0 ? 'YOUR TURN' : 'PLAYING…')); stColor = 'var(--za-ink)'; stBg = pl.color; }
+      else if (isNext) { status = i === 0 ? 'YOU\u2019RE NEXT' : 'NEXT'; stColor = pl.color; }
+      else if (one) { status = 'ONE CARD'; stColor = pl.color; }
+      const loud = isActive || arrived || st.skipped === i || st.calloutTarget === i || st.winner === i || (i === 0 && st.recoverOpen);
+      const portraitBackground = art[i] ? 'var(--za-bg) url("' + art[i] + '") center/cover no-repeat' : 'var(--za-bg)';
+      return {
+        name: pl.name,
+        aria: pl.name + ', ' + count + (count === 1 ? ' card' : ' cards') + (status ? ', ' + status : ''),
+        countText: String(count),
+        countStyle: 'font-size:' + (phone ? 15 : 17) + 'px;color:' + (isActive || one ? pl.color : 'var(--za-text-muted)') + ';margin-left:5px;',
+        pips: pips, status: status,
+        wrapStyle: (vtight && i === 0 ? 'display:none;' : '') + at(pl.pos.x, pl.pos.y, 6) + 'width:' + plateW + 'px;',
+        plateStyle: 'display:flex;flex-direction:column;gap:' + (tight ? 3 : 5) + 'px;padding:' + (tight ? '4px 6px' : (phone ? '6px' : '9px')) + ';background:' + (isActive ? 'var(--za-surface-active)' : 'var(--za-surface)') +
+          ';border:' + (isActive ? '4px' : '3px') + ' solid ' + (isActive ? pl.color : 'var(--za-border)') +
+          ';box-shadow:' + (isActive ? '0 0 0 3px rgba(0,0,0,.6), 6px 6px 0 rgba(0,0,0,.55)' : '4px 4px 0 rgba(0,0,0,.5)') + ';' +
+          (loud && !isActive && !rm ? 'animation:za-flash 600ms 2;' : ''),
+        portraitStyle: 'width:' + portrait + 'px;height:' + portrait + 'px;flex:0 0 auto;background:' + portraitBackground + ';border:2px solid ' + pl.color + ';clip-path:' + pl.clip + ';image-rendering:pixelated;',
+        nameStyle: 'font-size:' + (phone ? 16 : (tight ? 17 : 21)) + 'px;line-height:1;letter-spacing:.1em;color:' + pl.color + ';white-space:nowrap;',
+        statusStyle: loud
+          ? 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;line-height:1.5;letter-spacing:.04em;color:' + stColor + ';background:' + stBg + ';padding:5px;min-height:' + (phone ? 12 : 14) + 'px;'
+          : 'font-size:' + (phone ? 15 : 17) + 'px;line-height:1.2;letter-spacing:.1em;color:' + stColor + ';min-height:' + (phone ? 15 : 17) + 'px;'
+      };
+    });
+
+    const aSuit = this.activeSuit(st);
+    const tc = SUITS[aSuit].c;
+    const isWildTop = !!st.top.isWild;
+    const tf = face(st.top, pileW < 66);
+    const tp = pos(st.tokenAt);
+
+    let flightStyle = 'display:none;', flightIndex = '', flightIndexStyle = '';
+    if (st.flight) {
+      const fp = st.flightAt === 'center' ? C : pos(st.flight.from);
+      const fsuit = st.flight.card.suit || st.flight.suit || 'cheese';
+      flightStyle = at(fp.x, fp.y, 10) + 'width:' + Math.round(pileW * .85) + 'px;height:' + Math.round(pileH * .85) +
+        'px;background:var(--za-surface);border:4px solid ' + SUITS[fsuit].c + ';box-shadow:5px 5px 0 rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;' + tr('left,top', 300);
+      flightIndex = face(st.flight.card, true).centre;
+      flightIndexStyle = 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 12 : 16) + 'px;color:' + SUITS[fsuit].c + ';';
+    }
+
+    const dealt = [];
+    if (st.dealt && !rm) {
+      for (let k = 0; k < st.dealt.n; k++) {
+        const dp = st.dealtAt === 'target' ? pos(st.dealt.target) : C;
+        dealt.push({
+          style: at(dp.x, dp.y, 10) + 'width:' + Math.round(pileW * .55) + 'px;height:' + Math.round(pileH * .55) +
+            'px;margin-left:' + (k * 10 - 5) + 'px;background:#1b2340;border:3px solid #4a5680;box-shadow:3px 3px 0 rgba(0,0,0,.6);transition:left 440ms steps(4, end) ' + (k * 90) + 'ms, top 440ms steps(4, end) ' + (k * 90) + 'ms;'
+        });
+      }
+    }
+
+    let effectStyle = 'display:none;', effectLabel = '';
+    if (st.effect) {
+      const ep = (st.effectAt === 'target' || rm) ? pos(st.effect.target) : C;
+      effectStyle = at(ep.x, ep.y, 11) + 'padding:6px 9px;background:' + st.effect.color + ';color:var(--za-ink);font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 11) +
+        'px;box-shadow:4px 4px 0 rgba(0,0,0,.6);white-space:nowrap;' + tr('left,top', 420) + (rm ? 'animation:za-appear 120ms 1;' : '');
+      effectLabel = st.effect.label;
+    }
+
+    const hand = yourHand.map((c, i) => {
+      const legal = this.legal(c, st);
+      const ok = legal && acting;
+      const armed = st.armed === i;
+      const suit = c.suit || 'cheese';
+      const col = c.isWild ? BONE : SUITS[suit].c;
+      const f = face(c, cardW < 66);
+      const rise = ok ? (armed ? -20 : -13) : 0;
+      const cardBorder = acting ? col : 'var(--za-border)';
+      const cardDetail = acting ? col : 'var(--za-text-muted)';
+      return {
+        index: f.corner, glyph: f.centre, suitLabel: f.label,
+        aria: label(c) + (acting ? (legal ? ' — playable' : ' — does not match') : ' — not available yet'),
+        disabled: !acting,
+        tab: acting ? 0 : -1,
+        mark: ok && guided ? '✓' : '',
+        style: 'position:relative;flex:0 0 auto;width:' + cardW + 'px;height:' + cardH + 'px;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;' +
+          'background:' + (ok ? 'var(--za-surface-active)' : 'var(--za-surface)') + ';border:' + (phone ? 4 : 5) + 'px solid ' + cardBorder + ';cursor:' + (acting ? 'pointer' : 'default') + ';' +
+          'transform:translateY(' + rise + 'px);' + (rm ? 'transition:none;' : 'transition:transform 160ms cubic-bezier(0.23,1,0.32,1);') +
+          'box-shadow:' + (ok ? (armed ? '0 0 0 3px ' + BONE + ', 6px 6px 0 rgba(0,0,0,.55)' : '0 0 0 2px rgba(255,255,255,.22), 5px 5px 0 rgba(0,0,0,.5)') : '3px 3px 0 rgba(0,0,0,.45)') + ';' +
+          (st.refuseIdx === i && !rm ? 'animation:za-refuse 260ms 1;' : ''),
+        indexStyle: 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 10 : 13) + 'px;color:' + cardDetail + ';align-self:flex-start;',
+        glyphStyle: 'font-size:' + (f.action ? (phone ? 19 : 26) : (phone ? 16 : 22)) + 'px;color:' + (ok && f.action ? BONE : cardDetail) + ';line-height:1;',
+        suitStyle: 'font-size:' + (f.action ? (phone ? 11 : 13) : ((phone ? 12 : 15) - (f.label.length > 5 ? 3 : 0))) + 'px;line-height:1.05;letter-spacing:0;text-align:center;white-space:pre-line;color:' + (ok ? (f.action ? BONE : 'var(--za-text)') : 'var(--za-text-muted)') + ';',
+        markStyle: 'position:absolute;top:2px;right:3px;font-size:' + (phone ? 11 : 13) + 'px;color:var(--za-success);',
+        onTap: () => this.activate(i),
+        onHover: () => {
+          if (!this.canAct()) return;
+          if (!legal) { this.setState({ message: this.reasonFor(st), messageTone: 'bad' }); return; }
+          this.setState({ message: this.consequence(c), messageTone: 'good' });
+        }
+      };
+    });
+
+    const d = st.drawn;
+    const dSuit = d ? (d.card.suit || 'cheese') : 'cheese';
+    const dCol = d && d.card.isWild ? BONE : SUITS[dSuit].c;
+    const df = d ? face(d.card, cardW < 66) : null;
+    const bc = st.bannerTone === 'win' ? ['var(--za-success)', 'var(--za-ink)'] : [BONE, 'var(--za-ink)'];
+    const msgColor = st.messageTone === 'bad' ? 'var(--za-danger-text)' : (st.messageTone === 'good' ? 'var(--za-success)' : 'var(--za-text-muted)');
+    const bar = 'display:flex;align-items:center;gap:8px;padding:7px 9px;margin-top:8px;flex-wrap:wrap;';
+
+    const focusNew = el => {
+      if (st.helpOpen || !el || el === this.lastCta) return;
+      this.lastCta = el;
+      try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    };
+    const windowOpen = st.recoverOpen || st.calloutOpen;
+    const overflowing = handCount * cardW + (handCount - 1) * gap > trayW - (phone ? 30 : 46);
+    // a contextual panel steals stage height, so the plaque collapses to a chip
+    const wildOpen = st.phase === WILD;
+    const zaTeachOpen = acting && yourHand.length === 2 && !st.zaCalled;
+    // any state that adds a panel below the ring must also give height back
+    const roundOpen = st.phase === OVER;
+    const panelOpen = windowOpen || st.gateOpen || !!st.drawn || wildOpen || roundOpen || zaTeachOpen;
+    // the ZA lesson keeps its two cards visible — it is the context for the rule
+    const decisionReplacesHand = wildOpen || roundOpen || !!st.drawn || windowOpen;
+    const swapHand = panelOpen && !zaTeachOpen && (phone || decisionReplacesHand);
+    const compactMatch = panelOpen && (phone || SH < 430);
+    const foldDir = tight || compactMatch || SH < 500;
+    const atStart = (st.hScroll || 0) <= 4;
+    const atEnd = (st.hScroll || 0) >= (st.hMax || 0) - 4;
+    let hint = 'OPPONENTS ARE PLAYING — ARCADE MOTION IS PAUSED.';
+    if (windowOpen) hint = st.recoverOpen ? 'CALL ZA NOW' : 'CALL OUT NOW';
+    else if (st.gateOpen) hint = st.mode === 'participant' ? 'PRESS RESUME TABLE TO CONTINUE.' : 'PRESS CONTINUE OR THE C KEY.';
+    else if (zaTeachOpen && !st.zaTaught) hint = 'FORGET ZA AND YOU DRAW +2.';
+    else if (st.phase === AWAIT) hint = (overflowing && !st.hMoved) ? 'SWIPE TO SEE THE REST OF YOUR HAND.' : 'TAP A RAISED CARD, OR DRAW.';
+    else if (st.phase === DRAWD) hint = 'DECIDE ON THE DRAWN CARD.';
+    else if (st.phase === WILD) hint = 'PICK A TOPPING TO CONTINUE.';
+    else if (st.phase === RESOLVE) hint = 'RESOLVING — HANDS OFF.';
+    else if (st.phase === MOVING) hint = 'THE TURN IS MOVING.';
+    else if (st.phase === OVER) hint = 'ROUND OVER — PLAY AGAIN WHEN YOU ARE READY.';
+
+    let playableLabel = 'WAIT YOUR TURN';
+    if (st.recoverOpen) playableLabel = 'ACT NOW';
+    else if (st.calloutOpen) playableLabel = 'ACT NOW';
+    else if (st.gateOpen) playableLabel = 'PAUSED';
+    else if (st.phase === RESOLVE) playableLabel = 'RESOLVING';
+    else if (st.phase === MOVING) playableLabel = 'TURN MOVING';
+    else if (st.phase === OVER) playableLabel = 'ROUND OVER';
+    else if (st.phase === DRAWD) playableLabel = 'DRAWN CARD ONLY';
+    else if (st.phase === WILD) playableLabel = 'PICKING A TOPPING';
+    else if (st.phase === AWAIT) playableLabel = playableCount + ' PLAYABLE';
+
+    const yourStripStatus = st.winner === 0 ? 'WINNER'
+      : (st.phase === OVER ? ''
+        : (st.recoverOpen ? 'FORGOT ZA'
+          : (st.turn === 0
+            ? (st.phase === RESOLVE ? 'RESOLVING' : (st.phase === MOVING ? 'TURN MOVING' : 'YOUR TURN'))
+            : (nextUp === 0 ? 'YOU\u2019RE NEXT' : ''))));
+
+    return {
+      setRoot: this.setRoot, setArt: this.setArt, setStage: this.setStage,
+      rootStyle: 'width:100%;height:' + Math.round(H) + 'px;' + (shortLandscape
+        ? 'display:grid;grid-template-columns:minmax(0,46%) minmax(0,54%);grid-template-rows:auto minmax(0,1fr);'
+        : 'display:flex;flex-direction:column;') +
+        'background:var(--za-bg);font-family:\'VT323\',ui-monospace,monospace;color:var(--za-text);overflow-x:hidden;overflow-y:' + (scrollLayout ? 'auto' : 'hidden') + ';position:relative;border:4px solid var(--za-border);' +
+        'padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);',
+      gameHidden: st.helpOpen ? 'true' : 'false',
+      seats: seats, hand: hand, dealt: dealt,
+      suitChoices: SUIT_KEYS.map((k, ki) => ({
+        label: SUITS[k].label,
+        focus: ki === 0 ? focusNew : null,
+        aria: 'Make the next topping ' + SUITS[k].label.toLowerCase(),
+        style: 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-ink);background:' + SUITS[k].c + ';border:0;padding:' + (phone ? '4px 6px' : '12px') + ';min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5);',
+        onPick: () => this.pickWildSuit(k)
+      })),
+      bulbs: ['#ff2e6b', '#ffc93d', '#3ddc7f'].map((c, k) => ({
+        style: 'width:6px;height:6px;background:' + c + ';' + (rm ? '' : 'animation:za-bulb 700ms ' + (k * 233) + 'ms infinite;animation-play-state:' + (st.quiet ? 'paused' : 'running') + ';') + 'opacity:' + (st.quiet ? '.22' : '1') + ';'
+      })),
+
+      matchLabel: isWildTop ? 'CURRENT TOPPING' : 'MATCH',
+      matchAria: 'Match ' + SUITS[aSuit].label.toLowerCase() + (isWildTop ? '' : ' or ' + this.matchValueText(st).replace('⊘ ', '').replace('↻ ', '').replace('+2 CARDS', 'draw two').toLowerCase()) + '. Direction ' + (st.dir === 1 ? 'clockwise' : 'counter-clockwise') + '.',
+      matchGlyph: SUITS[aSuit].glyph, matchSuit: SUITS[aSuit].label,
+      matchOr: isWildTop ? '' : 'OR', matchValue: isWildTop ? '' : this.matchValueText(st),
+      matchRowStyle: phone ? 'display:flex;flex-direction:column;align-items:center;gap:0;' : 'display:flex;align-items:baseline;gap:8px;',
+      matchGlyphStyle: 'font-size:' + (compactMatch ? 13 : (phone ? 15 : 22)) + 'px;color:' + tc + ';line-height:1;',
+      matchSuitStyle: 'font-size:' + (compactMatch ? 15 : (phone ? 18 : (tight ? 20 : 28))) + 'px;letter-spacing:.06em;color:' + tc + ';line-height:1;',
+      matchOrStyle: 'font-size:' + (phone ? 14 : 20) + 'px;color:var(--za-text-muted);line-height:1;',
+      matchValueStyle: 'font-size:' + (compactMatch ? 15 : (phone ? 18 : (tight ? 20 : 28))) + 'px;letter-spacing:.06em;color:' + BONE + ';line-height:1;',
+      plaqueStyle: 'display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--za-panel);border:3px solid ' + tc + ';padding:' + (compactMatch ? '2px 1px' : (tight ? '3px 8px' : (phone ? '5px 9px' : '7px 13px'))) +
+        ';white-space:nowrap;box-shadow:4px 4px 0 rgba(0,0,0,.6);' + (st.matchFlash && !rm ? 'animation:za-flash 600ms 2;' : ''),
+
+      deckCount: st.deck.length,
+      deckTextStyle: 'font-size:15px;color:#7de2ff;text-align:center;line-height:1.15;' + (phone ? 'display:none;' : ''),
+      topIndex: tf.corner, topGlyph: tf.centre,
+      topSuit: isWildTop ? 'WILD → ' + SUITS[aSuit].label : tf.label,
+      topCardAria: 'Top card ' + label(st.top).toLowerCase() + (isWildTop ? '. Current topping ' + SUITS[aSuit].label.toLowerCase() : ''),
+      eventText: st.eventText, message: st.message,
+      playableLabel: playableLabel, turnHint: hint,
+      quietLabel: st.phase === OVER ? 'ROUND OVER' : (windowOpen ? 'ZA WINDOW OPEN' : (st.quiet ? 'TURN IN PROGRESS' : 'TABLE 1 · 4 PLAYERS')),
+
+      zaNeeded: acting && yourHand.length === 2 && !st.zaCalled,
+      zaBarStyle: bar + 'background:#1a1206;border:3px solid #ffe14d;' + (phone ? 'flex-wrap:nowrap;padding:5px 7px;' : ''),
+      zaHeadText: phone ? '2 CARDS — CALL ZA BEFORE PLAYING' : 'CALL ZA BEFORE YOU PLAY',
+      zaHeadStyle: phone
+        ? 'font-size:16px;line-height:1.2;letter-spacing:.04em;color:#ffe14d;'
+        : 'font-family:\'Press Start 2P\',monospace;font-size:9px;color:#ffe14d;line-height:1.7;',
+      zaTeachText: st.zaTaught ? '' : '2 cards → call ZA before playing. Forget = +2.',
+      zaTeachStyle: 'font-size:16px;line-height:1.25;color:#c9a94a;' + ((st.zaTaught || phone) ? 'display:none;' : ''),
+      recoverOpen: st.recoverOpen, recoverSub: st.recoverSub,
+      recoverBarStyle: bar + 'background:#2a0a16;border:3px solid #ff2e6b;',
+      calloutOpen: st.calloutOpen, calloutText: st.calloutText, calloutSub: st.calloutSub,
+      calloutBarStyle: bar + 'background:#2a0a16;border:3px solid #ff2e6b;',
+
+      pendingWild: wildOpen,
+      wildBarStyle: bar + 'background:var(--za-surface);border:3px solid ' + BONE + ';' + (phone ? 'flex-direction:column;align-items:stretch;' : ''),
+      wildCardStyle: 'position:relative;flex:0 0 auto;width:' + Math.round(panelCardH / 1.4) + 'px;height:' + panelCardH + 'px;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:var(--za-surface-active);border:5px solid ' + BONE + ';box-shadow:0 0 0 3px rgba(244,247,255,.3), 5px 5px 0 rgba(0,0,0,.5);',
+      wildCornerStyle: 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 10 : 13) + 'px;color:' + BONE + ';align-self:flex-start;',
+      wildCentreStyle: 'font-size:' + (phone ? 16 : 22) + 'px;color:' + BONE + ';line-height:1;',
+      wildRowStyle: 'display:flex;align-items:center;gap:10px;min-width:0;',
+      wildGridStyle: phone ? 'display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;' : 'display:flex;flex-wrap:wrap;gap:8px;',
+      flight: !!st.flight, effect: !!st.effect,
+      banner: st.banner, bannerText: st.bannerText,
+      sweep: st.sweep, sweepGlyph: rm ? 'PLAY ORDER REVERSED' : (st.dir === 1 ? '↻' : '↺'),
+      sweepStyle: rm
+        ? at(C.x, C.y, 13) + 'padding:10px 14px;background:' + BONE + ';color:var(--za-ink);font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 10 : 14) + 'px;box-shadow:6px 6px 0 rgba(0,0,0,.6);animation:za-appear 150ms 1;pointer-events:none;'
+        : at(C.x, C.y, 13) + 'font-size:' + (phone ? 90 : 150) + 'px;color:' + BONE + ';animation:za-sweep 760ms ease-out 1;pointer-events:none;',
+
+      drawnOpen: !!d, drawnDecision: !!(d && d.playable),
+      drawnIndex: df ? df.corner : '', drawnGlyph: df ? df.centre : '',
+      drawnSuit: df ? df.label : '',
+      drawnSuitStyle: 'font-size:' + (df && df.action ? (phone ? 11 : 13) : ((phone ? 12 : 14) - (df && df.label.length > 5 ? 3 : 0))) + 'px;line-height:1.05;text-align:center;white-space:pre-line;color:' + (df && df.action ? BONE : 'var(--za-text)') + ';',
+      drawnMsg: d ? (d.playable ? 'YOU DREW ' + label(d.card) + ' — PLAY IT, OR KEEP IT AND PASS.' : 'NO MATCH — TURN ENDS') : '',
+      drawnMsgStyle: 'font-size:' + (phone ? 17 : 19) + 'px;line-height:1.3;color:' + (d && d.playable ? '#3ddc7f' : '#ff6f9a') + ';',
+      drawnBarStyle: bar + 'background:var(--za-surface);border:3px solid var(--za-info);',
+      drawnCardStyle: 'position:relative;flex:0 0 auto;width:' + (phone ? Math.round(panelCardH / 1.4) : cardW) + 'px;height:' + (phone ? panelCardH : cardH) + 'px;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:var(--za-surface-active);border:5px solid ' + dCol + ';box-shadow:0 0 0 3px rgba(125,226,255,.35), 5px 5px 0 rgba(0,0,0,.5);',
+      drawnIndexStyle: 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 10 : 13) + 'px;color:' + dCol + ';align-self:flex-start;',
+      drawnGlyphStyle: 'font-size:' + (phone ? 16 : 22) + 'px;color:' + (df && df.action ? BONE : dCol) + ';line-height:1;',
+
+      stageStyle: 'position:relative;min-width:0;' + (shortLandscape
+        ? 'grid-column:1;grid-row:2;min-height:0;overflow:hidden;'
+        : (scrollLayout
+            ? 'flex:0 0 ' + Math.max(180, Math.min(300, Math.round(H * .55))) + 'px;min-height:180px;overflow:hidden;'
+            : 'flex:1 1 auto;min-height:' + (panelOpen ? 150 : (vtight ? 180 : (tight ? 210 : 240))) + 'px;overflow:hidden;')) +
+        'background:radial-gradient(46% 40% at 50% 45%, rgba(255,140,40,.16), transparent 72%),var(--za-bg);',
+      centerStyle: at(C.x, C.y, 4),
+      dirStyle: foldDir ? 'display:none;' : 'display:flex;align-items:center;gap:5px;padding:2px 7px;border:2px solid #232a45;',
+      dirBadgeStyle: foldDir ? 'font-size:13px;line-height:1;color:#a8b2d4;white-space:nowrap;' : 'display:none;',
+      dirGlyph: st.dir === 1 ? '↻' : '↺',
+      dirCompactLabel: st.dir === 1 ? 'CW' : 'CCW',
+      dirGlyphStyle: 'font-size:' + (phone ? 16 : 19) + 'px;color:var(--za-text-muted);line-height:1;',
+      dirLabel: st.dir === 1 ? 'CLOCKWISE' : 'COUNTER-CLOCKWISE',
+      dirLabelStyle: 'font-size:' + (phone ? 14 : 15) + 'px;letter-spacing:.08em;color:var(--za-text-muted);',
+      deckStyle: 'width:' + Math.round(pileW * .78) + 'px;height:' + Math.round(pileH * .78) + 'px;display:flex;align-items:center;justify-content:center;background:var(--za-surface);border:3px solid var(--za-border);box-shadow:4px 4px 0 rgba(0,0,0,.5);' + (phone ? 'margin-right:-' + Math.round(pileW * .78 - 9) + 'px;transform:translateY(-7px);' : '') + (tight ? 'display:none;' : ''),
+      topCardStyle: 'z-index:1;position:relative;width:' + pileW + 'px;height:' + pileH + 'px;padding:5px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:var(--za-surface-active);border:5px solid ' + tc + ';box-shadow:6px 6px 0 rgba(0,0,0,.6);',
+      topIndexStyle: 'font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 10 : 13) + 'px;color:' + tc + ';align-self:flex-start;',
+      topGlyphStyle: 'font-size:' + (phone ? 18 : 26) + 'px;color:' + (tf.action ? BONE : tc) + ';line-height:1;',
+      topSuitStyle: 'font-size:' + (tf.action ? (phone ? 11 : 13) : ((phone ? 12 : 15) - (tf.label.length > 5 ? 3 : 0))) + 'px;line-height:1.05;text-align:center;white-space:pre-line;color:' + (tf.action ? BONE : 'var(--za-text)') + ';',
+
+      tokenStyle: at(tp.x, Math.max(2, tp.y - (100 * (plateH / 2 + 4) / Math.max(120, SH))), 9) + 'width:' + (phone ? 26 : 32) + 'px;height:' + (phone ? 18 : 22) + 'px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 4px;background:' + PLAYERS[st.tokenAt].color +
+        ';border:3px solid var(--za-bg);box-shadow:3px 3px 0 rgba(0,0,0,.6);clip-path:polygon(0 0,100% 0,100% 100%,88% 78%,76% 100%,64% 78%,52% 100%,40% 78%,28% 100%,16% 78%,4% 100%,0 78%);' + tr('left,top', 260) + (vtight && st.tokenAt === 0 ? 'display:none;' : ''),
+      tokenLineA: 'height:2px;background:rgba(13,15,26,.55);width:100%;',
+      tokenLineB: 'height:2px;background:rgba(13,15,26,.55);width:72%;',
+      tokenLineC: 'height:2px;background:rgba(13,15,26,.55);width:86%;',
+
+      flightStyle: flightStyle, flightIndex: flightIndex, flightIndexStyle: flightIndexStyle,
+      effectStyle: effectStyle, effectLabel: effectLabel,
+      trayRibbon: tight,
+      youStrip: vtight,
+      youCount: String(yourHand.length),
+      youAria: 'YOU, ' + yourHand.length + (yourHand.length === 1 ? ' card' : ' cards') + (yourStripStatus ? ', ' + yourStripStatus.replace('YOU\u2019RE', 'YOU ARE') : ''),
+      youTicketStyle: st.tokenAt === 0
+        ? 'width:24px;height:17px;flex:0 0 auto;background:' + BONE + ';border:3px solid var(--za-bg);box-shadow:2px 2px 0 rgba(0,0,0,.6);clip-path:polygon(0 0,100% 0,100% 100%,88% 78%,76% 100%,64% 78%,52% 100%,40% 78%,28% 100%,16% 78%,4% 100%,0 78%);'
+        : 'width:24px;height:17px;flex:0 0 auto;border:2px dashed var(--za-border);',
+      youPips: yourHand.slice(0, 7).map(() => ({ style: 'width:4px;height:10px;background:' + (acting ? BONE : 'var(--za-text-muted)') + ';' })),
+      youPortraitStyle: 'width:26px;height:26px;flex:0 0 auto;background:' + (art[0] ? 'var(--za-bg) url("' + art[0] + '") center/cover no-repeat' : 'var(--za-bg)') + ';border:2px solid ' + BONE + ';clip-path:' + PLAYERS[0].clip + ';image-rendering:pixelated;',
+      youStripStyle: 'display:flex;align-items:center;gap:8px;padding:5px 7px;margin-bottom:6px;background:' + (acting ? 'var(--za-surface-active)' : 'var(--za-surface)') + ';border:3px solid ' + (acting ? BONE : 'var(--za-border)') + ';',
+      youStatus: yourStripStatus,
+      youStatusStyle: 'font-family:\'Press Start 2P\',monospace;font-size:9px;letter-spacing:.04em;color:' + (acting ? 'var(--za-ink)' : 'var(--za-text-muted)') + ';background:' + (acting ? BONE : 'transparent') + ';padding:4px 5px;',
+      trayRibbonStyle: 'text-align:center;font-size:16px;letter-spacing:.06em;color:var(--za-info);background:var(--za-surface);border:2px solid var(--za-border);padding:3px 8px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
+      ribbonStyle: (tight ? 'display:none;' : '') + 'position:absolute;left:50%;bottom:4px;transform:translateX(-50%);max-width:94%;text-align:center;font-size:' + (phone ? 16 : 20) +
+        'px;letter-spacing:.06em;color:var(--za-info);background:var(--za-panel);border:2px solid var(--za-border);padding:3px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:8;',
+      bannerStyle: 'position:absolute;left:50%;top:45%;z-index:12;transform:translate(-50%,-50%);font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 18 : 32) +
+        'px;letter-spacing:.06em;color:' + bc[1] + ';background:' + bc[0] + ';padding:' + (phone ? '12px 16px' : '18px 26px') + ';box-shadow:8px 8px 0 rgba(0,0,0,.6);' +
+        (rm ? 'animation:za-appear 120ms 1;' : 'animation:za-slam 300ms steps(3, end) 1;'),
+
+      trayStyle: (shortLandscape ? 'grid-column:2;grid-row:2;min-width:0;min-height:0;overflow-y:auto;border-left:4px solid var(--za-border);' : 'flex:0 0 auto;') +
+        'padding:' + (phone ? '8px 10px calc(10px + env(safe-area-inset-bottom,0px))' : '10px 18px calc(12px + env(safe-area-inset-bottom,0px))') + ';background:var(--za-panel);border-top:4px solid var(--za-border);',
+      handLabel: st.phase === OVER ? 'ROUND OVER' : (st.gateOpen ? 'TABLE PAUSED'
+        : (st.recoverOpen ? 'ZA WINDOW' : (st.calloutOpen ? 'CALLOUT WINDOW'
+        : (wildOpen ? 'PICK A TOPPING' : ((st.drawn && swapHand) ? 'DRAW DECISION' : 'YOUR HAND'))))),
+      handLabelStyle: 'font-size:' + (phone ? 16 : 17) + 'px;letter-spacing:.12em;color:#7de2ff;',
+      handRowStyle: 'display:flex;flex-wrap:nowrap;gap:' + gap + 'px;align-items:flex-end;justify-content:' + (overflowing ? 'flex-start' : 'center') + ';padding-top:' + (small ? 14 : 18) + 'px;overflow-x:auto;overflow-y:hidden;' + (acting ? '' : 'pointer-events:none;'),
+      labelRowStyle: 'display:flex;align-items:baseline;gap:12px;justify-content:' + (phone ? 'space-between' : 'center') + ';',
+      actionRowStyle: 'display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:' + (phone ? 'flex-start' : 'center') + ';' + (swapHand ? 'display:none;' : ''),
+      countLabelStyle: 'font-family:\'Press Start 2P\',monospace;font-size:9px;color:' + (acting ? 'var(--za-success)' : (st.phase === DRAWD ? 'var(--za-info)' : 'var(--za-text-muted)')) + ';',
+      messageStyle: (phone ? 'flex:1 1 180px;' : 'flex:0 1 auto;max-width:560px;') + 'min-width:0;font-size:' + (phone ? 16 : 20) + 'px;letter-spacing:.04em;color:' + msgColor + ';',
+      drawStyle: 'font-family:\'Press Start 2P\',monospace;font-size:10px;color:' + (acting ? 'var(--za-ink)' : 'var(--za-text-muted)') + ';background:' + (acting ? 'var(--za-info)' : 'var(--za-surface)') +
+        ';border:' + (acting ? '0' : '2px solid var(--za-border)') + ';padding:12px 16px;min-height:44px;cursor:' + (acting ? 'pointer' : 'default') + ';box-shadow:' + (acting ? '4px 4px 0 rgba(0,0,0,.5)' : 'none') + ';',
+      footerStyle: 'display:flex;align-items:center;gap:10px;margin-top:' + (small ? 6 : 8) + 'px;padding-top:' + (small ? 6 : 8) + 'px;border-top:3px solid var(--za-border);flex-wrap:wrap;',
+      hintStyle: 'font-size:' + (phone ? 15 : 16) + 'px;color:var(--za-text-muted);',
+      helpButtonStyle: 'flex:0 0 auto;white-space:nowrap;font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-text-soft);background:var(--za-surface);border:2px solid var(--za-border);padding:9px 10px;min-height:44px;cursor:pointer;',
+      helpOpen: st.helpOpen,
+      helpOverlayStyle: 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) calc(12px + env(safe-area-inset-left,0px));background:rgba(8,10,18,.94);font-family:\'VT323\',ui-monospace,monospace;',
+      helpDialogStyle: 'width:min(680px,100%);max-height:calc(100dvh - 24px);overflow:auto;display:flex;flex-direction:column;gap:12px;padding:' + (phone ? '16px' : '22px') + ';background:var(--za-surface);color:var(--za-text);border:4px solid var(--za-warning);box-shadow:8px 8px 0 rgba(0,0,0,.6);',
+      helpListStyle: 'margin:0;padding-left:24px;display:flex;flex-direction:column;gap:9px;font-size:' + (phone ? 17 : 19) + 'px;line-height:1.3;color:var(--za-text-soft);',
+      helpCloseStyle: 'align-self:flex-start;font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-ink);background:var(--za-warning);border:0;padding:12px 14px;min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5);',
+
+      onCardDown: this.onCardDown, onCardUp: this.onCardUp,
+      scenarioId: st.scenario,
+      scenarios: SCENARIOS.map(x => ({ id: x[0], name: x[1] })),
+      pickScenario: e => this.startScenario(e.target.value),
+      scenarioStyle: 'font-family:\'VT323\',monospace;font-size:15px;letter-spacing:.06em;color:var(--za-text-muted);background:var(--za-surface);border:2px solid var(--za-border);padding:9px 8px;min-height:44px;cursor:pointer;',
+      gateBarStyle: bar + 'background:#0d1120;border:3px solid #7de2ff;',
+      gateCtaStyle: 'flex:0 0 auto;white-space:nowrap;font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-ink);background:var(--za-info);border:0;padding:12px ' + (phone ? 10 : 16) + 'px;min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5);',
+      politeText: st.politeText,
+      alertText: st.alertText,
+      srOnly: 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;',
+      drawDisabled: !acting,
+      drawTab: acting ? 0 : -1,
+      gateOpen: st.gateOpen,
+      gateText: st.mode === 'participant' ? 'TABLE PAUSED — REVIEW THIS PLAY.' : 'FROZEN ON THIS BEAT — ASK YOUR QUESTION.',
+      gateShowCta: true,
+      gateCtaLabel: st.mode === 'participant' ? 'RESUME TABLE' : 'CONTINUE',
+      release: () => this.release(),
+      declineZa: () => this.missZa(),
+      declineCallout: () => this.missCallout(),
+      declineStyle: 'flex:0 0 auto;white-space:nowrap;font-size:16px;letter-spacing:.06em;color:#c98a9c;background:transparent;border:2px solid #6b2338;padding:9px 10px;min-height:44px;cursor:pointer;',
+      focusCta: focusNew,
+      researcher: st.mode !== 'participant',
+      showFreeze: !phone,
+      toggleFreeze: () => this.setState({ freeze: !this.state.freeze }),
+      freezeLabel: st.freeze ? 'FREEZE ON' : 'FREEZE OFF',
+      freezeStyle: 'font-size:15px;letter-spacing:.06em;color:' + (st.freeze ? 'var(--za-ink)' : 'var(--za-text-muted)') + ';background:' + (st.freeze ? 'var(--za-info)' : 'transparent') + ';border:2px solid var(--za-border);padding:9px 8px;min-height:44px;cursor:pointer;',
+      ctaStyle: 'flex:0 0 auto;white-space:nowrap;font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-ink);background:var(--za-danger);border:0;padding:12px ' + (phone ? 10 : 16) + 'px;min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5);',
+      zaCtaStyle: 'flex:0 0 auto;white-space:nowrap;font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-ink);background:var(--za-warning);border:0;padding:12px ' + (phone ? 8 : 16) + 'px;min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5);',
+      roundOver: roundOpen,
+      roundTitle: st.winner === -1 ? 'DECK EMPTY' : (st.winner === 0 ? 'YOU WIN' : (st.winner !== null ? PLAYERS[st.winner].name + ' WINS' : 'ROUND OVER')),
+      roundSummary: st.winner === -1 ? 'No cards remain to draw. Start a fresh round.' : 'The round is complete. Start a fresh deal when everyone is ready.',
+      roundBarStyle: bar + 'background:var(--za-surface);border:3px solid var(--za-success);',
+      playAgainStyle: 'flex:0 0 auto;white-space:nowrap;font-family:\'Press Start 2P\',monospace;font-size:' + (phone ? 9 : 10) + 'px;color:var(--za-ink);background:var(--za-success);border:0;padding:12px ' + (phone ? 10 : 16) + 'px;min-height:44px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.5);',
+      fadeStyle: 'position:absolute;right:0;top:0;bottom:0;width:28px;pointer-events:none;background:linear-gradient(90deg, rgba(8,10,18,0), #080a12);' + (overflowing && !atEnd ? '' : 'display:none;'),
+      fadeLeftStyle: 'position:absolute;left:0;top:0;bottom:0;width:28px;pointer-events:none;background:linear-gradient(270deg, rgba(8,10,18,0), #080a12);' + (overflowing && !atStart ? '' : 'display:none;'),
+      handWrapStyle: 'position:relative;' + (swapHand ? 'display:none;' : ''),
+      onHandScroll: this.onHandScroll,
+      setHandRow: this.setHandRow,
+      drawCard: () => this.drawCard(),
+      playDrawn: () => this.playDrawn(),
+      keepDrawn: () => this.keepDrawn(),
+      callZa: () => this.callZa(),
+      recoverZa: () => this.recoverZa(),
+      doCallout: () => this.doCallout(),
+      openHelp: e => this.openHelp(e),
+      closeHelp: () => this.closeHelp(),
+      focusHelpClose: this.setHelpClose,
+      onHelpKey: e => this.helpKey(e),
+      clearPreview: () => { if (this.state.armed === null) this.setState({ message: '' }); },
+      playAgain: () => this.reset(),
+      reset: () => this.reset()
+    };
+  }
+}
+
+</script>
+
+
+</body></html>
